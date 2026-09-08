@@ -20,7 +20,29 @@
 
 **Estados:** ⬜ libre · 🔧 en curso · ✅ hecho · ⛔ bloqueado
 
-## 🚦 ARRANCÁ POR ACÁ — sesión del 2026-09-02 en adelante (post cierre 140)
+## 🚦 ARRANCÁ POR ACÁ — sesión del 2026-09-07 22:40 en adelante (post cierre 142)
+
+> ✅ **Los dos cupos ya NO son el bloqueante: Mani subió Apify a un tope de 50 y Supadata al plan de
+> USD 47/mes, y la corrida de las 22:00 entregó 65 candidatos.** Al cerrar quedaban **USD 17,31 de
+> Apify** hasta el **9 de septiembre 23:59 UTC**, y una corrida cuesta ~2,27. *El ⛔ que vivía acá se
+> resolvió el mismo día que se escribió: se re-mide con `/v2/users/me/limits`, no se cita.*
+
+> 🔴 **LO PRIMERO A MIRAR: el `heat_score` no mueve lo que llega al Feed.** Medido en la corrida 167:
+> mediana **1,2775** en los entregados contra **1,2736** en los no entregados, y correlación con la
+> relevancia de **r = −0,104** (n=159). Los 4 videos de más vistas rankearon 6/63, 8/63, 21/55 y 34/63
+> por heat y murieron en el gate con relevancia 0–0,2. **El score decide dónde se gasta la plata, no
+> qué ve el equipo.** Fórmula y trampa de medición en el cierre 142 §3–§4.
+
+> ⏳ **Lo que falta para cerrar el ciclo: el norte de la corrida 167 todavía no se puede leer** — los
+> 65 están sin calificar. **35 de esos 65 entraron por el escalón 5** (`bajo_umbral_entregados`, que
+> daba 0 en las 3 corridas anteriores). Si el norte baja, ese es el sospechoso #1. Medir antes de tocar.
+
+> 🩸 **Los dos bugs MUDOS del cierre 141 siguen sin arreglar:**
+> **(a)** con **0 candidatos el motor nunca cierra la corrida** ⇒ queda `en_curso` y el guard
+> single-flight **bloquea al equipo 60 minutos sin decir por qué** (no se disparó esta vez sólo porque
+> hubo 65 candidatos); **(b)** un proveedor que falla **no genera aviso** — esta vez **TikTok entregó
+> 0 con un objeto vacío, sin `Forbidden` y sin una línea en ningún lado**.
+### Lo de la sesión anterior (post cierre 140) sigue vigente
 
 > ⚠️ **Lo que había acá decía "0 corridas desde los cambios" — era cierto al cerrar 139 y dejó de
 > serlo tres horas después.** El equipo corrió DOS VECES el mismo 02/09 (14:14 y 16:11) y el cierre
@@ -41,7 +63,7 @@ un piso, no un resultado.
 |---|---|---|
 | `segunda_oportunidad` (ADR-091, escalón 2) | 0 corrida tras corrida ⇒ **no es la palanca** | **0 en las 2 corridas** ⇒ **confirmado: no es la palanca.** Dicho, no defendido |
 | `bajo_umbral_entregados` (escalón 5) | si sale 0, es una red que nadie usa | **0 en las 2** — lectura buena: con 76-80% de aprobación el corte normal llenó N solo, la red no hizo falta |
-| `filtrados_por_motivo` (piso de 100k) | si el dedup mata la mayoría, bajarlo no cambia nada | dedup mató **286**, el piso mató **0** ⇒ **decidido: no bajar el piso**, el cuello es el dedup |
+| `filtrados_por_motivo` (piso de 100k) | si el dedup mata la mayoría, bajarlo no cambia nada | 🩸 **MEDICIÓN NULA, corregido en el cierre 141.** El piso mató 0 porque **el piso ERA 0**: Mani lo bajó `100000 → 0` el 02/09 00:43, antes de las dos corridas, y la métrica de la propia corrida lo dice (`piso_views: 0`). No se midió ningún piso. Ver cierre 141 |
 | `gate_ve_metrica` (ADR-093) | si el norte baja o sube el 👎 con cobertura completa ⇒ apagar el knob | `true` en las 2, norte alto con cobertura casi completa ⇒ **el knob se queda prendido** |
 
 ### 🔴 Bloqueantes que NO son código, actualizados
@@ -57,12 +79,15 @@ un piso, no un resultado.
 
 | # | Qué | Estado |
 |---|---|---|
-| ~~1~~ | ~~Decidir el piso de 100k~~ | ✅ **decidido en el cierre 140: no bajarlo** (dedup domina, medido) |
+| 1 | **Decidir el piso de vistas** | 🔄 **REABIERTO en el cierre 141.** El "decidido" del 140 se apoyaba en una medición nula (el piso era 0). **Dos datos reales, los dos con el piso en 500.000: 18:55 → piso 30 / dedup 1; 22:00 → piso 462 / dedup 77** ⇒ con un piso de verdad el piso domina 6 a 1 y **el dedup NO domina**. Falta decidir el valor |
 | 2 | **Escalón 4** — rescatar lo pagado que se cayó de la ventana | sigue sin medir (§1 del plan) |
 | ~~3~~ | ~~El norte en la pantalla Entender~~ | ✅ **hecho el 02/09** — tarjeta nueva "El norte", arriba de todo. ADR-089 "hecho cuando" #1 se cumple. Cambio de app, sin `core/`, sin migración, sin ADR (ver detalle abajo) |
 | 4 | `descartes_expuestos` se lee y no se renderiza (`lib/entender.ts:40`) | sin tocar |
 | 5 | **Los dos modos cantidad/calidad** — [plan §8](./plan-cascada-de-entrega.md) | sigue sin datos suficientes (2 corridas más no alcanzan) |
 | 6 | T2a/T2b/T3 y la anatomía en `dev-doc.md` | sin tocar |
+| **7** | **Refactor del flujo de evaluación** — heat-score, viralidad como tasa (Δvistas/tiempo), pesos, y cómo Haiku combina los `criterios_relevancia` de Proyecto y Voz | 🆕 **abierto por Mani el 07/09, sesión propia.** Ya tiene su medición de arranque: cierre 142 §3–§4 |
+| **8** | **Optimización de costos Apify + Supadata** — la función referentes(X) → videos a scrapear, y bajar el 64,5% de transcripciones descartadas | 🆕 **abierto por Mani el 07/09, sesión propia.** Es el cuerpo de la task de Notion que ya existe, no una nueva |
+| **9** | **La deuda de fondo** — complejidad innecesaria, piezas que no encajan, factores sin justificar; profundizar Referentes, métricas de corridas y las variables del equipo de redes. **Con los aprendizajes de PreWave** | 🆕 **abierto por Mani el 07/09, sesión propia** |
 
 > ✅ **El norte llegó a Entender (02/09), sin tocar `core/`.** Todo lo que hacía falta ya se leía por
 > separado: `runs.metricas.por_proyecto` (N pedido, entregados) y `app.candidatos` (calificados,
@@ -84,6 +109,387 @@ un piso, no un resultado.
 ---
 
 ## Pendiente vivo (arrastres manuales de Mani — antes de la próxima corrida real)
+
+> # 🟢 CIERRE 142 (2026-09-07) — La primera corrida con los dos cupos sanos entregó 65, y el heat-score resultó no mover nada
+>
+> ## 0. La pregunta con la que arrancó la sesión: ¿la corrida fallida perdió videos?
+>
+> **No. Cero.** Medido con tres señales independientes:
+>
+> | señal | resultado |
+> |---|---|
+> | `processed_items` filtrado por el `run_id` de la corrida fallida (`c4c4493f`) | **0 filas** (la de las 08:00 sí escribió sus 15) |
+> | los 15 `external_id` concretos, buscados uno por uno | **0 en `processed_items`, 0 en `descartes`, 0 en `transcripciones`** |
+> | el código de `Preparar procesados` | cuelga de `Armar candidato` y filtra `_entregado === true`; con 0 candidatos n8n no ejecuta el nodo |
+>
+> 🔑 **Es ADR-087 funcionando, y el resultado es contraintuitivo: el bug #4 del cierre 141 (con 0
+> candidatos la corrida no cierra) es el MISMO que salvó la memoria del dedup.** Desde que la memoria
+> cuelga de lo entregado y no de lo transcrito, **un fallo a mitad de camino ya no cuesta videos,
+> cuesta una corrida.** Antes de ADR-087 estos 15 se habrían quemado sin que nadie los viera, que es
+> exactamente el desperdicio de 1.401 videos que la ADR midió.
+>
+> ## 1. Los dos cupos, re-medidos (el ⛔ del cierre 141 ya no aplica)
+>
+> Mani subió los dos planes. Apify pasó de un tope de 29 a **50**; Supadata de USD 17 a **47/mes**.
+>
+> - **Apify al cerrar la sesión: USD 32,69 de 50 ⇒ quedan 17,31**, ciclo hasta el **9 de septiembre
+>   23:59 UTC**. La corrida de las 22:00 costó **~2,27**. Alcanza para ~7 corridas más antes del reset.
+> - **Supadata: `/v1/account` responde `404`, no 429.** No sirve para medir el cupo y no es prueba de
+>   nada. *La prueba real es de efecto: resolvió los 183 videos de la corrida sin un solo 429.*
+>
+> ## 2. La corrida 167 — `59f9b7d5`, 22:00:59 → 22:39:39, estado `ok`, cerró sola
+>
+> ```
+> 1.407 reels de Apify IG (10 cuentas)      ← eran 246 en la corrida fallida
+>     0 de TikTok
+> 2.688 pares video/proyecto
+>   970 pasan el pre-trim de relevancia
+>   183 pasan dedup + piso    (piso de 500k mató 462, dedup 77, min_likes 0)
+>   183 transcritos           (9 gratis desde la caché de ADR-087, 174 pagados)
+>    65 candidatos al Feed
+>    65 filas en processed_items   ← exactamente los entregados, ni uno más
+>     0 descartes para auditar
+> ```
+>
+> | proyecto | N pedido | entregados | |
+> |---|---|---|---|
+> | Comunicación para líderes | 20 | **20** | ✅ |
+> | Empresarios | 20 | **20** | ✅ |
+> | Marketing | 20 | 17 | `supply` |
+> | Estrategia Mercadeo | 20 | 6 | `supply` |
+> | Marca Personal | 25 | 2 | `supply` |
+>
+> Los tres que quedaron cortos son los mismos que el cierre 141 midió con 3 o 4 cuentas asignadas.
+> **Eso no lo arregla más presupuesto: lo arregla asignarles cuentas.**
+>
+> ## 3. 🔴 EL HALLAZGO: el heat-score NO influye en lo que llega al Feed
+>
+> Arrancó como la pregunta de Mani *"¿por qué los videos de más vistas no pasaron?"* y terminó siendo
+> una propiedad del motor que ningún doc tenía escrita.
+>
+> | medición | número |
+> |---|---|
+> | `heat_score` mediana de los **entregados** | **1,2775** (n=103) |
+> | `heat_score` mediana de los **no entregados** | **1,2736** (n=80) |
+> | correlación `heat_score` ↔ `relevancia_score` | **r = −0,104** (n=159) |
+>
+> Y los 4 videos de más vistas, que son los que dispararon la pregunta:
+>
+> | video | proyecto | heat real | rank por heat | relevancia | entregado |
+> |---|---|---|---|---|---|
+> | Cardone 1,26M | Empresarios | 1,4099 | **6 de 63** | **0** | no |
+> | Cardone 1,39M | Empresarios | 1,3935 | **8 de 63** | **0,2** | no |
+> | Sinek 1,31M | Comunicación para líderes | 1,2899 | 21 de 55 | 0,1 | no |
+> | Cardone 664k | Empresarios | 1,2877 | 34 de 63 | 0,08 | no |
+>
+> ⇒ **El heat-score hizo su trabajo** (los puso arriba) **y no sirvió de nada.** Lo que decide es el
+> gate: Haiku los calificó 0–0,2 de relevancia contra los `criterios_relevancia` del proyecto y la voz.
+> El heat-score solo decide **qué se transcribe y en qué orden** (el corte `cap_top_n`), o sea **dónde
+> se gasta la plata**, no qué ve el equipo.
+>
+> 🩸 **Y una trampa de medición que hay que conocer antes de re-medir esto: en la salida del nodo
+> `Gate de relevancia` la clave `heat_score` YA NO ES el heat-score** — el gate la pisa con su propio
+> veredicto (es justo el desperdicio que ADR-092 vino a tapar guardando `prescore_metrico`). Leer la
+> correlación desde ahí da r≈1 **por construcción**. El heat real se lee del nodo `Heat-score v1`.
+> *Esta sesión se comió el error y lo cazó porque los dos números salían idénticos hasta el decimal.*
+>
+> ## 4. Cómo se calcula hoy el heat-score (línea base para la task de refactor)
+>
+> Del nodo `Heat-score v1`:
+>
+> ```
+> base = peso_views(0,4)·pct(views) + peso_likes(0,4)·pct(likes) + peso_eng(0,2)·pct(engagement)
+> heat = base · (1 + boost_idioma) · (1 + tasa_seleccion_del_referente)
+> ```
+>
+> Tres propiedades que hay que tener a mano antes de tocarlo:
+>
+> 1. **`pct()` es un PERCENTIL dentro del pool del proyecto de ESA corrida, no un valor absoluto.** Un
+>    video de 1,39M no vale por sus vistas: vale por su puesto contra los demás videos de esa corrida.
+>    Cambiar el pool cambia el score sin que cambie el video.
+> 2. **`boost_idioma` (0,3) es multiplicativo y es ciego entre no-españoles.** Cardone, Sinek y Robbins
+>    son todos `en`: los tres reciben el mismo +30%, así que no desempata nada dentro del pool real.
+> 3. **NO HAY NINGÚN COMPONENTE DE TIEMPO.** `fecha_publicacion` se colecta y no entra en el score.
+>    Un reel con 500k vistas en 2 días y uno con 500k en 8 meses puntúan **idéntico**.
+>
+> ## 5. Tres canarios se despertaron con esta corrida
+>
+> `select count(*) ... where run_id = '59f9b7d5...'` ⇒ **`prescore_metrico` 65/65, `huella_guion`
+> 65/65, `duracion_seg` 65/65.** ADR-086 y ADR-092 dejaron de ser columnas vacías: el motor las
+> escribe y la primera fila la escribió el motor, no una verificación. **Ya se pueden medir**; leerlas
+> todavía no las lee nadie.
+>
+> ## 6. El escalón 5 se activó por PRIMERA VEZ
+>
+> `bajo_umbral_entregados = 35` sobre 65 entregados. Daba **0 en las tres corridas anteriores**, y el
+> criterio pre-escrito decía *"si sale 0, es una red que nadie usa"*. Ya no sale 0: **más de la mitad
+> de lo entregado entró por la red de relleno**, o sea por debajo del corte normal de calidad.
+> `segunda_oportunidad` (escalón 2) dio **0 por tercera corrida seguida**.
+> ⏳ **Lo que falta es el norte de esta corrida, y no se puede leer todavía**: los 65 están sin
+> calificar. Si el norte baja, el sospechoso #1 es este escalón. **Medirlo antes de tocarlo.**
+>
+> ## 7. El piso de vistas: segundo dato real, apunta igual que el primero
+>
+> | corrida | piso | mató el piso | mató el dedup |
+> |---|---|---|---|
+> | 07/09 18:55 | 500k | 30 | 1 |
+> | **07/09 22:00** | **500k** | **462** | **77** |
+>
+> Con un piso de verdad el piso domina **6 a 1**. Confirma lo que el cierre 141 sospechó: *"el dedup
+> domina"* era una propiedad de no tener piso, no del sistema.
+>
+> ## 8. Lo que NO se tocó
+>
+> - **Los bugs #4 y #5 del cierre 141** siguen vivos. El #4 no se disparó esta vez sólo porque hubo 65
+>   candidatos; con 0 vuelve a colgar la corrida y a bloquear al equipo 60 minutos en silencio.
+> - **TikTok entregó 0, otra vez en silencio.** Esta vez **no fue `Forbidden`**: el nodo devolvió **un
+>   objeto vacío, sin error**, y `Normalizar TT` sacó 0. No hay forma de distinguir *"no había nada"*
+>   de *"se rompió"*, que es el bug #5 con otra cara.
+> - **El Feed llegó a 298 sin calificar** (233 viejos + los 65 nuevos). El más antiguo sigue siendo del
+>   21/08. *Para Majo, abrir el Feed mañana se va a ver casi igual que hoy aunque la máquina haya hecho
+>   todo bien: el backlog viejo tapa el trabajo nuevo.*
+>
+> ## Consultas y comandos usados (para re-medir, no para citar)
+>
+> ```sql
+> -- ¿esta corrida quemó algo en el dedup, y coincide con lo entregado?
+> select (select count(*) from public.processed_items p where p.run_id = r.id) as quemados,
+>        (select count(*) from app.candidatos c where c.run_id = r.id)         as entregados,
+>        metricas->'filtrados_por_motivo' as murieron_por,
+>        metricas->>'bajo_umbral_entregados' as escalon5
+> from public.runs r where r.id = '<run_id>';
+>
+> -- ¿un video concreto está quemado sin haberse mostrado?
+> select (select count(*) from public.processed_items where external_id = '<eid>') as en_feed,
+>        (select count(*) from app.transcripciones  where external_id = '<eid>') as transcrito;
+> ```
+>
+> ```bash
+> # el embudo real de una corrida, nodo por nodo (items por nodo)
+> curl -s -H "X-N8N-API-KEY: $N8N_API_KEY" "$N8N_BASE_URL/api/v1/executions/<id>?includeData=true"
+> # ⚠️ el heat_score REAL se lee del nodo 'Heat-score v1'. En 'Gate de relevancia' ya está pisado.
+>
+> curl -s -H "Authorization: Bearer $APIFY_TOKEN" https://api.apify.com/v2/users/me/limits
+> ```
+>
+> ---
+>
+> ## 📌 Tres frentes que Mani abrió al cerrar (cada uno pide su propia sesión)
+>
+> ### A. Refactor del flujo de evaluación: heat-score, viralidad y cómo Haiku decide
+>
+> **Por qué ahora:** §3 de este cierre midió que el heat-score no mueve lo entregado (r = −0,104) y §4
+> que no tiene componente de tiempo. **Mani: las vistas deben pesar fuerte sobre la calidad del video.**
+>
+> Lo que la sesión tiene que resolver, todo junto porque es un solo flujo:
+>
+> 1. **Cómo mira el motor las vistas hoy y por qué esos videos no pasaron.** La respuesta parcial ya
+>    está medida (§3: pasaron el heat y murieron en el gate); falta decidir qué se hace con eso.
+> 2. **Definir y medir VIRALIDAD, porque las vistas solas se quedan cortas.** Idea de Mani: la tasa de
+>    crecimiento, o sea **el cambio de vistas respecto al tiempo que lleva publicado el video**. Un
+>    reel con 500k en 2 días no es el mismo que uno con 500k en 8 meses, y hoy puntúan igual.
+>    📎 **PreWave ya usa exactamente esta forma**: *mínimo ~1.000 likes/día en las primeras 2 semanas*
+>    (ver `02 Projects/30x/notebook/prewave-flujo-produccion-contenido.md` en el vault). Es una tasa,
+>    no un acumulado. **El dato de entrada existe ya: `fecha_publicacion` se colecta y hoy se tira.**
+> 3. **Re-evaluar los pesos y la forma del score:** `peso_views` 0,4 · `peso_likes` 0,4 · `peso_eng`
+>    0,2, el percentil relativo al pool (§4.1), y el `boost_idioma` multiplicativo que no desempata
+>    entre no-españoles (§4.2).
+> 4. **Definir qué grado de influencia DEBE tener el score** sobre el destino de un video. Hoy solo
+>    manda sobre el gasto (`cap_top_n`), no sobre la entrega.
+> 5. **Cómo Haiku combina los `criterios_relevancia` del Proyecto y los de la Voz: cuál pesa más y
+>    cómo se complementan**, y cómo usa el `heat_score` para dejar pasar o no.
+>
+> 🎯 **El objetivo declarado de Mani, que es el criterio de aceptación real: que este flujo de
+> evaluación quede claro y bien definido, y que la herramienta sea cada vez más medida y controlada,
+> menos aleatoria.**
+>
+> ⚠️ Antes de tocar: leer **ADR-090** (el prescore desempata pasivo y no vota) y **ADR-093** (el gate
+> ve la métrica), que ya decidieron parte de esto y no se re-litigan.
+> 🔗 Se pisa con la task abierta *"Terminar T4 del pipeline (gate ordena sin vetar) + revisar
+> rechazados + relevancia 0,55"* — mirarlas juntas.
+>
+> ### B. Sesión dedicada a optimización de costos: Apify y Supadata
+>
+> **Apify.** Mirar cómo se ven las llamadas y qué se puede optimizar: **qué factores influyen** — el
+> actor usado, la cantidad de referentes, la ventana de días de recencia, los resultados por búsqueda.
+> 🎯 **La pregunta central es de escalabilidad, y hoy no tiene respuesta: si Mani llega a 200
+> referentes, ¿mejora la calidad de los videos traídos o solo dispara el costo como loco?**
+> 📐 **Entregable que Mani ya bosquejó: una función que relacione la cantidad de referentes de un
+> proyecto (X) contra la cantidad de videos que se deberían scrapear**, para controlar el gasto y las
+> llamadas a la API.
+>
+> **Supadata.** Cómo bajar el costo de transcripción **reduciendo el ratio de videos transcritos que
+> terminan descartados**. Factores a mirar: la calidad de los referentes, qué tan bien representan la
+> autoridad de la voz, cómo se buscan más referentes, qué actor de Apify se usa, y **en qué parte del
+> workflow se hace la llamada a transcribir**.
+> 📏 **Línea base ya medida, de esta misma corrida: 183 transcritos → 65 entregados = 118 pagados y
+> descartados (64,5%).** Ese es el número a bajar. La caché de ADR-087 ya recicla parte (9 de 183
+> salieron gratis), pero solo dentro de la ventana.
+>
+> 🔗 **NO es una task nueva**: es el cuerpo de la que ya existe, *"Arrancar el audit de performance y
+> costo del pipeline de contenido"* (Notion, `retia`, p3).
+>
+> ### C. La deuda de fondo: complejidad innecesaria y piezas que no encajan
+>
+> Diagnóstico de Mani, textual en lo que importa: **la herramienta todavía tiene mucha complejidad
+> innecesaria, componentes que no se conectan bien entre sí, y factores que influyen pero no están del
+> todo justificados.** Y aspectos donde se podría ahondar más:
+>
+> - **el repositorio de Referentes y cómo esos referentes son evaluados**
+> - **las métricas de las corridas**
+> - **las variables abstraídas para que el equipo de redes las manipule** — los días de recencia, los
+>   resultados por corrida
+>
+> 📎 **Y todo lo aprendido de PreWave (la reunión con Ellin) debería usarse para mejorar esta
+> herramienta.** El material está en `02 Projects/30x/notebook/prewave-flujo-produccion-contenido.md`.
+> Lo que ya se ve que aplica directo: **el criterio de autoridad** (cuentas medianas de 40k-100k
+> seguidores con un video muy viral de 500k-600k, en vez de cuentas grandes), **la viralidad como tasa
+> y no como acumulado**, **el orden del flujo** (el copywriter genera el script sólo después de que el
+> video está aprobado, no antes), y **el agente que aprende de las decisiones del equipo** — que es lo
+> que acá hace a medias la `tasa_seleccion` de ADR-019.
+>
+
+
+> # 🧯 CIERRE 141 (2026-09-07) — El equipo reportó "la herramienta saca videos de 3 mil vistas", y eran cinco cosas distintas
+>
+> Majo mandó dos audios pidiendo auxilio: subió `Mínimo de vistas` a 500.000 y la máquina le seguía
+> entregando videos de ~3.000, con grabación de un cliente nuevo en Ibagué al día siguiente. La
+> acusación era "es culpa de la herramienta". **Lo era en tres de los cinco hallazgos, y no en el que
+> ella reclamaba.** Todo lo de abajo está medido con dos señales independientes.
+>
+> ## 1. El ajuste que "no funcionó": funcionó, y llegó tarde
+>
+> Historial completo de `Mínimo de vistas` desde `app.eventos` (que guarda autor, hora y valor
+> anterior):
+>
+> | cuándo | quién | de → a |
+> |---|---|---|
+> | 28/08 15:37 | Mani | 0 → 600.000 |
+> | 30/08 23:53 | Mani | 200.000 → 100.000 |
+> | **02/09 00:43** | **Mani** | **100.000 → 0** |
+> | **07/09 17:47** | **Majo** | **0 → 500.000** |
+>
+> La corrida que entregó los videos malos corrió **de 08:00 a 08:19**; el cambio a 500.000 fue a las
+> **17:47**, casi 10 horas después. Segunda señal, independiente del log de eventos: **la corrida
+> guarda su propio piso en sus métricas y dice `piso_views: 0`**. La máquina hizo exactamente lo que
+> le pidieron. Lo que entregó: 15 videos, **mediana 80.278 vistas, mínimo 2.279**, 1 solo sobre 500k.
+>
+> 🔑 **Y el grueso de lo que ella veía es aún más viejo: 233 candidatos sin calificar en el Feed, el
+> más antiguo del 21/08, 29 de ellos con menos de 10.000 vistas y el peor con 19.** Un piso filtra lo
+> que entra, no limpia lo que ya está adentro — y eso, para quien mira el Feed, es indistinguible.
+>
+> ## 2. La corrida de las 18:55: el piso SÍ se aplicó, y aun así entregó cero
+>
+> Embudo real, sacado de la ejecución **166** de n8n (`GET /executions/166?includeData=true`):
+>
+> ```
+> 246 reels de Apify → 241 normalizados → 363 pares video/proyecto
+>  → 49 pasan el pre-trim de relevancia
+>  → 16 pasan dedup + piso   (piso de 500k mató 30, dedup mató 1)
+>  → 15 videos distintos a transcribir
+>  → 0 candidatos
+> ```
+>
+> Los 15 murieron en el mismo punto: **Supadata devolvió 429 cinco veces a cada uno** (`_tx_429: 5`,
+> 75 rechazos en total), se agotó el backoff, quedaron sin guion y el gate los descartó a todos por
+> `sin_guion`.
+>
+> ## 3. Los dos proveedores están sin cupo (la causa raíz, y no es del código)
+>
+> Se le preguntó a cada API directamente, que es la segunda señal que faltaba:
+>
+> - **Apify** `/v2/users/me/limits`: `monthlyUsageUsd = 29,45` contra `maxMonthlyUsageUsd = 29`, ciclo
+>   **10/08 → 09/09 23:59 UTC**. Por eso **5 de las 10 cuentas IG** (hormozi, garyvee, joeljota,
+>   jun_yuh, vusithembekwayo) y **el scraper de TikTok** devolvieron `Forbidden - perhaps check your
+>   credentials?`. Se quedó sin plata **a mitad de corrida**: las 5 primeras URLs de la lista
+>   trajeron datos y las 5 últimas no, en orden.
+> - **Supadata**: `429 limit-exceeded — "Plan usage limit was exceeded."` en **todos** los endpoints,
+>   incluido el de consultar la cuenta. No es rate-limit, es cuota de plan agotada.
+>
+> ⚠️ **Se venía degradando todo el día y nadie lo leyó:** la corrida de las 08:00 ya traía el aviso
+> "Supadata rechazo 585 pedidos sobre 117 videos" y **130 de 350 transcripciones vacías (37%)**. El
+> aviso existía, decía "el backoff los absorbió", y a las 18:55 el backoff ya no absorbía nada.
+>
+> ## 4. 🩸 Bug: con 0 candidatos la corrida NUNCA se cierra
+>
+> `Armar candidato` salió con 0 items ⇒ n8n no ejecuta un nodo sin input ⇒ **`Preparar candidatos`,
+> `POST Candidatos`, `Preparar procesados`, `Resumen del run` y `Cerrar run en el registro` no
+> corrieron nunca**. La ejecución figura `success` en n8n y el run quedó `en_curso` **67 minutos**,
+> hasta que se cerró a mano. Efecto colateral y peor: **el guard single-flight bloquea al equipo
+> durante `ventana_corrida_min` (60 min) en silencio** — el `Bloqueada: ya hay corrida viva` es un
+> noOp, así que el botón "no hace nada" y no hay forma de saber por qué.
+> *La rama `sin novedades` ya cubre el caso "no había videos nuevos"; el que falta es "sí había, y
+> ninguno sobrevivió".* **No se arregló en esta sesión.**
+>
+> ## 5. 🩸 Bug: los seis `Forbidden` de Apify salieron mudos
+>
+> El `onError: continueRegularOutput` es correcto (invariante #1: el registro es sumidero), pero
+> **nadie convierte una respuesta `{error}` de Apify en un aviso**. La corrida terminó en verde
+> habiendo perdido la mitad de sus cuentas, y los proyectos **Marketing** y **Estrategia Mercadeo**
+> se quedaron con **0 videos asignados** por eso, sin una línea en ningún lado. Mismo patrón que ya
+> pagaron el clamp de `Resultados por cuenta` y el gate de voz apagada. **No se arregló.**
+>
+> ## 6. Lo que sí era configuración del equipo
+>
+> Majo pidió **105 videos** (5 proyectos nuevos de la voz `Nicolás Martínez`: 20+20+20+25+20) con
+> **10 cuentas**, y 3 de esos proyectos tienen solo 3 o 4. Techo real de esa corrida: **16 videos**,
+> incluso con Supadata sano. Reparto: `Comunicación para líderes` 161 asignados → 38 pre-trim;
+> `Empresarios` 128 → 11; `Marca Personal` 74 → **0**; `Estrategia Mercadeo` y `Marketing` → **0
+> asignados**.
+>
+> ✅ **Pero el piso de 500k es viable con estas cuentas**, al revés que con las de Milena (mediana
+> ~178k). Medido sobre el scrape del 07/09: **melrobbins 33 de 49 reels ≥500k**, jefferson_fisher 22
+> de 48, grantcardone 16 de 42, simonsinek 14 de 42, tonyrobbins 12 de 30. *El piso no es el
+> problema; la cantidad de cuentas por proyecto sí.*
+>
+> ## 7. El hallazgo que corrige al cierre 140
+>
+> **La decisión "no bajar el piso de 100k" se tomó sobre una medición que no midió nada.** El piso
+> valía **0** en las dos corridas del 02/09 (`piso_views: 0` en sus propias métricas, y el evento de
+> Mani bajándolo a 0 a las 00:43 de ese día). "El piso mató 0" era tautológico.
+> 📏 **Primer dato real, del 07/09 con el piso en 500.000: el piso mató 30 y el dedup 1.** O sea que
+> **la conclusión "el dedup domina" no es una propiedad del sistema, es una propiedad de no tener
+> piso.** Queda reabierto el pendiente #1. *Regla que sale de acá: un contador de "cuántos mató el
+> filtro X" no se lee sin el valor de X al lado — y `filtrados_por_motivo` ya lo trae, justamente
+> para esto.*
+>
+> ## Lo que se hizo (y lo que no)
+>
+> - ✅ **Corrida zombie cerrada a mano** (`c4c4493f`, estado `fallo`), con las métricas reconstruidas
+>   desde la ejecución 166 **usando las fórmulas del propio nodo `Resumen del run`** (conteos por
+>   video distinto, no por fila) y 4 avisos adentro que explican el cero. Verificado con la misma
+>   consulta que usa el guard: **0 corridas vivas bloqueando**.
+> - ✅ **Explicación enviada a Majo por WhatsApp** (07/09 20:04).
+> - ❌ **Sin tocar: los dos bugs (#4 y #5)**, y los dos cupos (Apify y Supadata) que son decisión de
+>   plata de Mani.
+> - 📌 **Nada de código cambió en esta sesión.** El único write fue a `public.runs`, una fila.
+>
+> ## Consultas que se usaron (para re-medir, no para citar)
+>
+> ```sql
+> -- historial de un ajuste, con autor y valor anterior
+> select e.creado_en at time zone 'America/Bogota', u.nombre, e.detalle
+> from app.eventos e left join app.usuarios u on u.id = e.usuario_id
+> where e.tipo = 'ajustes.editar' and e.detalle->>'clave' ilike '%vistas%'
+> order by e.creado_en desc;
+>
+> -- que piso corrio DE VERDAD en cada corrida (no el de hoy)
+> select id, inicio at time zone 'America/Bogota',
+>        metricas->'filtrados_por_motivo' as murieron_por
+> from public.runs where metricas ? 'filtrados_por_motivo' order by inicio desc;
+>
+> -- corridas colgadas que bloquean el boton del equipo
+> select id, inicio at time zone 'America/Bogota' from public.runs
+> where params->>'workflow' = 'motor' and estado = 'en_curso'
+>   and inicio >= now() - interval '60 minutes';
+> ```
+>
+> ```bash
+> # los dos cupos, que es lo primero a mirar cuando una corrida entrega cero
+> curl -s -H "Authorization: Bearer $APIFY_TOKEN" https://api.apify.com/v2/users/me/limits
+> curl -s -H "x-api-key: $SUPADATA_API_KEY" https://api.supadata.ai/v1/account
+> ```
+
 
 > # 📈 CIERRE 140 (2026-09-02) — Las corridas que "no existían" ya dieron 80%, y el piso de 100k se cierra
 >
@@ -120,6 +526,12 @@ un piso, no un resultado.
 >   criterio ya escrito ("si el dedup mata la mayoría, bajar el piso no cambia nada y el trabajo está
 >   en otro lado") **esto ya se cierra: no bajar el piso de 100k.** ⚠️ La corrida de 14:14 no trae este
 >   dato (`filtrados_por_motivo` da `null` ahí) — gap a anotar, no invalida la lectura de la otra.
+>   🩸 **ESTO ES FALSO Y SE CORRIGE EN EL CIERRE 141: no había ningún piso de 100k.** Mani lo había
+>   bajado `100000 → 0` el **02/09 a las 00:43**, o sea **antes de las dos corridas**, y la métrica de
+>   la corrida de 16:11 lo dice en la misma línea que se citó: **`piso_views: 0`**. El criterio se
+>   aplicó a un número que solo podía dar 0. *Un contador de "cuántos mató el filtro" no se lee sin
+>   mirar el valor del filtro que va al lado — y el propio `filtrados_por_motivo` lo trae justamente
+>   para eso.* La decisión queda **reabierta**, y el primer dato real está en el cierre 141.
 > - **`gate_ve_metrica` (ADR-093): `true` en las 2.** La época quedó marcada correctamente y el norte
 >   no bajó con cobertura completa ⇒ el knob se queda prendido. No hay corrida `false` comparable a
 >   este nivel de cobertura para aislar su efecto solo.
