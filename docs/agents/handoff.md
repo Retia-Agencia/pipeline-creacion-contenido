@@ -6069,6 +6069,25 @@ limpio. Sigue abierto, aparte: si un **referente** puede cruzar voces — [mapa-
 
 ## Log de avance (más reciente arriba)
 
+**2026-09-09 — La cola de Transcribir la vacía el navegador, no el servidor (Claude, con Mani).**
+
+**Qué se encontró:** Mani preguntó si una tanda de ~100 videos pegados en Transcribir estaba
+procesándose o stale. `apps/dashboard/app/[cliente]/[pipeline]/(zonas)/transcribir/procesador.tsx`
+es un `useEffect` client-side: mientras `pendientes > 0` llama a la server action
+`procesarPendientes` en loop, y se corta apenas se cierra o cambia esa pestaña. No hay nada corriendo
+en background — "stale" o "procesando" dependen literalmente de si alguien tiene esa pantalla abierta
+en ese momento, y no hay ninguna señal en la UI que lo diga.
+
+**Medido contra prod** (`app.transcripciones`, 09/09 23:44 UTC): la tanda pegada a las 23:22 (99
+videos) tenía 51 pendientes, con el último `procesado_en` de hace 10 segundos — avanzaba porque
+alguien tenía la pestaña abierta en ese momento, pura coincidencia de timing.
+
+**Propuesta, sin decidir:** mover el drenado a servidor (cron de Vercel repitiendo
+`procesarPendientes`, o delegarlo al motor de n8n, que ya tiene pool + presupuesto para Supadata) para
+que no dependa de una pestaña abierta. No es un one-liner: hay que resolver el reclamo doble sobre
+`procesado_en` si dos triggers corren a la vez (hoy el reclamo asume una sola pasada a la vez). Si se
+decide, termina en ADR.
+
 **2026-08-31 (cierre 129) — El Gate bajó 5.8x con más carga, y las cuatro entregaron completo por primera vez (Claude, con Mani).**
 
 **Qué se hizo:** se empujó el cierre 128, se subió *Resultados por cuenta de referente* de **50 a 150**
