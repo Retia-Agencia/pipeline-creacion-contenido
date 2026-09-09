@@ -1813,5 +1813,158 @@ seccion('Preparar descartes — misma regla, misma instancia');
   check('y sin él la fila sale igual, con null (no tumba el POST del lote)', sinId[0].external_id === null, JSON.stringify(sinId[0].external_id));
 }
 
+
+// ════════════════════════════════════════════════════════════════════════════
+// El cierre de una corrida que se queda sin créditos (ADR-094)
+// ════════════════════════════════════════════════════════════════════════════
+// 🩸 Lo que estos tests protegen, medido el 2026-09-09: tres corridas seguidas (exec 169, 170, 171)
+// arrancaron con el cupo de Apify en 50,02 de 50 USD, recibieron 15 de 15 respuestas
+// `{error:'Forbidden'}`, colectaron 0 videos y quedaron `en_curso` para siempre. n8n las reportó
+// `success`, así que el error handler tampoco se enteró. El equipo apretó el botón 3 veces en 6,5
+// horas y no vio una sola línea que dijera por qué.
+//
+// La regla que se prueba acá: **el proveedor rechazándonos y el proveedor sin nada que darnos son
+// dos cosas distintas**, y solo la primera mata la corrida a gritos.
+
+const tirar = async (fn) => { try { await fn(); return null; } catch (e) { return String(e.message || e); } };
+
+seccion('Cupo Apify (pre-flight) — frena ANTES de gastar, y solo con evidencia');
+{
+  const correr = async (respuesta, { margen = 2.5 } = {}) => {
+    const $ = (n) => {
+      if (n === 'Config') return { first: () => ({ json: { margen_cupo_apify_usd: margen } }) };
+      throw new Error('nodo no mockeado: ' + n);
+    };
+    const $input = { all: () => [{ json: { id: 'run-1' } }] };
+    const thisMock = { helpers: { httpRequest: async () => {
+      if (respuesta instanceof Error) throw respuesta;
+      return respuesta;
+    } } };
+    return new AsyncFn('$', '$input', 'console', jsCode('Cupo Apify (pre-flight)'))
+      .call(thisMock, $, $input, { log: () => {} });
+  };
+  const limites = (usado, tope) => ({ data: {
+    current: { monthlyUsageUsd: usado }, limits: { maxMonthlyUsageUsd: tope },
+    monthlyUsageCycle: { endAt: '2026-09-09T23:59:59.999Z' } } });
+
+  const sinCupo = await tirar(() => correr(limites(50.019, 50)));
+  check('con el cupo agotado la corrida se detiene con un error que nombra la causa',
+    sinCupo && /Sin cupo de Apify/.test(sinCupo), String(sinCupo));
+  check('y el mensaje trae los números y la fecha del reinicio, no un "algo falló"',
+    sinCupo && /50\.02 de 50 USD/.test(sinCupo) && /2026-09-09 23h59 UTC/.test(sinCupo), String(sinCupo));
+  // 🩸 Medido en la ejecución 172 del 2026-09-09, en producción: n8n parte el mensaje del Code node
+  // por el ÚLTIMO ':' y guarda SOLO lo de después (lo anterior va a `description`, que el error
+  // handler no lee). El primer intento de este mismo mensaje llegó a la fila del run como
+  // "no se pago ni se perdio ningun video." — con la causa borrada. Este check es el que impide
+  // que vuelva a pasar la próxima vez que alguien escriba un throw con dos puntos.
+  check('y NO lleva ":" — n8n se queda solo con lo que hay después del último y borraría la causa',
+    sinCupo && !sinCupo.includes(':'), String(sinCupo));
+  check('y deja dicho que no se pagó nada (la pregunta que abre toda sesión de rescate)',
+    sinCupo && /no se pago ni se perdio ningun video/.test(sinCupo), String(sinCupo));
+
+  // El margen es el punto: con 2 USD libres y una corrida que cuesta ~2,27, dejar arrancar es
+  // comprar a medias y morir en la mitad cara del pipeline.
+  const alFilo = await tirar(() => correr(limites(48, 50)));
+  check('con menos de una corrida de presupuesto tampoco arranca (el margen, no el cero)',
+    alFilo && /Sin cupo de Apify/.test(alFilo), String(alFilo));
+
+  const conCupo = await correr(limites(32.69, 50));
+  check('con presupuesto de sobra no frena', Array.isArray(conCupo) && conCupo.length === 1, JSON.stringify(conCupo));
+  check('y pasa el item de `Abrir run` intacto (el resto del workflow depende de él)',
+    conCupo[0].json.id === 'run-1', JSON.stringify(conCupo[0].json));
+  check('y le adjunta lo que leyó, para que la colecta pueda citarlo si la rechazan a mitad',
+    conCupo[0].json.cupo_libre === 17.31, JSON.stringify(conCupo[0].json));
+
+  // FAIL-OPEN: un chequeo que bloquea cuando NO SABE es peor que no tener chequeo. Apify caído no
+  // puede costarnos la corrida semanal.
+  const apifyCaido = await correr(new Error('ETIMEDOUT'));
+  check('si la API de Apify no contesta, NO frena la corrida (fail-open a propósito)',
+    Array.isArray(apifyCaido) && apifyCaido.length === 1, String(apifyCaido));
+  check('y lo deja marcado como "no lo pude leer", no como "hay cupo"',
+    apifyCaido[0].json.cupo_leido === false, JSON.stringify(apifyCaido[0].json));
+
+  const rara = await correr({ data: { current: {}, limits: {} } });
+  check('si la respuesta no trae los números esperados, tampoco frena',
+    Array.isArray(rara) && rara[0].json.cupo_leido === false, JSON.stringify(rara));
+}
+
+seccion('Normalizar IG — rechazo del proveedor ≠ dataset vacío');
+{
+  const correr = async (items, { cupo = null } = {}) => {
+    const $ = (n) => {
+      if (n === 'Cupo Apify (pre-flight)') {
+        if (!cupo) throw new Error('el pre-flight no corrió');
+        return { first: () => ({ json: cupo }) };
+      }
+      throw new Error('nodo no mockeado: ' + n);
+    };
+    const $input = { all: () => items.map((j) => ({ json: j })) };
+    return new AsyncFn('$', '$input', 'console', jsCode('Normalizar IG'))($, $input, { log: () => {} });
+  };
+  const FORB = { error: 'Forbidden - perhaps check your credentials?' };
+  const reel = (id) => ({ id, type: 'Video', url: 'https://ig/' + id, ownerUsername: 'ref', likesCount: 10, commentsCount: 5, followersCount: 100, timestamp: '2026-09-01T00:00:00Z' });
+
+  const todoRechazado = await tirar(() => correr(Array(15).fill(FORB)));
+  check('15 de 15 respuestas rechazadas ⇒ grita (no devuelve 0 en silencio)',
+    todoRechazado && /rechazo las 15 llamadas de Instagram/.test(todoRechazado), String(todoRechazado));
+  check('y el grito cita el error textual del proveedor, no una paráfrasis',
+    todoRechazado && /Forbidden/.test(todoRechazado), String(todoRechazado));
+  check('y tampoco lleva ":" (misma trampa de n8n que en el pre-flight)',
+    todoRechazado && !todoRechazado.includes(':'), String(todoRechazado));
+  // El texto del proveedor es de ELLOS: puede traer ':' cualquier día y decapitar el mensaje entero.
+  const conDosPuntos = await tirar(() => correr([{ error: 'HTTP 402: payment required' }]));
+  check('un error del proveedor que trae ":" no puede decapitar nuestro mensaje',
+    conDosPuntos && !conDosPuntos.includes(':') && /payment required/.test(conDosPuntos), String(conDosPuntos));
+
+  const conCupoLeido = await tirar(() => correr(Array(3).fill(FORB), { cupo: { cupo_usado: 49.9, cupo_tope: 50 } }));
+  check('si el pre-flight alcanzó a leer el cupo, el grito lo cita (arrancó sin plata vs se quedó sin plata)',
+    conCupoLeido && /Al arrancar el cupo estaba en 49\.9 de 50 USD/.test(conCupoLeido), String(conCupoLeido));
+
+  // 🔑 El caso que NO debe gritar: Apify contestó bien y no había reels nuevos. Eso es
+  // "sin novedades", un cierre en `ok`, y matarlo sería cambiar un zombi por una falsa alarma.
+  const vacioLegitimo = await correr([{ type: 'Image', id: 'x' }, { type: 'Sidecar', id: 'y' }, {}]);
+  check('un dataset sin videos NO grita: es "sin novedades", no un fallo',
+    Array.isArray(vacioLegitimo) && vacioLegitimo.length === 0, JSON.stringify(vacioLegitimo));
+
+  // Una cuenta caída cuesta una cuenta, no la corrida.
+  const mixto = await correr([FORB, reel('a'), FORB, reel('b'), FORB]);
+  check('con rechazos parciales sigue y entrega lo que sí vino',
+    Array.isArray(mixto) && mixto.length === 2, JSON.stringify(mixto.map((x) => x.json.external_id)));
+
+  // Regresión: el paso de por-item a por-lote no podía cambiar ni un campo del mapeo.
+  const uno = await correr([reel('abc')]);
+  check('el mapeo sobrevivió al cambio a por-lote: external_id',
+    uno[0].json.external_id === 'abc', JSON.stringify(uno[0].json));
+  check('...y el engagement_rate se sigue calculando igual',
+    uno[0].json.engagement_rate === '15.00', JSON.stringify(uno[0].json.engagement_rate));
+  check('...y la fecha se sigue recortando a día',
+    uno[0].json.fecha_publicacion === '2026-09-01', JSON.stringify(uno[0].json.fecha_publicacion));
+}
+
+seccion('Normalizar TT — el carril secundario no mata la corrida');
+{
+  const correr = async (items) => {
+    const $input = { all: () => items.map((j) => ({ json: j })) };
+    return new AsyncFn('$', '$input', 'console', jsCode('Normalizar TT'))(() => {}, $input, { log: () => {} });
+  };
+  const FORB = { error: 'Forbidden - perhaps check your credentials?' };
+
+  // Si TikTok cae con Instagram sano, la corrida entrega igual. Gritar acá tiraría una entrega buena
+  // por un carril que hace meses devuelve 0. Y saber si IG trajo algo exigiría leer una rama HERMANA,
+  // que es la clase de bug que dejó el dedup de ADR-029 sin efecto durante 3 corridas.
+  const rechazado = await correr([FORB]);
+  check('TikTok rechazado NO tira la corrida (Instagram puede estar sano)',
+    Array.isArray(rechazado) && rechazado.length === 0, JSON.stringify(rechazado));
+
+  // 🩸 Medido dos veces con dos caras distintas: `{}` el 07/09, `{error}` el 09/09. Solo la segunda
+  // es un rechazo, y el nodo tiene que poder decir cuál fue.
+  const vacio = await correr([{}]);
+  check('un eje vacío `{}` sigue siendo 0 items y sin ruido', Array.isArray(vacio) && vacio.length === 0, JSON.stringify(vacio));
+
+  const bueno = await correr([{ id: '77', webVideoUrl: 'https://tt/77', authorMeta: { name: 'x', fans: 200 }, diggCount: 20, commentCount: 20, createTimeISO: '2026-09-02T10:00:00Z' }]);
+  check('el mapeo sobrevivió al cambio a por-lote', bueno.length === 1 && bueno[0].json.external_id === '77', JSON.stringify(bueno));
+  check('...y el engagement_rate se sigue calculando igual', bueno[0].json.engagement_rate === '20.00', JSON.stringify(bueno[0].json.engagement_rate));
+}
+
 console.log(fail ? `\n${fail} test(s) en rojo` : '\nTodo en verde');
 process.exit(fail ? 1 : 0);

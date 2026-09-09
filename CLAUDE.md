@@ -46,7 +46,7 @@ en §Agent skills; acá solo se ubican.
   comparten bloqueos** — el personal está a un pedido (los few-shot) y el copiable necesita los tres.
 
 **Decisiones**
-- [docs/adr/](docs/adr/) — ADRs 001–093 (93 archivos), una decisión por archivo con su porqué ([índice](docs/adr/README.md)).
+- [docs/adr/](docs/adr/) — ADRs 001–094 (94 archivos), una decisión por archivo con su porqué ([índice](docs/adr/README.md)).
   🧭 **[ADR-089](docs/adr/ADR-089-una-sola-metrica-aprobados-contra-lo-pedido.md) manda sobre las métricas de todos los demás:** el norte es **`aprobados / N pedido`, por proyecto y por corrida** (cobertura × precisión). Un cambio que no lo mueve no es una mejora, por más que suba su propio número.
 
 **Contratos del núcleo (`core/`, solo cambia con ADR)**
@@ -294,7 +294,7 @@ Este repo está preparado para ingeniería con agentes. Leé esto antes de traba
 - **Dev-doc** ([docs/agents/dev-doc.md](docs/agents/dev-doc.md)) — referencia técnica nodo-por-nodo de
   los tres workflows (orden de ejecución, qué tabla de Postgres lee/escribe cada nodo, esquema Supabase y
   trazabilidad de campos). Leela antes de tocar un `workflow.json`; la fuente de verdad sigue siendo el JSON.
-- **ADRs** ([docs/adr/](docs/adr/)) — decisiones de arquitectura con su porqué (ADR-001..088). *El número sale de `ls docs/adr`, no de acá: este renglón dijo 083 con 84 archivos en disco.*
+- **ADRs** ([docs/adr/](docs/adr/)) — decisiones de arquitectura con su porqué (ADR-001..094). *El número sale de `ls docs/adr`, no de acá: este renglón dijo 083 con 84 archivos en disco.*
   Leé los relevantes antes de cambiar un área ya decidida; no las re-litigues.
 
 El **qué/por qué** del producto y el diseño viven en [ROADMAP.md](ROADMAP.md) (norte + checklist del

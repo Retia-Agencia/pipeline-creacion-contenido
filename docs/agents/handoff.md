@@ -20,12 +20,18 @@
 
 **Estados:** ⬜ libre · 🔧 en curso · ✅ hecho · ⛔ bloqueado
 
-## 🚦 ARRANCÁ POR ACÁ — sesión del 2026-09-07 22:40 en adelante (post cierre 142)
+## 🚦 ARRANCÁ POR ACÁ — sesión del 2026-09-09 en adelante (post cierre 143)
 
-> ✅ **Los dos cupos ya NO son el bloqueante: Mani subió Apify a un tope de 50 y Supadata al plan de
-> USD 47/mes, y la corrida de las 22:00 entregó 65 candidatos.** Al cerrar quedaban **USD 17,31 de
-> Apify** hasta el **9 de septiembre 23:59 UTC**, y una corrida cuesta ~2,27. *El ⛔ que vivía acá se
-> resolvió el mismo día que se escribió: se re-mide con `/v2/users/me/limits`, no se cita.*
+> 🟡 **El cupo de Apify volvió a agotarse el 09/09 y costó TRES corridas.** El ciclo cerró en
+> **50,02 de 50 USD** y el ciclo nuevo arrancó el 09/09 a las 23:59 UTC. *Este renglón decía "los dos
+> cupos ya NO son el bloqueante" y envejeció en 2 días: el cupo no es un estado, es un saldo.* Se
+> re-mide con `/v2/users/me/limits`, no se cita.
+>
+> 🔑 **Y lo que lo reventó no fue el motor.** Apify marca el origen de cada corrida: dos corridas
+> `origin: MCP` (11:03 y 11:09 UTC) gastaron **USD 12,30** — exploración con agente. El motor gastó
+> ~1,68 ese día. **El pipeline y las sesiones de Claude comparten una sola cuenta con un solo tope.**
+> ADR-094 ahora lo **avisa**; separarlo (token o cuenta propia para el motor) es decisión pendiente
+> de Mani, que eligió anotarlo y no tocarlo el 09/09.
 
 > 🔴 **LO PRIMERO A MIRAR: el `heat_score` no mueve lo que llega al Feed.** Medido en la corrida 167:
 > mediana **1,2775** en los entregados contra **1,2736** en los no entregados, y correlación con la
@@ -37,11 +43,14 @@
 > 65 están sin calificar. **35 de esos 65 entraron por el escalón 5** (`bajo_umbral_entregados`, que
 > daba 0 en las 3 corridas anteriores). Si el norte baja, ese es el sospechoso #1. Medir antes de tocar.
 
-> 🩸 **Los dos bugs MUDOS del cierre 141 siguen sin arreglar:**
-> **(a)** con **0 candidatos el motor nunca cierra la corrida** ⇒ queda `en_curso` y el guard
-> single-flight **bloquea al equipo 60 minutos sin decir por qué** (no se disparó esta vez sólo porque
-> hubo 65 candidatos); **(b)** un proveedor que falla **no genera aviso** — esta vez **TikTok entregó
-> 0 con un objeto vacío, sin `Forbidden` y sin una línea en ningún lado**.
+> ✅ **Los dos bugs MUDOS del cierre 141 ya no son mudos ([ADR-094](../adr/ADR-094-una-corrida-que-muere-tiene-que-cerrarse-sola.md), 09/09).**
+> **(a)** una corrida sin cupo de Apify **se cierra sola en `fallo` con el número adentro** — verificado
+> en prod con el cupo agotado (exec 174, 1 segundo, costo 0); **(b)** un proveedor que rechaza el 100%
+> de las llamadas ya grita, y `{error}` (nos rechazaron) quedó separado de `{}` (no había nada), que
+> era justo la distinción que faltaba para el TikTok mudo del cierre 142.
+> ⏳ **Lo que sigue sin probarse en vivo:** el rechazo **a mitad de camino** (capa 2) y que
+> `metricas.etapa` sobreviva una corrida completa. Los dos se leen de la próxima corrida real del
+> equipo, sin tocar nada. Ver ADR-094 §Hecho cuando.
 ### Lo de la sesión anterior (post cierre 140) sigue vigente
 
 > ⚠️ **Lo que había acá decía "0 corridas desde los cambios" — era cierto al cerrar 139 y dejó de
@@ -109,6 +118,98 @@ un piso, no un resultado.
 ---
 
 ## Pendiente vivo (arrastres manuales de Mani — antes de la próxima corrida real)
+
+> # 🟢 CIERRE 143 (2026-09-09) — Tres corridas zombis, cero videos perdidos, y el cierre ya no cuelga de que haya datos
+>
+> ## 0. La pregunta con la que arrancó: ¿las tres corridas muertas perdieron videos?
+>
+> **No. Cero.** Mismo método que el cierre 142, tres señales:
+>
+> | señal | 169 | 170 | 171 | 167 (control sano) |
+> |---|---|---|---|---|
+> | `processed_items` | 0 | 0 | 0 | **65** |
+> | `app.candidatos` | 0 | 0 | 0 | **65** |
+> | transcripciones `origen=motor` del día | 0 | 0 | 0 | — |
+>
+> Las 62 transcripciones del 09/09 son todas `origen=manual` (el transcriptor del cockpit, otro
+> workflow). **Costó 0 dólares y 0 videos. Costó 6,5 horas de equipo apretando un botón mudo.**
+>
+> ## 1. La causa, con tres señales independientes
+>
+> 1. `/v2/users/me/limits`: **50,019 USD sobre un tope de 50**, ciclo hasta el 09/09 23:59 UTC.
+> 2. `Apify — IG Reels` devolvió **15 de 15** `{"error":"Forbidden"}` (403); TikTok igual.
+> 3. **Cero actor-runs en Apify después de las 11:09 UTC**, con corridas a las 13:16, 16:29 y 19:54.
+>
+> El token es válido — con ese mismo token la sesión leyó límites y runs. **Token bueno + 403 al
+> arrancar actor + 50,02/50 ⇒ tope, no credenciales.**
+>
+> ## 2. Por qué quedaban zombis, que resultó ser dos bugs encadenados
+>
+> **(a)** el cierre cuelga del carril de datos y **con 0 items n8n no ejecuta el nodo** — incluido el
+> `IF — hay videos nuevos`, que existe para esto y quedó detrás del vacío que debía detectar.
+> **(b)** los nodos de Apify son **sumidero** (invariante #1), así que el 403 se volvió *"no había
+> nada"*, la ejecución salió **`success`** y `workflow-registro-fallos` nunca se enteró.
+>
+> 🔑 *El invariante #1 es correcto para el registro y equivocado para la compra.* Un nodo que reporta
+> tiene que ser sumidero; uno que **adquiere** no, porque tragarse su fallo borra la única evidencia
+> de que la corrida no tiene insumos.
+>
+> ## 3. Lo que se hizo: tres capas, y ningún cierre nuevo
+>
+> La máquina de cerrar runs fallidos con su causa **ya existía** (ADR-054). Faltaba que el motor
+> gritara. Detalle completo y alternativas descartadas en ADR-094.
+>
+> | capa | qué | cubre |
+> |---|---|---|
+> | 1 | `Cupo Apify (pre-flight)` — GET a `/limits` antes de gastar, fail-open, margen 2,5 (una corrida costó 2,27 medidos) | arrancar sin plata |
+> | 2 | `Normalizar IG`/`TT` por lote: `{error}` = nos rechazaron ≠ `{}` = no había nada. Grita sólo si son TODAS | rechazo de proveedor en cualquier momento |
+> | 3 | `metricas.etapa` (`abierta → colecta → seleccion → transcripcion → gate → entrega`) | el zombi de la 166: proveedores sanos, todo muerto en un filtro |
+>
+> **6 nodos nuevos (40 → 46)**, `Config` con `margen_cupo_apify_usd`, y `Barrer runs zombie` apunta a
+> `metricas.etapa` en vez de decir sólo "no cerró".
+>
+> ## 4. 🩸 El bug que sólo apareció al dispararlo en producción
+>
+> El primer intento llegó a la fila del run así, con la causa borrada:
+>
+> ```
+> [Workflow - Shortform Content] no se pago ni se perdio ningun video. [line 52] · nodo: Cupo Apify (pre-flight)
+> ```
+>
+> **n8n parte el mensaje de un Code node por el ÚLTIMO `:` y guarda sólo lo de después**; lo anterior
+> va a `description`, que el error handler no lee. El mensaje empezaba con *"Sin cupo de Apify: 50,02
+> de 50 USD…"* y esa mitad se perdió entera.
+>
+> ⇒ **ningún mensaje de error de este repo puede llevar `:`**. Guiones, fecha como `23h59 UTC`, URLs
+> sin `https`, y los `:` del texto del proveedor reemplazados antes de citarlo. **Dos tests lo fijan.**
+>
+> *Tests verdes, audit verde, validador verde y `n8n:diff` verde — y el cambio igual mentía en la
+> única superficie que el equipo lee. Sólo lo destapó dispararlo de verdad.*
+>
+> ## 5. Verificación
+>
+> `test-nodos.mjs` **276 checks** (antes 251) · `auditar-workflows.mjs` sin hallazgos · `npm run
+> validate` 2.659 checks · **`n8n:diff` verde en los 5** · y la prueba real: **exec 174 abrió con
+> `metricas.etapa = "abierta"`, tiró el error y ADR-054 la cerró en `fallo` en 1 segundo** con
+> `Sin cupo de Apify — 50.02 de 50 USD usados…`. `processed_items` y `candidatos` de esa corrida: **0
+> y 0**. Corridas `en_curso` al cerrar: **ninguna**.
+>
+> ⚠️ **Las dos corridas de verificación (`093b6c9e` y `53ba1e87`) están en la tabla como `fallo`** y
+> su `error` dice que fueron disparadas a propósito. No son fallos del sistema.
+>
+> ## 6. Lo que se cerró a mano
+>
+> `81315874` (exec 171) estaba `en_curso` hacía 2h36m ⇒ cerrada en `fallo` con la causa medida.
+> `6cdf6403` y `ee483feb` (169 y 170) ya las había barrido el guard con un mensaje genérico ⇒ se les
+> **agregó** el diagnóstico sin pisar el original.
+>
+> ## 7. Lo que NO se tocó
+>
+> - **El cupo compartido con las sesiones de agente** (§ARRANCÁ POR ACÁ). Mani eligió anotarlo.
+> - **Supadata sigue sin pre-flight**: `v1/account`, `v1/usage`, `v1/limits` y `v1/account/usage` dan
+>   **404 los cuatro** (re-medido el 09/09). Sólo queda detección reactiva.
+> - **La pantalla Corridas no renderiza `metricas.etapa`.** El dato está en la fila y no lo lee nadie.
+> - Todo lo del cierre 142 sigue vigente: el heat-score, el escalón 5, el piso de vistas.
 
 > # 🟢 CIERRE 142 (2026-09-07) — La primera corrida con los dos cupos sanos entregó 65, y el heat-score resultó no mover nada
 >

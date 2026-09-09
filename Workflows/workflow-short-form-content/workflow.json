@@ -137,6 +137,12 @@
               "type": "number"
             },
             {
+              "id": "c_margen_apify",
+              "name": "margen_cupo_apify_usd",
+              "value": 2.5,
+              "type": "number"
+            },
+            {
               "id": "c_ref_ig",
               "name": "buscar_referente_ig",
               "value": 1,
@@ -252,8 +258,7 @@
     },
     {
       "parameters": {
-        "mode": "runOnceForEachItem",
-        "jsCode": "\nconst item = $input.item.json;\n// Solo reels/videos: IG trae fotos y carruseles que no se pueden transcribir; descartar lo que no sea video.\nif (item.type && item.type !== 'Video') { return null; }\n// Stub de Apify (llamada vacía devuelve {error:'no_items'}): sin id ni url -> descartar.\nif (!(item.id || item.shortCode || item.shortcode) && !item.url) { return null; }\nconst seguidores = item.followersCount || item.ownerFollowersCount || (item.metaData && item.metaData.followersCount) || 0;\nreturn { json: {\n  plataforma: 'instagram',\n  external_id: String(item.id || item.shortCode || item.shortcode || ''),\n  username: item.ownerUsername || '',\n  nombre: item.ownerFullName || '',\n  seguidores,\n  bio: item.biography || item.ownerBio || (item.metaData && item.metaData.biography) || '',\n  descripcion: item.caption || '',\n  likes: item.likesCount || 0,\n  comentarios: item.commentsCount || 0,\n  reproducciones: item.videoViewCount || item.videoPlayCount || item.igPlayCount || 0,\n  url: item.url || '',\n  video_url: item.url || '',\n  thumbnail_url: item.displayUrl || '',\n  hashtags: (item.hashtags || []).join(', '),\n  duracion_video: item.videoDuration || 0,\n  engagement_rate: seguidores > 0 ? (((item.likesCount || 0) + (item.commentsCount || 0)) / seguidores * 100).toFixed(2) : '0',\n  fecha_publicacion: (function(){ var d = new Date(item.timestamp); return isNaN(d.getTime()) ? '' : d.toISOString().split('T')[0]; })()\n} };\n"
+        "jsCode": "\n// Normalizar IG — por LOTE, no por item (ADR-094 capa 2).\n//\n// Por que por lote: en modo por-item este nodo no puede distinguir \"Apify devolvio un dataset vacio\"\n// de \"Apify nos rechazo\". Las dos cosas terminan en 0 items de salida, y con 0 items n8n no ejecuta\n// NINGUN nodo mas — incluido `IF — hay videos nuevos`, que existe justo para cerrar la corrida\n// cuando no hay nada. Resultado: la fila queda `en_curso`, el guard single-flight bloquea al equipo\n// `ventana_corrida_min` minutos, y no hay una sola linea que diga por que.\n//\n// 🩸 Medido el 2026-09-09: exec 169, 170 y 171 murieron asi, con 15 de 15 respuestas\n// `{error:'Forbidden'}` porque el tope mensual de Apify estaba agotado (50,02 de 50 USD).\n// n8n reporto las tres como `success`, asi que `workflow-registro-fallos` tampoco se entero.\n//\n// La regla: un `{error:...}` es el proveedor rechazandonos; un objeto sin id/url es un dataset vacio\n// o un item que no sirve (foto, carrusel). Solo el primero es motivo de grito, y solo si son TODOS\n// — una cuenta caida sigue costando una cuenta, no la corrida.\nconst entradas = $input.all();\nconst salida = [];\nlet conError = 0;\nlet muestraError = '';\n\nfor (const e of entradas) {\n  const item = (e && e.json) || {};\n  if (item.error) {\n    conError++;\n    if (!muestraError) muestraError = String(item.error).slice(0, 140);\n    continue;\n  }\n  // Solo reels/videos: IG trae fotos y carruseles que no se pueden transcribir; descartar lo que no sea video.\n  if (item.type && item.type !== 'Video') { continue; }\n  // Stub de Apify (llamada vacia devuelve {error:'no_items'}): sin id ni url -> descartar.\n  if (!(item.id || item.shortCode || item.shortcode) && !item.url) { continue; }\n  const seguidores = item.followersCount || item.ownerFollowersCount || (item.metaData && item.metaData.followersCount) || 0;\n  salida.push({ json: {\n    plataforma: 'instagram',\n    external_id: String(item.id || item.shortCode || item.shortcode || ''),\n    username: item.ownerUsername || '',\n    nombre: item.ownerFullName || '',\n    seguidores,\n    bio: item.biography || item.ownerBio || (item.metaData && item.metaData.biography) || '',\n    descripcion: item.caption || '',\n    likes: item.likesCount || 0,\n    comentarios: item.commentsCount || 0,\n    reproducciones: item.videoViewCount || item.videoPlayCount || item.igPlayCount || 0,\n    url: item.url || '',\n    video_url: item.url || '',\n    thumbnail_url: item.displayUrl || '',\n    hashtags: (item.hashtags || []).join(', '),\n    duracion_video: item.videoDuration || 0,\n    engagement_rate: seguidores > 0 ? (((item.likesCount || 0) + (item.commentsCount || 0)) / seguidores * 100).toFixed(2) : '0',\n    fecha_publicacion: (function(){ var d = new Date(item.timestamp); return isNaN(d.getTime()) ? '' : d.toISOString().split('T')[0]; })()\n  } });\n}\n\n// ⚠️ NINGUN mensaje de error de este workflow puede llevar \":\" — medido en la ejecucion 172 del\n// 2026-09-09: n8n parte el mensaje del Code node por el ULTIMO \":\" y guarda SOLO lo que hay despues\n// (lo anterior se va a `description`, que `workflow-registro-fallos` no lee). El mensaje\n// \"Sin cupo de Apify: 50.02 de 50 USD ... no se pago ni se perdio ningun video.\" llego a la fila\n// del run como \"no se pago ni se perdio ningun video.\" — con la causa borrada, que es justo lo que\n// este cambio venia a arreglar. Por eso van guiones, la fecha en formato 23h59 y la URL sin https.\nif (entradas.length > 0 && conError === entradas.length) {\n  throw new Error(\n    'Apify rechazo las ' + entradas.length + ' llamadas de Instagram — ' + muestraError.replace(/:/g, ' ') +\n    ' — causas tipicas, tope mensual de uso agotado o token revocado. ' + _cupoAlArrancar() +\n    'Se verifica con un GET a api.apify.com/v2/users/me/limits. No se colecto ni se pago ningun video.'\n  );\n}\n\nconsole.log('[Normalizar IG] ' + entradas.length + ' respuestas: ' + salida.length + ' videos utiles, ' + conError + ' rechazadas por el proveedor');\nreturn salida;\n\n// Lo que el pre-flight leyo al arrancar, si lo leyo. Sirve para separar \"arranco sin plata\" de\n// \"se quedo sin plata a mitad de corrida\", que son dos problemas distintos.\nfunction _cupoAlArrancar() {\n  try {\n    const c = $('Cupo Apify (pre-flight)').first().json;\n    if (c && c.cupo_usado != null) return 'Al arrancar el cupo estaba en ' + c.cupo_usado + ' de ' + c.cupo_tope + ' USD. ';\n  } catch (e) { /* el pre-flight no corrio o no leyo: no es motivo para callar el error principal */ }\n  return '';\n}\n"
       },
       "id": "normalizar-ig",
       "name": "Normalizar IG",
@@ -266,8 +271,7 @@
     },
     {
       "parameters": {
-        "mode": "runOnceForEachItem",
-        "jsCode": "\nconst item = $input.item.json;\n// Stub de un eje vacío (TikTok-Perfil con 0 referentes devuelve {}): sin id ni url -> descartar.\nif (!item.id && !item.webVideoUrl) { return null; }\nconst am = item.authorMeta || {};\nconst seguidores = am.fans || 0;\nreturn { json: {\n  plataforma: 'tiktok',\n  idioma_nativo: (item.textLanguage && item.textLanguage !== 'un') ? String(item.textLanguage).toLowerCase().slice(0, 2) : '',\n  external_id: String(item.id || ''),\n  username: am.name || '',\n  nombre: am.nickName || '',\n  seguidores,\n  bio: am.signature || '',\n  descripcion: item.text || item.desc || '',\n  likes: item.diggCount || 0,\n  comentarios: item.commentCount || 0,\n  reproducciones: item.playCount || 0,\n  url: item.webVideoUrl || '',\n  video_url: item.webVideoUrl || '',\n  thumbnail_url: (item.videoMeta && item.videoMeta.coverUrl) || '',\n  hashtags: (item.hashtags || []).map(function (h) { return h.name || h; }).join(', '),\n  duracion_video: item.videoMeta ? (item.videoMeta.duration || 0) : 0,\n  engagement_rate: seguidores > 0 ? (((item.diggCount || 0) + (item.commentCount || 0)) / seguidores * 100).toFixed(2) : '0',\n  fecha_publicacion: item.createTimeISO ? item.createTimeISO.split('T')[0] : ''\n} };\n"
+        "jsCode": "\n// Normalizar TT — por LOTE, no por item (ADR-094 capa 2). Mismo motivo que `Normalizar IG`:\n// en modo por-item, \"TikTok no devolvio nada\" y \"TikTok nos rechazo\" terminan los dos en 0 items,\n// y con 0 items n8n no ejecuta ningun nodo mas, asi que la corrida queda `en_curso` en silencio.\n//\n// 🩸 La distincion no es teorica y esta medida las dos veces: el 2026-09-07 (cierre 142) TikTok\n// devolvio **un objeto vacio `{}` sin error** y eso es \"no habia nada\"; el 2026-09-09 devolvio\n// `{error:'Forbidden'}` por el tope de Apify agotado y eso es un rechazo. Solo el segundo grita.\nconst entradas = $input.all();\nconst salida = [];\nlet conError = 0;\nlet muestraError = '';\n\nfor (const e of entradas) {\n  const item = (e && e.json) || {};\n  if (item.error) {\n    conError++;\n    if (!muestraError) muestraError = String(item.error).slice(0, 140);\n    continue;\n  }\n  // Stub de un eje vacio (TikTok-Perfil con 0 referentes devuelve {}): sin id ni url -> descartar.\n  if (!item.id && !item.webVideoUrl) { continue; }\n  const am = item.authorMeta || {};\n  const seguidores = am.fans || 0;\n  salida.push({ json: {\n    plataforma: 'tiktok',\n    idioma_nativo: (item.textLanguage && item.textLanguage !== 'un') ? String(item.textLanguage).toLowerCase().slice(0, 2) : '',\n    external_id: String(item.id || ''),\n    username: am.name || '',\n    nombre: am.nickName || '',\n    seguidores,\n    bio: am.signature || '',\n    descripcion: item.text || item.desc || '',\n    likes: item.diggCount || 0,\n    comentarios: item.commentCount || 0,\n    reproducciones: item.playCount || 0,\n    url: item.webVideoUrl || '',\n    video_url: item.webVideoUrl || '',\n    thumbnail_url: (item.videoMeta && item.videoMeta.coverUrl) || '',\n    hashtags: (item.hashtags || []).map(function (h) { return h.name || h; }).join(', '),\n    duracion_video: item.videoMeta ? (item.videoMeta.duration || 0) : 0,\n    engagement_rate: seguidores > 0 ? (((item.diggCount || 0) + (item.commentCount || 0)) / seguidores * 100).toFixed(2) : '0',\n    fecha_publicacion: item.createTimeISO ? item.createTimeISO.split('T')[0] : ''\n  } });\n}\n\n// 🔇 Este carril NO grita, y es una decision, no un olvido (ADR-094 §Alternativas).\n// `Normalizar IG` corre antes (Y menor en el canvas) y ya tiro el error si Instagram fue rechazado,\n// asi que el unico caso que llegaria hasta aca con TikTok rechazado es **Instagram sano**: matar la\n// corrida ahi seria tirar una entrega buena por un carril secundario. Y para saber si Instagram\n// trajo algo habria que leer el nodo de normalizado de Instagram, que es una rama HERMANA y no un\n// ancestro de esta — la\n// clase exacta de bug que dejo el dedup de ADR-029 sin efecto durante 3 corridas.\n// El rechazo no se pierde: `Resumen del run` lo cuenta desde `Apify — TikTok Perfil`, que si es\n// ancestro suyo, y lo publica como aviso de la corrida.\nconsole.log('[Normalizar TT] ' + entradas.length + ' respuestas: ' + salida.length + ' videos utiles, ' + conError + ' rechazadas por el proveedor');\nreturn salida;\n"
       },
       "id": "normalizar-tt",
       "name": "Normalizar TT",
@@ -696,7 +700,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={ \"instance_id\": \"{{ $('Config').first().json.instance_id }}\", \"trigger_type\": \"{{ $('Disparo on-demand (webhook)').isExecuted ? 'on_demand' : ($('Ejecutar manual').isExecuted ? 'manual' : 'cron') }}\", \"estado\": \"en_curso\", \"params\": { \"workflow\": \"motor\", \"execution_id\": \"{{ $execution.id }}\" } }",
+        "jsonBody": "={ \"instance_id\": \"{{ $('Config').first().json.instance_id }}\", \"trigger_type\": \"{{ $('Disparo on-demand (webhook)').isExecuted ? 'on_demand' : ($('Ejecutar manual').isExecuted ? 'manual' : 'cron') }}\", \"estado\": \"en_curso\", \"metricas\": { \"etapa\": \"abierta\", \"etapa_en\": \"{{ $now.toISO() }}\" }, \"params\": { \"workflow\": \"motor\", \"execution_id\": \"{{ $execution.id }}\" } }",
         "options": {
           "timeout": 15000
         }
@@ -756,7 +760,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { estado: 'fallo', fin: $now.toISO(), error: 'run de motor sin cerrar (en_curso mas viejo que ventana_corrida_min); barrido por corrida posterior' } }}",
+        "jsonBody": "={{ { estado: 'fallo', fin: $now.toISO(), error: 'run de motor sin cerrar (en_curso mas viejo que ventana_corrida_min); barrido por corrida posterior. Mira metricas.etapa para saber DONDE murio, y params.execution_id para el detalle en n8n' } }}",
         "options": {
           "timeout": 20000
         }
@@ -1155,6 +1159,235 @@
         }
       },
       "notes": "ADR-087. Escribe la cache de ASR. ignore-duplicates: el primer transcript gana y nunca se re-paga. SUMIDERO: si falla, la proxima corrida re-transcribe."
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Cupo Apify (pre-flight) — ADR-094 capa 1. Pregunta cuanto presupuesto queda ANTES de gastar.\n//\n// Por que aca y no en el carril de datos: este nodo cuelga de `Abrir run en el registro`, o sea de\n// la cabeza del workflow, donde SIEMPRE hay exactamente un item. El carril de datos no sirve para\n// esto: con 0 items n8n no ejecuta el nodo, y ese es justo el modo de falla que veniamos teniendo.\n//\n// FAIL-OPEN a proposito: si la API de Apify no contesta, o contesta algo que no entendemos, NO se\n// frena la corrida. Solo se frena con evidencia positiva de que no alcanza la plata. Un chequeo que\n// bloquea cuando no sabe es peor que no tener chequeo.\n//\n// El freno es un throw, no un cierre propio: la ejecucion queda en `error`, y `workflow-registro-fallos`\n// (ADR-054) cierra el run en `fallo` con este mensaje adentro. No hace falta un cierre nuevo.\n//\n// 🩸 Medido el 2026-09-09: tres corridas seguidas (exec 169, 170, 171) arrancaron con el cupo en\n// 50,02 de 50 USD, gastaron 22 segundos, colectaron 0 videos y quedaron `en_curso`, bloqueando al\n// equipo 60 minutos cada una sin una sola linea que dijera por que.\nconst TOKEN = '<APIFY_TOKEN>';\nconst cfg = $('Config').first().json;\nconst margen = Number(cfg.margen_cupo_apify_usd || 0);\nconst paso = $input.all();\n\nlet cupo = null;\ntry {\n  const r = await this.helpers.httpRequest({\n    method: 'GET',\n    url: 'https://api.apify.com/v2/users/me/limits',\n    headers: { Authorization: 'Bearer ' + TOKEN },\n    json: true,\n    timeout: 15000\n  });\n  const d = (r && r.data) || {};\n  const usado = Number((d.current || {}).monthlyUsageUsd);\n  const tope = Number((d.limits || {}).maxMonthlyUsageUsd);\n  if (isFinite(usado) && isFinite(tope) && tope > 0) {\n    const r2 = (x) => Math.round(x * 100) / 100;\n    cupo = {\n      cupo_usado: r2(usado),\n      cupo_tope: r2(tope),\n      cupo_libre: r2(tope - usado),\n      cupo_ciclo_hasta: String((d.monthlyUsageCycle || {}).endAt || '')\n    };\n    console.log('[Cupo Apify] ' + cupo.cupo_usado + '/' + cupo.cupo_tope + ' USD usados, quedan ' + cupo.cupo_libre + ' (margen exigido: ' + margen + ')');\n  } else {\n    console.log('[Cupo Apify] la respuesta no trae monthlyUsageUsd/maxMonthlyUsageUsd; sigo sin frenar');\n  }\n} catch (e) {\n  console.log('[Cupo Apify] no se pudo leer el cupo (' + String((e && e.message) || e).slice(0, 140) + '); sigo sin frenar');\n}\n\n// ⚠️ NINGUN mensaje de error de este workflow puede llevar \":\" — medido en la ejecucion 172 del\n// 2026-09-09: n8n parte el mensaje del Code node por el ULTIMO \":\" y guarda SOLO lo que hay despues\n// (lo anterior se va a `description`, que `workflow-registro-fallos` no lee). El mensaje\n// \"Sin cupo de Apify: 50.02 de 50 USD ... no se pago ni se perdio ningun video.\" llego a la fila\n// del run como \"no se pago ni se perdio ningun video.\" — con la causa borrada, que es justo lo que\n// este cambio venia a arreglar. Por eso van guiones, la fecha en formato 23h59 y la URL sin https.\nif (cupo && margen > 0 && cupo.cupo_libre < margen) {\n  const cuando = cupo.cupo_ciclo_hasta\n    ? cupo.cupo_ciclo_hasta.replace('T', ' ').slice(0, 16).replace(':', 'h') + ' UTC'\n    : '(fin de ciclo desconocido)';\n  throw new Error(\n    'Sin cupo de Apify — ' + cupo.cupo_usado + ' de ' + cupo.cupo_tope + ' USD usados, quedan ' +\n    cupo.cupo_libre + ' y una corrida cuesta ~' + margen + '. El ciclo reinicia el ' + cuando +\n    '. La corrida se detuvo ANTES de colectar, no se pago ni se perdio ningun video.'\n  );\n}\n\n// Pasa los items tal cual y les agrega lo que leyo, para que `Normalizar IG`/`Normalizar TT` puedan\n// citar el numero si el proveedor los rechaza a mitad de camino.\nreturn paso.map((x) => ({ json: Object.assign({}, x.json, cupo || { cupo_leido: false }) }));\n"
+      },
+      "id": "cupo-apify-preflight",
+      "name": "Cupo Apify (pre-flight)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9240,
+        1040
+      ],
+      "notes": "Frena la corrida ANTES de gastar si no queda presupuesto de Apify, y la cierra en `fallo` con el numero adentro via el error handler (ADR-054). Fail-open: si no puede leer el cupo, no frena."
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $('Config').first().json.supabase_url + '/rest/v1/runs?id=eq.' + ($('Abrir run en el registro').first().json.id || '00000000-0000-0000-0000-000000000000') }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { metricas: { etapa: 'colecta', etapa_en: $now.toISO() } } }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "etapa-colecta",
+      "name": "Etapa: colecta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1820,
+        440
+      ],
+      "onError": "continueRegularOutput",
+      "executeOnce": true,
+      "credentials": {
+        "supabaseApi": {
+          "name": "Supabase account"
+        }
+      },
+      "notes": "Miga de pan (ADR-094 capa 3): deja escrito en el run que entro a la etapa `colecta`, para que un run que muera mudo diga DONDE murio y no solo que no cerro. Apify puede devolver 0 videos utiles y ahi se corta el carril de datos. Es sumidero (onError continue) y rama muerta: no toca el carril de datos. NO depende de correr antes que su hermana: son ramas paralelas, asi que la miga se escribe igual si la hermana termina en 0 items. El unico caso que se la lleva es que la hermana TIRE un error, y ahi el mensaje que escribe `workflow-registro-fallos` (ADR-054) dice mas que la etapa."
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $('Config').first().json.supabase_url + '/rest/v1/runs?id=eq.' + ($('Abrir run en el registro').first().json.id || '00000000-0000-0000-0000-000000000000') }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { metricas: { etapa: 'seleccion', etapa_en: $now.toISO() } } }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "etapa-seleccion",
+      "name": "Etapa: seleccion",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3500,
+        60
+      ],
+      "onError": "continueRegularOutput",
+      "executeOnce": true,
+      "credentials": {
+        "supabaseApi": {
+          "name": "Supabase account"
+        }
+      },
+      "notes": "Miga de pan (ADR-094 capa 3): deja escrito en el run que entro a la etapa `seleccion`, para que un run que muera mudo diga DONDE murio y no solo que no cerro. El pre-trim, el dedup o el piso de vistas pueden dejar 0 y ahi se corta. Es sumidero (onError continue) y rama muerta: no toca el carril de datos. NO depende de correr antes que su hermana: son ramas paralelas, asi que la miga se escribe igual si la hermana termina en 0 items. El unico caso que se la lleva es que la hermana TIRE un error, y ahi el mensaje que escribe `workflow-registro-fallos` (ADR-054) dice mas que la etapa."
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $('Config').first().json.supabase_url + '/rest/v1/runs?id=eq.' + ($('Abrir run en el registro').first().json.id || '00000000-0000-0000-0000-000000000000') }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { metricas: { etapa: 'transcripcion', etapa_en: $now.toISO() } } }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "etapa-transcripcion",
+      "name": "Etapa: transcripcion",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4260,
+        20
+      ],
+      "onError": "continueRegularOutput",
+      "executeOnce": true,
+      "credentials": {
+        "supabaseApi": {
+          "name": "Supabase account"
+        }
+      },
+      "notes": "Miga de pan (ADR-094 capa 3): deja escrito en el run que entro a la etapa `transcripcion`, para que un run que muera mudo diga DONDE murio y no solo que no cerro. Supadata puede no resolver ninguno y ahi se corta. Es sumidero (onError continue) y rama muerta: no toca el carril de datos. NO depende de correr antes que su hermana: son ramas paralelas, asi que la miga se escribe igual si la hermana termina en 0 items. El unico caso que se la lleva es que la hermana TIRE un error, y ahi el mensaje que escribe `workflow-registro-fallos` (ADR-054) dice mas que la etapa."
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $('Config').first().json.supabase_url + '/rest/v1/runs?id=eq.' + ($('Abrir run en el registro').first().json.id || '00000000-0000-0000-0000-000000000000') }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { metricas: { etapa: 'gate', etapa_en: $now.toISO() } } }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "etapa-gate",
+      "name": "Etapa: gate",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5040,
+        260
+      ],
+      "onError": "continueRegularOutput",
+      "executeOnce": true,
+      "credentials": {
+        "supabaseApi": {
+          "name": "Supabase account"
+        }
+      },
+      "notes": "Miga de pan (ADR-094 capa 3): deja escrito en el run que entro a la etapa `gate`, para que un run que muera mudo diga DONDE murio y no solo que no cerro. El jurado puede rechazar todo: `Armar candidato` recibe 0 y ahi se corta. Es sumidero (onError continue) y rama muerta: no toca el carril de datos. NO depende de correr antes que su hermana: son ramas paralelas, asi que la miga se escribe igual si la hermana termina en 0 items. El unico caso que se la lleva es que la hermana TIRE un error, y ahi el mensaje que escribe `workflow-registro-fallos` (ADR-054) dice mas que la etapa."
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $('Config').first().json.supabase_url + '/rest/v1/runs?id=eq.' + ($('Abrir run en el registro').first().json.id || '00000000-0000-0000-0000-000000000000') }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { metricas: { etapa: 'entrega', etapa_en: $now.toISO() } } }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "etapa-entrega",
+      "name": "Etapa: entrega",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        7140,
+        260
+      ],
+      "onError": "continueRegularOutput",
+      "executeOnce": true,
+      "credentials": {
+        "supabaseApi": {
+          "name": "Supabase account"
+        }
+      },
+      "notes": "Miga de pan (ADR-094 capa 3): deja escrito en el run que entro a la etapa `entrega`, para que un run que muera mudo diga DONDE murio y no solo que no cerro. `Preparar procesados` puede filtrar todo a 0 y ahi se corta, antes de `Cerrar run`. Es sumidero (onError continue) y rama muerta: no toca el carril de datos. NO depende de correr antes que su hermana: son ramas paralelas, asi que la miga se escribe igual si la hermana termina en 0 items. El unico caso que se la lleva es que la hermana TIRE un error, y ahi el mensaje que escribe `workflow-registro-fallos` (ADR-054) dice mas que la etapa."
     }
   ],
   "pinData": {},
@@ -1185,7 +1418,7 @@
       "main": [
         [
           {
-            "node": "Leer plan (fachada)",
+            "node": "Cupo Apify (pre-flight)",
             "type": "main",
             "index": 0
           }
@@ -1195,6 +1428,11 @@
     "Armar plan de corrida": {
       "main": [
         [
+          {
+            "node": "Etapa: colecta",
+            "type": "main",
+            "index": 0
+          },
           {
             "node": "Apify — TikTok Perfil",
             "type": "main",
@@ -1256,6 +1494,11 @@
       "main": [
         [
           {
+            "node": "Etapa: seleccion",
+            "type": "main",
+            "index": 0
+          },
+          {
             "node": "Pre-trim relevancia",
             "type": "main",
             "index": 0
@@ -1299,6 +1542,11 @@
     "Armar candidato": {
       "main": [
         [
+          {
+            "node": "Etapa: entrega",
+            "type": "main",
+            "index": 0
+          },
           {
             "node": "Preparar procesados",
             "type": "main",
@@ -1354,6 +1602,11 @@
     "Traducir (Claude Haiku)": {
       "main": [
         [
+          {
+            "node": "Etapa: gate",
+            "type": "main",
+            "index": 0
+          },
           {
             "node": "Gate de relevancia",
             "type": "main",
@@ -1515,6 +1768,11 @@
       "main": [
         [
           {
+            "node": "Etapa: transcripcion",
+            "type": "main",
+            "index": 0
+          },
+          {
             "node": "Pedir caché de transcripts",
             "type": "main",
             "index": 0
@@ -1567,6 +1825,17 @@
         [
           {
             "node": "Traducir (Claude Haiku)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cupo Apify (pre-flight)": {
+      "main": [
+        [
+          {
+            "node": "Leer plan (fachada)",
             "type": "main",
             "index": 0
           }
