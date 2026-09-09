@@ -27,6 +27,10 @@
 --
 -- Idempotente: `add column if not exists`. Aditiva, sin backfill de datos derivados. Los ceros
 -- iniciales son la verificación, igual que en la `036` y la `038`.
+--
+-- ⚠️ CORRÉS ESTE ARCHIVO ENTERO, DE UN SAQUE. Si se corre solo una parte, los `alter table` pueden
+-- quedar aplicados y la RPC (el `drop`+`create`+`grant` de más abajo) no — dejando columnas que el
+-- motor no puede leer por su camino real (`app.cache_transcripts`).
 
 alter table app.transcripciones
   add column if not exists cobertura_seg numeric,
@@ -45,9 +49,19 @@ comment on column app.transcripciones.modo is
 
 -- ═══════════════════════ La RPC que el motor usa como caché ═══════════════════════
 --
--- `create or replace` sobre la firma existente (ADR-087, migración 037): agrega las dos columnas
--- nuevas al `returns table`. La RPC sigue tonta — no filtra por umbral, solo entrega los números;
--- si el umbral cambia, no se toca SQL.
+-- 🩸 `create or replace` NO ALCANZA acá: PostgreSQL no deja cambiar las columnas de un `returns
+-- table` por encima de una función existente (probado contra Postgres 16.13 —
+-- `ERROR: cannot change return type of existing function / DETAIL: Row type defined by OUT
+-- parameters is different. HINT: Use DROP FUNCTION app.cache_transcripts(uuid,text[]) first.`).
+-- Por eso el `drop` de abajo va primero; la firma (`uuid, text[]`) es la misma de la `037`, así que
+-- el `drop` apunta exacto a la función vieja y no puede llevarse otra por error.
+--
+-- ⚠️ Y el `drop` SE LLEVA LOS PRIVILEGIOS de la función. Con esto, los dos `grant` de más abajo
+-- dejan de ser cinturón-y-tirantes: son OBLIGATORIOS. Si alguien los borra "porque ya estaban", el
+-- motor recibe `42501`, el `onError: continueRegularOutput` del nodo se lo traga, y la corrida
+-- cierra en verde y sin caché — re-pagándole a Supadata en silencio. Es el escenario exacto que
+-- documenta ADR-087 §3.
+drop function if exists app.cache_transcripts(uuid, text[]);
 
 create or replace function app.cache_transcripts(p_instance uuid, p_ids text[])
 returns table (external_id text, plataforma text, estado text, script text, idioma text,
@@ -62,10 +76,10 @@ as $fn$
     and t.estado in ('listo', 'sin_transcript')
 $fn$;
 
--- 🩸 Los dos `grant` van EXPLÍCITOS aunque la función ya existiera. `create or replace` sobre una
--- función CONSERVA sus privilegios, pero si alguien la dropea y la recrea no lo hace — y ese modo
--- de falla es mudo: `42501` tragado por el `onError: continueRegularOutput` del nodo, corrida en
--- verde sin caché, re-pagándole a Supadata en silencio. Cuestan nada, van igual (ADR-087 §3).
+-- ⚠️ Estos dos `grant` YA NO SON OPCIONALES (a diferencia de cuando `create or replace` solo
+-- podía conservar privilegios): el `drop` de arriba los borró, así que sin ellos la función queda
+-- sin permisos y el motor recibe `42501` en silencio (ver el bloque de arriba). Cuestan nada, van
+-- siempre (ADR-087 §3).
 grant execute on function app.cache_transcripts(uuid, text[]) to service_role;
 grant execute on function app.cache_transcripts(uuid, text[]) to authenticated;
 

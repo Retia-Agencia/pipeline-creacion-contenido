@@ -144,8 +144,10 @@ Sin duración no hay veredicto y el transcript pasa como hoy; si el reintento fa
 
 - **`core/`:** migración [`039`](../../core/schema/039_cobertura_transcripts.sql) —
   `app.transcripciones.cobertura_seg` / `duracion_seg` / `modo`, `app.candidatos.cobertura_seg`,
-  `app.videos_meta.duracion_seg`, y `app.cache_transcripts` con `create or replace` para devolver
-  las dos columnas nuevas. Aditiva, sin backfill.
+  `app.videos_meta.duracion_seg`, y `app.cache_transcripts` recreada (`drop` + `create or replace`
+  — `create or replace` solo no alcanza para cambiar las columnas de un `returns table` existente)
+  para devolver las dos columnas nuevas, con sus dos `grant` ahora obligatorios porque el `drop` se
+  lleva los privilegios (ADR-087 §3). Aditiva, sin backfill.
 - **Motor:** `Transcribir (Supadata)` (pedir segmentos sin `text=true`, calcular
   `cobertura_seg`, reintentar con `generate` cuando conviene, cablear `duracion_video` desde
   `Normalizar IG`/`Normalizar TT`), `Armar candidato` (leer `cobertura_seg` de la caché).

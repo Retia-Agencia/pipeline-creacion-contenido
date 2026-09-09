@@ -146,11 +146,23 @@ iniciales son la verificación, igual que en la `036` y la `038`.
 `app.cache_transcripts` pasa a devolver también `cobertura_seg` y `duracion_seg`. **La RPC sigue
 tonta**: no filtra por umbral, solo entrega los números. Si el umbral cambia, no se toca SQL.
 
+🩸 **`create or replace` no alcanza para esto.** PostgreSQL no deja cambiar las columnas del
+`returns table` de una función existente vía `create or replace` (probado contra Postgres 16.13:
+`ERROR: cannot change return type of existing function`, con el hint de dropearla primero). La
+migración lleva `drop function if exists app.cache_transcripts(uuid, text[])` **antes** del `create
+or replace`.
+
+⚠️ **Y el `drop` se lleva los privilegios de la función.** Con eso, los dos `grant` dejan de ser
+cinturón-y-tirantes y pasan a ser **obligatorios**: sin ellos el motor recibe `42501`, el
+`onError: continueRegularOutput` del nodo se lo traga, y la corrida cierra en verde y sin caché,
+re-pagándole a Supadata en silencio. Es el escenario que documenta ADR-087 §3.
+
 ⚠️ **Orden obligatorio: la migración va ANTES del deploy de la app**, igual que exigieron la `014`,
 la `016` y la `037`. Sin la columna, PostgREST responde `42703`.
 
-⚠️ El `grant` de la RPC va **explícito** al recrearla: `alter default privileges` de la `011` cubre
-tablas y secuencias, **no funciones** (ADR-087 §3). Su fallo sería mudo.
+⚠️ **El script se corre entero, de un saque.** Si se corre solo una parte, los `alter table` pueden
+quedar aplicados y el `drop`+`create`+`grant` de la RPC no, dejando columnas que el motor no puede
+leer por su camino real.
 
 ---
 
@@ -278,6 +290,8 @@ comment on column app.transcripciones.cobertura_seg is
 comment on column app.transcripciones.modo is
   'auto | generate: cual de las dos respuestas de Supadata gano por cobertura. ADR-095.';
 
+drop function if exists app.cache_transcripts(uuid, text[]);
+
 create or replace function app.cache_transcripts(p_instance uuid, p_ids text[])
 returns table (external_id text, plataforma text, estado text, script text, idioma text,
                cobertura_seg numeric, duracion_seg numeric)
@@ -295,13 +309,22 @@ grant execute on function app.cache_transcripts(uuid, text[]) to service_role;
 grant execute on function app.cache_transcripts(uuid, text[]) to authenticated;
 ```
 
-      ⚠️ **Los dos `grant` van aunque la función ya existiera.** `create or replace` sobre una
-      función **conserva** sus privilegios, pero si alguien la dropea y la recrea no; y el modo de
-      falla es mudo (`42501` tragado por el `onError: continue` del nodo, corrida en verde sin
-      caché). Es exactamente el error que ADR-087 §3 documenta. Cuestan nada, van igual.
+      🩸 **El `drop` va primero porque `create or replace` no alcanza:** PostgreSQL no deja cambiar
+      las columnas del `returns table` de una función existente (probado contra Postgres 16.13:
+      `ERROR: cannot change return type of existing function`, con el hint de dropearla primero).
+
+      ⚠️ **Y el `drop` se lleva los privilegios de la función.** Con eso, los dos `grant` de abajo
+      dejan de ser cinturón-y-tirantes y pasan a ser **obligatorios**: si alguien los borra "porque
+      ya estaban", el motor recibe `42501`, el `onError: continue` del nodo se lo traga, y la
+      corrida cierra en verde y sin caché — re-pagándole a Supadata en silencio. Es exactamente el
+      error que ADR-087 §3 documenta.
 
       🔒 **La RPC no filtra por umbral.** Devuelve los números y el nodo decide. Si el umbral cambia,
       no se toca SQL.
+
+      ⚠️ **El script se corre entero, de un saque.** Si se corre solo una parte, los `alter table`
+      pueden quedar aplicados y el `drop`+`create`+`grant` de la RPC no, dejando columnas que el
+      motor no puede leer por su camino real.
 
 - [ ] **Paso 3: Mani la aplica a mano** en el SQL Editor (gate humano, como todas).
 
