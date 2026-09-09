@@ -204,6 +204,18 @@ en §Agent skills; acá solo se ubican.
   mismo caso que `run_id` en ADR-081. Hasta hoy la métrica se moría en el gate, que pisa `heat_score`
   con su veredicto. **Desempata pasivo y no vota** (ADR-090). 🐤 Su canario nace en cero **sin
   contaminar**: no se insertó ninguna fila de prueba, así que la primera la escribe el motor.
+  ⏳ **La [`039`](core/schema/039_cobertura_transcripts.sql) (ADR-095) está escrita, PENDIENTE DE
+  APLICAR** (Mani, 09/09) — agrega `app.transcripciones.cobertura_seg` / `duracion_seg` / `modo`,
+  `app.candidatos.cobertura_seg`, `app.videos_meta.duracion_seg`, y recrea `app.cache_transcripts`
+  (`create or replace`) para devolver las dos columnas nuevas, con sus dos `grant` explícitos
+  igual que la `037` (ADR-087 §3). Existe porque **un transcript cortado no se puede detectar por
+  largo de texto**: dos videos gemelos por caracteres (95 ch en 54 s vs 105 ch en 45.8 s) dieron un
+  veredicto sano y uno cortado, y solo la cobertura en segundos los separó — medido el 09/09 contra
+  la API de Supadata. 🔑 **El veredicto no se guarda**: se deriva de `cobertura_seg / duracion_seg`
+  al leer, para no pedir backfill cada vez que el umbral se mueva. El umbral queda **sin número a
+  propósito** — sale del histograma que produce la Tarea 3 del plan, no de esta migración. Aditiva
+  e idempotente (`add column if not exists`), sin backfill: el "sin backfill" se mide con los tres
+  ceros del paso 4 del brief, todavía no corridos.
   ✅ **La [`037`](core/schema/037_origen_transcripciones_y_descartes_id.sql) (ADR-087) está
   APLICADA** (Mani, 01/09), verificada **por su efecto y con cuatro señales**: `transcripciones =
   manual = 130` y **`motor = 0`** · **`descartes_con_id = 0`** (los dos ceros prueban que el *sin
