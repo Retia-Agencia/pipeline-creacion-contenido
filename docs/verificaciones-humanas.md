@@ -226,7 +226,7 @@ salieron de que una persona apretara el botón. Es el argumento entero de este d
 
 </details>
 
-## 3. 🟡 Que el tab **Entender** aparezca en el nav de un **operador**
+## 3. ✅ Que el tab **Entender** aparezca en el nav de un **operador** — **CERRADA por Mani el 2026-09-10**
 
 **Quién:** Jero o Alejo · **10 segundos, en su próximo login.**
 
@@ -266,7 +266,7 @@ falta a veces no espera trabajo: espera un dato.*
 consumo · monto, no la palabra *"costos"*. Y antes de creerle a nada, mirar **el nombre arriba a la
 derecha** de cada pestaña: si las dos dicen lo mismo, estás mirando una sola sesión.
 
-## 4-bis. 🟡 **A7 — que dos personas en Operar se vean** *(nuevo del 06/08)*
+## 4-bis. ✅ **A7 — que dos personas en Operar se vean** — **CERRADA por Mani el 2026-09-10**
 
 **Quién:** Mani, o dos personas del equipo · **1 minuto** · *Necesita **dos** sesiones, y por eso no
 la puede cerrar un agente.*
@@ -295,7 +295,7 @@ no una a propósito.
 🔑 **Lo que NO prueba:** dos clicks **simultáneos** siguen pasando los dos. Es la race de 1-2 s de
 ADR-023 C.3.3, aceptada y argumentada — la corta el guard de n8n, no la pantalla.
 
-## 4-ter. ⬜ **El botón "Marcar como grabado" y su aviso** *(nuevo del 18/08, ADR-069)*
+## 4-ter. ✅ **El botón "Marcar como grabado" y su aviso** — **CERRADA por Mani el 2026-09-10**
 
 **Quién:** Majo o Jero · **2 minutos** · *No la puede cerrar un agente porque el aviso solo aparece
 si una persona marcó primero: la mitad del circuito es un hábito, no un query.*
@@ -361,7 +361,16 @@ se mudó de `app.transcripciones.grabado_en` a `app.grabados`, con clave por vid
 los 3 pasos es idéntico de cara al operador; lo que cambió es que ahora **también** se puede hacer
 desde Históricos, que es la §4-quater.
 
-## 4-quater. ⬜ **El registro de grabados en Históricos** *(nuevo del 20/08, ADR-070)*
+## 4-quater. ✅ **El registro de grabados en Históricos** — **CERRADA por Mani el 2026-09-10**
+
+> ⚠️ **Los números de la tabla de abajo estaban VENCIDOS cuando se cerró este item, y por eso se
+> deja dicho:** decían `Grabados 294`, medido el 20/08. Al 2026-09-10 `app.grabados` tiene **366
+> filas** (la última del 07/09), o sea que la pantalla tenía razón y el doc no. Si el chip mostró
+> ~366 y no 294, **eso es correcto**.
+>
+> 🩸 Y es la tercera vez que este archivo lo hace con el mismo dato. La lección ya está escrita en
+> CLAUDE.md: *el número no va en prosa, se cuenta*. La consulta es
+> `select count(*) from app.grabados`; el resultado no se cita.
 
 **Quién:** Mani, y después Majo o Alejo · **5 minutos** · *La mitad que un agente no puede cerrar es
 la misma de siempre: hay que apretar el botón y mirar.*
@@ -1073,7 +1082,11 @@ queda en `auto`, sin candado, y la levanta `medir-cobertura.mjs`.
 
 ---
 
-## 17. ⬜ **El `comment` de la `042`, en el SQL Editor** *(pendiente desde el 10/09)*
+## 17. ✅ **El `comment` de la `042`, en el SQL Editor** — **CERRADA por Mani el 2026-09-10**
+
+> ✅ El `col_description` devolvió los **tres** valores con su explicación entera
+> (`auto | generate | auto_tras_generate`), o sea que la `042` está aplicada y el catálogo ya no
+> miente sobre qué significa `auto`.
 
 **Quién:** Mani · **Cuánto tarda:** 30 s · **Paga:** no.
 

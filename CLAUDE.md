@@ -234,11 +234,9 @@ en §Agent skills; acá solo se ubican.
   motor, que sigue PENDIENTE**: al 10/09 14:20 UTC el live escribió 16 transcripciones nuevas con
   `cobertura_seg` y `modo` en `null`, y `n8n:diff` marca drift en los 4 nodos del cambio. *El
   arreglo existe en el repo y no en producción.*
-  ✅ **La [`042`](core/schema/042_modo_auto_tras_generate.sql) (ADR-095 §Enmienda 3) está APLICADA**
-  (Mani, 10/09). ⏳ *Su verificación en el catálogo queda pendiente y la tiene que hacer una mano en
-  el SQL Editor: `select col_description('app.transcripciones'::regclass, attnum) from pg_attribute
-  where attrelid = 'app.transcripciones'::regclass and attname = 'modo';` — tiene que nombrar los
-  TRES valores.* No cambia ni una fila ni una columna: corrige el `comment` de
+  ✅ **La [`042`](core/schema/042_modo_auto_tras_generate.sql) (ADR-095 §Enmienda 3) está APLICADA
+  y VERIFICADA en el catálogo** (Mani, 10/09): `col_description` devuelve los **tres** valores
+  (`auto | generate | auto_tras_generate`) con su explicación entera. No cambia ni una fila ni una columna: corrige el `comment` de
   `app.transcripciones.modo`, que decía `auto | generate` y ahora son **tres** valores. El tercero,
   `auto_tras_generate`, es el **candado**: dice *"generate ya se probó acá y perdió"*. 🩸 **Existe
   por una fuga de plata, no por prolijidad**: `modo` sólo se escribía cuando `generate` GANABA, así
