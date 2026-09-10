@@ -17,6 +17,9 @@
 // (El chequeo de contrato/manifest es otra cosa y vive en `core/scripts`: `npm run validate`.)
 
 import { readFileSync } from 'node:fs';
+// ADR-095 §3.2: la tabla de fixtures vive UNA vez en el dominio puro y se corre contra la copia
+// textual del nodo `Transcribir (Supadata)` — si divergen, esto falla ruidoso.
+import { CASOS_COBERTURA } from '../../apps/dashboard/domain/cobertura.ts';
 
 const w = JSON.parse(readFileSync(new URL('./workflow.json', import.meta.url), 'utf8'));
 const jsCode = (n) => {
@@ -550,7 +553,7 @@ seccion('Invariantes que no se tocan');
 // (jsCode async con this.helpers.httpRequest → se compila como AsyncFunction y se corre con un
 // `this` mockeado; el mock cuenta llamadas y concurrencia en vuelo)
 // ════════════════════════════════════════════════════════════════════════════
-const runTranscribir = async (items, { presupuesto = 0, delayMs = 5, concurrencia, respuesta, falla, secuencia, backoff = 1, arranque = 0, cache = null } = {}) => {
+const runTranscribir = async (items, { presupuesto = 0, delayMs = 5, concurrencia, respuesta, falla, secuencia, backoff = 1, arranque = 0, cache = null, duraciones = {} } = {}) => {
   const llamadas = [];
   let enVuelo = 0, maxEnVuelo = 0;
   const t0Mock = Date.now();
@@ -580,6 +583,12 @@ const runTranscribir = async (items, { presupuesto = 0, delayMs = 5, concurrenci
     if (n === 'Leer caché de transcripts') {
       if (cache === null) throw new Error('nodo sin ejecutar (mock)');
       return { all: () => cache.map((j) => ({ json: j })) };
+    }
+    // ADR-095: `Normalizar IG`/`Normalizar TT` son los ancestros de donde sale `duracion_video`.
+    // El mock los espeja como uno solo (el nodo mira los dos y se queda con el primero que
+    // encuentre) — `duraciones` default `{}` reproduce "sin duración" sin que nadie lo pida.
+    if (n === 'Normalizar IG' || n === 'Normalizar TT') {
+      return { all: () => Object.entries(duraciones).map(([external_id, duracion_video]) => ({ json: { external_id, duracion_video } })) };
     }
     throw new Error('nodo no mockeado: ' + n);
   };
@@ -862,6 +871,74 @@ await (async () => {
     const sinResolver = out.filter((o) => o._tx_resuelta !== true).length;
     check('🔴 los que el presupuesto dejó afuera NO quedan resueltos (antes se quemaban)', sinResolver > 0, sinResolver + ' de 30 sin resolver');
     check('y los que sí alcanzó a mirar quedan resueltos', out.some((o) => o._tx_resuelta === true), 'ninguno resuelto');
+  }
+})();
+
+// ── Cobertura: detección y reintento (ADR-095) ──
+// El valor de esto es la MEDICIÓN, no el reintento: detectar es gratis (viene en la misma
+// respuesta que ya se paga) y deja la cobertura anotada en cada corrida. Medido 09/09 sobre 583
+// transcripts cacheados: 2.06% cortados (12/583), no el 6-20% que se había estimado sin datos —
+// el reintento recupera 4 de esos 12. Umbral 0.9 (ADR-095): el histograma no distingue 0.8 de 0.9,
+// se elige por recall porque un falso positivo es inofensivo (acá abajo solo se pisa `auto` si el
+// reintento cubre más segundos).
+seccion('Cobertura: detección y reintento (ADR-095)');
+await (async () => {
+  {
+    // §3.2: la tabla de fixtures del dominio puro corrida contra la COPIA TEXTUAL del nodo — si
+    // divergen (alguien tocó una copia y no la otra), esto revienta ruidoso.
+    const codigo = jsCode('Transcribir (Supadata)');
+    const inicio = codigo.indexOf('// ⤵ COPIA TEXTUAL');
+    const fin = codigo.indexOf('// ⤴ FIN COPIA TEXTUAL');
+    if (inicio === -1 || fin === -1) throw new Error('no encontré los marcadores de la copia textual en el nodo');
+    const copia = new Function(codigo.slice(inicio, fin) + '\nreturn { textoDeSegmentos, coberturaDeSegmentos, veredictoCobertura };')();
+    const fallos = CASOS_COBERTURA.filter((c) => copia.veredictoCobertura(c.cobertura, c.duracion, c.umbral) !== c.espera);
+    check('la copia del nodo pasa CASOS_COBERTURA importada del .ts (' + CASOS_COBERTURA.length + ' casos)',
+      fallos.length === 0, JSON.stringify(fallos.map((c) => c.nombre)));
+  }
+  {
+    // duración conocida + cobertura corta (40/100 < 0.9) ⇒ EXACTAMENTE un pedido extra con
+    // mode=generate, que cubre más (95/100) y gana.
+    const s = [
+      { content: [{ text: 'corto', offset: 0, duration: 40000 }], lang: 'en' },
+      { content: [{ text: 'mas completo aca', offset: 0, duration: 95000 }], lang: 'en' },
+    ];
+    const { out, llamadas } = await runTranscribir([tvid('k1')], { duraciones: { k1: 100 }, secuencia: s });
+    check('cobertura corta ⇒ un pedido extra con mode=generate, y gana el que cubre más',
+      llamadas.length === 2 && /mode=generate/.test(llamadas[1]) && /mode=auto/.test(llamadas[0])
+        && out[0].transcripcion === 'mas completo aca' && out[0]._tx_modo === 'generate' && out[0]._tx_cobertura === 95,
+      JSON.stringify({ llamadas, tx: out[0].transcripcion, modo: out[0]._tx_modo, cob: out[0]._tx_cobertura }));
+  }
+  {
+    // cobertura suficiente (96/100 >= 0.9) ⇒ cero pedidos extra.
+    const { out, llamadas } = await runTranscribir([tvid('k2')], {
+      duraciones: { k2: 100 },
+      respuesta: { content: [{ text: 'todo bien cubierto', offset: 0, duration: 96000 }], lang: 'en' },
+    });
+    check('cobertura suficiente ⇒ cero pedidos extra',
+      llamadas.length === 1 && out[0].transcripcion === 'todo bien cubierto' && out[0]._tx_modo === 'auto',
+      JSON.stringify({ llamadas: llamadas.length, tx: out[0].transcripcion }));
+  }
+  {
+    // sin duracion_video (el mapa no tiene el id) ⇒ veredicto 'desconocido', cero pedidos extra,
+    // y el transcript pasa igual (fail-open: no hay con qué comparar).
+    const { out, llamadas } = await runTranscribir([tvid('k3')], {
+      respuesta: { content: [{ text: 'texto sin duracion conocida', offset: 0, duration: 20000 }], lang: 'en' },
+    });
+    check('sin duracion_video ⇒ cero pedidos extra y el transcript pasa igual (fail-open)',
+      llamadas.length === 1 && out[0].transcripcion === 'texto sin duracion conocida' && out[0]._tx_duracion == null,
+      JSON.stringify({ llamadas: llamadas.length, tx: out[0].transcripcion, dur: out[0]._tx_duracion }));
+  }
+  {
+    // el caso DYTvNduEW5X (ADR-095): generate puede ser PEOR. auto cubre 80/100 (parcial, dispara
+    // el reintento) y generate cubre solo 50/100 ⇒ gana auto, nunca se elige por largo de texto.
+    const s = [
+      { content: [{ text: 'auto cubre bastante', offset: 0, duration: 80000 }], lang: 'en' },
+      { content: [{ text: 'generate cubre mucho menos pero es mas largo de texto igual', offset: 0, duration: 50000 }], lang: 'en' },
+    ];
+    const { out, llamadas } = await runTranscribir([tvid('k4')], { duraciones: { k4: 100 }, secuencia: s });
+    check('generate cubre MENOS (50<80) ⇒ gana auto, nunca se elige por largo (y sí se intentó: 2 llamadas)',
+      llamadas.length === 2 && out[0].transcripcion === 'auto cubre bastante' && out[0]._tx_modo === 'auto' && out[0]._tx_cobertura === 80,
+      JSON.stringify({ llamadas: llamadas.length, tx: out[0].transcripcion, modo: out[0]._tx_modo, cob: out[0]._tx_cobertura }));
   }
 })();
 
