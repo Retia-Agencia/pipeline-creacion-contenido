@@ -226,15 +226,19 @@ en §Agent skills; acá solo se ubican.
   motor, que sigue PENDIENTE**: al 10/09 14:20 UTC el live escribió 16 transcripciones nuevas con
   `cobertura_seg` y `modo` en `null`, y `n8n:diff` marca drift en los 4 nodos del cambio. *El
   arreglo existe en el repo y no en producción.*
-  ⏳ **La [`041`](core/schema/041_revoke_public_cache_transcripts.sql) está escrita, PENDIENTE DE
-  APLICAR** (10/09) — `revoke execute … from public` sobre esa misma RPC. 🔬 **Hoy no tapa ningún
-  agujero y el archivo lo dice con el número**: medido contra prod, `anon` rebota con `42501
-  permission denied for schema app` **antes** de llegar a la función, y la RPC es `security
-  invoker`, así que las policies de la `021` filtrarían igual. Lo que arregla es el **default**:
-  Postgres le da `EXECUTE` a `PUBLIC` en cada función nueva, así que el día que alguien abra el
-  schema `app` a `anon` la RPC queda llamable sin que nadie lo decida. **Es la única de la serie
-  que no se puede verificar por su efecto desde afuera** (la respuesta de PostgREST es idéntica
-  antes y después): se verifica con `has_function_privilege` en el SQL Editor.
+  ✅ **La [`041`](core/schema/041_revoke_public_cache_transcripts.sql) está APLICADA** (Mani,
+  10/09) — `revoke execute … from public` sobre esa misma RPC. 🔬 **No tapa ningún agujero de hoy, y
+  el archivo lo dice con el número**: medido contra prod, `anon` rebota con `42501 permission denied
+  for schema app` **antes** de llegar a la función, y la RPC es `security invoker`, así que las
+  policies de la `021` filtrarían igual. Lo que arregla es el **default**: Postgres le da `EXECUTE`
+  a `PUBLIC` en cada función nueva, así que el día que alguien abra el schema `app` a `anon` la RPC
+  queda llamable sin que nadie lo decida.
+  🔑 **Es la única de la serie que NO se puede verificar por su efecto desde afuera** —la respuesta
+  de PostgREST es idéntica antes y después— así que se verificó en el catálogo:
+  **`anon = false` · `authenticated = true` · `service_role = true`**. Los dos `true` son la mitad
+  que importa: prueban que el `revoke` le sacó el default a `PUBLIC` sin llevarse puestos a los que
+  sí fueron nombrados. Si `service_role` diera `false`, el motor pierde el caché y el fallo sería
+  **MUDO** (el nodo tiene `onError: continue`: corrida en verde, re-pagando cada transcript).
   ✅ **La [`037`](core/schema/037_origen_transcripciones_y_descartes_id.sql) (ADR-087) está
   APLICADA** (Mani, 01/09), verificada **por su efecto y con cuatro señales**: `transcripciones =
   manual = 130` y **`motor = 0`** · **`descartes_con_id = 0`** (los dos ceros prueban que el *sin
