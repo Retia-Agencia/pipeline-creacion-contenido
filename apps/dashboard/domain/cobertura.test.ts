@@ -3,7 +3,8 @@ import { describe, it } from "node:test";
 import {
   avisoDeCobertura, CASOS_COBERTURA, CASOS_RESPUESTA, CASOS_SEGMENTOS, coberturaDeRespuesta,
   coberturaDeSegmentos, duracionOpcional, textoDeRespuesta, textoDeSegmentos, veredictoCobertura,
-  CASOS_REINTENTO, debeReintentar, ganaElReintento, modoResultante, UMBRAL_COBERTURA, yaProboGenerate,
+  CASOS_ENCOLADO, CASOS_REINTENTO, debeReintentar, esTranscriptEncolado, ganaElReintento,
+  modoResultante, UMBRAL_COBERTURA, yaProboGenerate,
 } from "./cobertura.ts";
 
 describe("coberturaDeSegmentos", () => {
@@ -197,13 +198,52 @@ describe("ganaElReintento", () => {
 
 describe("modoResultante", () => {
   it("no se reintentó: 'auto', como siempre", () => {
-    assert.equal(modoResultante(false, false), "auto");
+    assert.equal(modoResultante(false, false, true), "auto");
   });
   it("se reintentó y ganó: 'generate' — el texto es de generate", () => {
-    assert.equal(modoResultante(true, true), "generate");
+    assert.equal(modoResultante(true, true, true), "generate");
   });
   it("🔑 se reintentó y perdió: 'auto_tras_generate' — el texto es de auto, pero el candado queda puesto", () => {
-    assert.equal(modoResultante(true, false), "auto_tras_generate");
+    assert.equal(modoResultante(true, false, true), "auto_tras_generate");
+  });
+  // 🩸 El cuarto desenlace, que no existía y por eso el candado se ponía mal. Un `202` de Supadata
+  // (ADR-096) no es un veredicto sobre el video: es "todavía no". Sin este caso, `gano = false` y
+  // el video quedaba marcado `auto_tras_generate` PARA SIEMPRE sin que nadie lo hubiera medido.
+  it("🔑 se reintentó y NO hubo respuesta (202): 'auto' — no se aprendió nada, no se pone candado", () => {
+    assert.equal(modoResultante(true, false, false), "auto");
+  });
+});
+
+describe("esTranscriptEncolado — un 202 no es un error ni un transcript (ADR-096)", () => {
+  it("202 con jobId: encolado", () => {
+    assert.equal(esTranscriptEncolado({ jobId: "abc" }, 202), true);
+  });
+  it("202 pelado también: manda el status, no el cuerpo", () => {
+    assert.equal(esTranscriptEncolado({}, 202), true);
+  });
+  it("🔑 sin status, sólo el cuerpo: el nodo de n8n no tiene el status y decide igual", () => {
+    assert.equal(esTranscriptEncolado({ jobId: "abc" }), true);
+  });
+  it("200 con jobId (por si cambia el status): sigue siendo encolado", () => {
+    assert.equal(esTranscriptEncolado({ jobId: "abc" }, 200), true);
+  });
+  // La distinción que da todo el valor: el video mudo SÍ es un veredicto y SÍ merece candado.
+  it("🔑 200 sin voz NO es encolado: es un veredicto, y ahí el candado va", () => {
+    assert.equal(esTranscriptEncolado({ error: "transcript-unavailable" }, 200), false);
+  });
+  it("200 con contenido no es encolado", () => {
+    assert.equal(esTranscriptEncolado({ content: [{ text: "a", offset: 0, duration: 1 }] }, 200), false);
+  });
+  it("cuerpo basura no rompe: no es encolado", () => {
+    assert.equal(esTranscriptEncolado(null, 200), false);
+  });
+});
+
+describe("CASOS_ENCOLADO — la tabla que corren las DOS copias", () => {
+  it("la copia del nodo la ejercita test-nodos.mjs; acá se prueba la de este archivo", () => {
+    for (const c of CASOS_ENCOLADO) {
+      assert.equal(esTranscriptEncolado(c.cuerpo, c.status), c.espera, c.nombre);
+    }
   });
 });
 

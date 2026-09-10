@@ -287,11 +287,49 @@ export function ganaElReintento(actual: Intento, candidato: Intento): boolean {
   return candidato.cobertura > actual.cobertura;
 }
 
-/** Qué queda escrito en `modo` según lo que pasó. Es el instrumento y el candado a la vez. */
-export function modoResultante(seReintento: boolean, gano: boolean): Modo {
-  if (!seReintento) return "auto";
+/**
+ * ¿Supadata encoló el trabajo en vez de contestarlo? (ADR-096). Un `202` con `{jobId}` **no es un
+ * error ni un transcript**: es "todavía no". Se decide por el CUERPO primero y por el status
+ * después, porque el nodo de n8n llama con `json: true` y ahí sólo tiene el cuerpo.
+ *
+ * 🔑 La distinción que da todo el valor: un video **mudo** (`transcript-unavailable`) SÍ es un
+ * veredicto sobre el video y merece candado; un encolado no se midió nunca.
+ */
+export function esTranscriptEncolado(cuerpo: unknown, status?: number | null): boolean {
+  if (status === 202) return true;
+  return typeof (cuerpo as { jobId?: unknown } | null)?.jobId === "string";
+}
+
+/**
+ * Qué queda escrito en `modo` según lo que pasó. Es el instrumento y el candado a la vez.
+ *
+ * 🩸 `huboRespuesta` no estaba y por eso el candado se ponía MAL. Un `202` (ADR-096) cae adentro de
+ * `res.ok`, así que llegaba acá como `gano = false` —indistinguible de "generate perdió"— y el
+ * video quedaba marcado `auto_tras_generate` **para siempre, sin que nadie lo hubiera medido**. Es
+ * el mismo criterio que ya estaba escrito para la caída de red (*"una caída de red no es un
+ * veredicto sobre el video"*); el 202 se colaba por adelante porque no tiraba excepción.
+ * Medido el 10/09 en la Tarea 9: 4 de 23.
+ */
+export function modoResultante(seReintento: boolean, gano: boolean, huboRespuesta: boolean): Modo {
+  if (!seReintento || !huboRespuesta) return "auto";
   return gano ? "generate" : "auto_tras_generate";
 }
+
+/**
+ * La tabla que corren las DOS implementaciones de `esTranscriptEncolado` (ésta y la copia textual
+ * del nodo). Mismo mecanismo que `CASOS_REINTENTO`: si divergen, `test-nodos.mjs` falla ruidoso.
+ * El primer caso es el real, medido el 10/09 (`3947142661160278921`, 550.6 s).
+ */
+export const CASOS_ENCOLADO = [
+  { nombre: "202 con jobId (el caso real de ADR-096)", cuerpo: { jobId: "abc" }, status: 202, espera: true },
+  { nombre: "sólo el cuerpo, sin status: así lo ve el nodo", cuerpo: { jobId: "abc" }, status: null, espera: true },
+  { nombre: "🔑 video mudo: NO es encolado, es un veredicto y merece candado",
+    cuerpo: { error: "transcript-unavailable" }, status: 200, espera: false },
+  { nombre: "transcript de verdad", cuerpo: { content: [{ text: "a", offset: 0, duration: 1 }] }, status: 200, espera: false },
+  { nombre: "cuerpo basura no rompe", cuerpo: null, status: 200, espera: false },
+] as const satisfies readonly {
+  nombre: string; cuerpo: unknown; status: number | null; espera: boolean;
+}[];
 
 /**
  * La tabla que corren las DOS implementaciones de `debeReintentar` (ésta y la copia textual del

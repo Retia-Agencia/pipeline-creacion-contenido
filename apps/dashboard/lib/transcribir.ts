@@ -1,6 +1,6 @@
 import {
-  coberturaDeRespuesta, debeReintentar, ganaElReintento, modoResultante, textoDeRespuesta,
-  UMBRAL_COBERTURA, type Modo,
+  coberturaDeRespuesta, debeReintentar, esTranscriptEncolado, ganaElReintento, modoResultante,
+  textoDeRespuesta, UMBRAL_COBERTURA, type Modo,
 } from "@/domain/cobertura";
 import { leerClave } from "@/lib/env";
 // Las dos llamadas externas del transcriptor (ADR-031): Supadata para el transcript, Haiku para
@@ -18,6 +18,10 @@ export type Transcripcion = {
   texto: string; // vacío = el video no tiene voz o Supadata no pudo
   idioma: string; // código de 2 letras; "" si no se pudo detectar
   cobertura: number | null; // hasta qué segundo llegó el transcript (ADR-095). null = no se pudo medir
+  // 🔑 Supadata encoló el ASR y todavía no contestó (ADR-096). Existe porque SIN ESTE CAMPO un
+  // `202` tiene exactamente la misma forma que "el video no tiene voz" — `{texto:"", cobertura:
+  // null}`— y quien llama no puede distinguir "no hay nada que sacar" de "todavía no".
+  encolado: boolean;
 };
 
 /** Lo que se guarda: una transcripción y de cuál de los dos modos salió. */
@@ -51,7 +55,10 @@ export async function transcribir(url: string, modo: Modo = "auto"): Promise<Tra
     .toLowerCase()
     .slice(0, 2);
 
-  return { texto: texto.trim().slice(0, TOPE_TRANSCRIPT), idioma, cobertura };
+  return {
+    texto: texto.trim().slice(0, TOPE_TRANSCRIPT), idioma, cobertura,
+    encolado: esTranscriptEncolado(cuerpo, res.status),
+  };
 }
 
 /**
@@ -80,6 +87,12 @@ export async function transcribirConReintento(
 
   try {
     const segundo = await transcribir(url, "generate");
+    // 🩸 Un `202` llega acá como "generate no mejoró" y hasta hoy ponía el candado
+    // `auto_tras_generate` sobre un video **al que nunca le contestaron** (ADR-096 §Enmienda). Se
+    // dice en el log por la misma razón que existe el campo: hasta hoy era mudo.
+    if (segundo.encolado) {
+      console.error("[transcribir] Supadata encoló el generate (202): queda lo de auto y el video se vuelve a intentar", url);
+    }
     const gano = ganaElReintento(primero, segundo);
     const elegido = gano ? segundo : primero;
     return {
@@ -88,7 +101,8 @@ export async function transcribirConReintento(
       // que `auto` sí detectó mandaría el texto a traducir de gusto.
       idioma: elegido.idioma || primero.idioma,
       cobertura: elegido.cobertura,
-      modo: modoResultante(true, gano),
+      encolado: elegido.encolado,
+      modo: modoResultante(true, gano, !segundo.encolado),
     };
   } catch (e) {
     // Se dice, no se disimula. Y NO se marca `auto_tras_generate`: una caída de red no es un

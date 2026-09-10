@@ -19,7 +19,7 @@
 import { readFileSync } from 'node:fs';
 // ADR-095 §3.2: la tabla de fixtures vive UNA vez en el dominio puro y se corre contra la copia
 // textual del nodo `Transcribir (Supadata)` — si divergen, esto falla ruidoso.
-import { CASOS_COBERTURA, CASOS_REINTENTO, CASOS_RESPUESTA, CASOS_SEGMENTOS, UMBRAL_COBERTURA } from '../../apps/dashboard/domain/cobertura.ts';
+import { CASOS_COBERTURA, CASOS_ENCOLADO, CASOS_REINTENTO, CASOS_RESPUESTA, CASOS_SEGMENTOS, UMBRAL_COBERTURA } from '../../apps/dashboard/domain/cobertura.ts';
 
 const w = JSON.parse(readFileSync(new URL('./workflow.json', import.meta.url), 'utf8'));
 const jsCode = (n) => {
@@ -930,7 +930,7 @@ await (async () => {
     const inicio = codigo.indexOf('// ⤵ COPIA TEXTUAL');
     const fin = codigo.indexOf('// ⤴ FIN COPIA TEXTUAL');
     if (inicio === -1 || fin === -1) throw new Error('no encontré los marcadores de la copia textual en el nodo');
-    const copia = new Function(codigo.slice(inicio, fin) + '\nreturn { UMBRAL_COBERTURA, textoDeSegmentos, coberturaDeSegmentos, textoDeRespuesta, coberturaDeRespuesta, veredictoCobertura, yaProboGenerate, debeReintentar, ganaElReintento, modoResultante };')();
+    const copia = new Function(codigo.slice(inicio, fin) + '\nreturn { UMBRAL_COBERTURA, textoDeSegmentos, coberturaDeSegmentos, textoDeRespuesta, coberturaDeRespuesta, veredictoCobertura, yaProboGenerate, debeReintentar, ganaElReintento, modoResultante, esTranscriptEncolado };')();
 
     const fallos = CASOS_COBERTURA.filter((c) => copia.veredictoCobertura(c.cobertura, c.duracion, c.umbral) !== c.espera);
     check('la copia del nodo pasa CASOS_COBERTURA importada del .ts (' + CASOS_COBERTURA.length + ' casos)',
@@ -954,13 +954,23 @@ await (async () => {
     check('la copia del nodo pasa CASOS_REINTENTO (cuándo se gasta una llamada más, ' + CASOS_REINTENTO.length + ' casos)',
       fallosRe.length === 0, JSON.stringify(fallosRe.map((c) => c.nombre)));
 
-    // 🔑 Los tres desenlaces de `modoResultante`, valor contra valor: es lo único que distingue
+    // 🔑 Los CUATRO desenlaces de `modoResultante`, valor contra valor: es lo único que distingue
     // "disparó y perdió" de "nunca disparó", y esa distinción ES el candado contra la re-compra.
-    check("la copia del nodo escribe 'auto_tras_generate' cuando el reintento pierde",
-      copia.modoResultante(false, false) === 'auto'
-      && copia.modoResultante(true, true) === 'generate'
-      && copia.modoResultante(true, false) === 'auto_tras_generate',
-      'nodo=' + [copia.modoResultante(false, false), copia.modoResultante(true, true), copia.modoResultante(true, false)].join('/'));
+    // 🩸 El cuarto (ADR-096) no existía: un `202` llegaba como `gano = false` y ponía el candado
+    // sobre un video al que Supadata nunca le contestó. Ese candado es para siempre.
+    check("la copia del nodo escribe 'auto_tras_generate' cuando el reintento pierde, y NO cuando no hubo respuesta",
+      copia.modoResultante(false, false, true) === 'auto'
+      && copia.modoResultante(true, true, true) === 'generate'
+      && copia.modoResultante(true, false, true) === 'auto_tras_generate'
+      && copia.modoResultante(true, false, false) === 'auto',
+      'nodo=' + [copia.modoResultante(false, false, true), copia.modoResultante(true, true, true),
+                 copia.modoResultante(true, false, true), copia.modoResultante(true, false, false)].join('/'));
+
+    // ADR-096. Es la que decide si se pone el candado, así que una divergencia acá se paga en filas
+    // marcadas de más (nunca se vuelve a pedir) o de menos (se re-paga para siempre).
+    const fallosEnc = CASOS_ENCOLADO.filter((c) => copia.esTranscriptEncolado(c.cuerpo, c.status) !== c.espera);
+    check('la copia del nodo pasa CASOS_ENCOLADO (un 202 no es un veredicto, ' + CASOS_ENCOLADO.length + ' casos)',
+      fallosEnc.length === 0, JSON.stringify(fallosEnc.map((c) => c.nombre)));
 
     // El umbral no es una función, así que ninguna tabla lo compara: va valor contra valor. Vivía
     // FUERA de los marcadores (o sea, fuera de lo que este test extrae) y en tres lugares con dos

@@ -23,7 +23,7 @@
 //
 // Fail-open en todo: sin duración no hay veredicto (la fila queda con cobertura y sin duración,
 // legible después); si Apify no contesta, esas filas se dicen en la salida y no se inventa nada.
-import { coberturaDeSegmentos, ganaElReintento, textoDeSegmentos, yaProboGenerate } from '../../apps/dashboard/domain/cobertura.ts';
+import { coberturaDeSegmentos, esTranscriptEncolado, ganaElReintento, textoDeSegmentos, yaProboGenerate } from '../../apps/dashboard/domain/cobertura.ts';
 
 const { SUPABASE_URL, SUPABASE_SERVICE_ROLE, SUPADATA_API_KEY, APIFY_TOKEN } = process.env;
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE || !SUPADATA_API_KEY) {
@@ -75,7 +75,8 @@ async function pedir(url, modo) {
   const b = await r.json().catch(() => ({}));
   const segs = Array.isArray(b.content) ? b.content : [];
   return { texto: textoDeSegmentos(segs).trim().slice(0, 6000), cobertura: coberturaDeSegmentos(segs),
-           lang: String(b.lang || '').toLowerCase().slice(0, 2), status: r.status };
+           lang: String(b.lang || '').toLowerCase().slice(0, 2), status: r.status,
+           encolado: esTranscriptEncolado(b, r.status) };
 }
 
 /**
@@ -344,7 +345,7 @@ async function completar(rows) {
     return;
   }
 
-  let completadas = 0, sinMejora = 0, sinRespuesta = 0;
+  let completadas = 0, sinMejora = 0, sinRespuesta = 0, encolados = 0;
   await pMapLimit(candidatas, 8, async (r) => {
     let resp;
     try {
@@ -357,8 +358,16 @@ async function completar(rows) {
       return;
     }
     if (resp.cobertura == null) {
-      console.log(`⚠️ ${r.external_id} (${Number(r.duracion_seg).toFixed(1)}s): status ${resp.status}, sin segmentos`);
-      sinRespuesta++;
+      // 🔑 Dos casos que se veían iguales y no lo son (ADR-096): ENCOLADO es "todavía no" y el
+      // video se vuelve a intentar; cualquier otra respuesta vacía SÍ es un veredicto de `generate`
+      // sobre ese video, y ahí el candado va — si no, se re-paga en cada corrida para siempre.
+      console.log(`⚠️ ${r.external_id} (${Number(r.duracion_seg).toFixed(1)}s): status ${resp.status}, ${resp.encolado ? 'ENCOLADO (202): no se marca, se reintenta' : 'sin segmentos: se marca auto_tras_generate'}`);
+      if (!resp.encolado) {
+        await sbPatch(`transcripciones?id=eq.${r.id}`, 'app', { modo: 'auto_tras_generate' });
+        sinMejora++;
+      } else {
+        encolados++;
+      }
       return;
     }
     const actual = { texto: r.script, cobertura: r.cobertura_seg };
@@ -377,7 +386,7 @@ async function completar(rows) {
     });
     completadas++;
   });
-  console.log(`\n✓ completadas: ${completadas} · sin mejora (el guion no se pisó; quedan marcados auto_tras_generate y no se re-piden): ${sinMejora} · sin respuesta de Supadata: ${sinRespuesta}`);
+  console.log(`\n✓ completadas: ${completadas} · sin mejora (el guion no se pisó; quedan marcados auto_tras_generate y no se re-piden): ${sinMejora} · encolados por Supadata (202, siguen candidatos): ${encolados} · sin respuesta: ${sinRespuesta}`);
 }
 
 // ═══════════════════════════════ main ═══════════════════════════════
