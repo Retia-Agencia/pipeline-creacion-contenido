@@ -11,6 +11,8 @@
 //                          junto con --completar: única forma de que --completar escriba. Sin él,
 //                          --completar lista las candidatas y no pide nada (dry-run).
 //   --limite N             acota cuántas filas procesa (para probar barato).
+//   --concurrencia N       cuántas llamadas en vuelo (default 8). Bajarla evita que Supadata
+//                          encole los pedidos de `generate` y conteste 202 (ADR-096).
 //   --completar --umbral X --apply
 //                          sobre las filas YA medidas (cobertura_seg/duracion_seg en la base) que
 //                          quedaron bajo `umbral`, pide `generate` una sola vez y se queda con la
@@ -38,6 +40,10 @@ const valor = (n, d) => { const i = args.indexOf('--' + n); return i < 0 ? d : a
 const APPLY = flag('apply');
 const LIMITE = valor('limite', null) != null ? Number(valor('limite', null)) : null;
 const COMPLETAR = flag('completar');
+// Concurrencia: 8 por default (más conservador que el motor, que corre con 12). Se puede bajar
+// porque `generate` no es `auto`: medido el 10/09, a 8 en vuelo Supadata ENCOLA los pedidos largos
+// y contesta 202 (ADR-096), y el mismo video pedido solo vuelve 200 con transcript.
+const CONCURRENCIA = Number(valor('concurrencia', 8));
 
 // `--umbral` es obligatorio en `--completar` (escribe producción) y tiene default solo en `--medir`
 // (ahí solo colorea el histograma, no escribe nada). El §3.4 del spec existe para que el número
@@ -268,7 +274,7 @@ async function medir(rows) {
     porCandidato.get(r.external_id) ?? porVideoMeta.get(r.external_id) ?? porApify.get(r.external_id) ?? null;
 
   let fallosSupadata = 0;
-  const resultados = await pMapLimit(rows, 8, async (r) => {
+  const resultados = await pMapLimit(rows, CONCURRENCIA, async (r) => {
     let resp;
     try {
       resp = await pedirConBackoff(r.url, 'auto');
@@ -300,7 +306,7 @@ async function medir(rows) {
   }
 
   let escritas = 0;
-  await pMapLimit(resultados, 8, async (res) => {
+  await pMapLimit(resultados, CONCURRENCIA, async (res) => {
     if (res.cobertura == null) return;
     const patch = { cobertura_seg: res.cobertura, modo: 'auto' };
     if (res.duracion != null) patch.duracion_seg = res.duracion;
@@ -346,14 +352,15 @@ async function completar(rows) {
   }
 
   let completadas = 0, sinMejora = 0, sinRespuesta = 0, encolados = 0;
-  await pMapLimit(candidatas, 8, async (r) => {
+  await pMapLimit(candidatas, CONCURRENCIA, async (r) => {
     let resp;
+    const t0 = Date.now();
     try {
       resp = await pedirConBackoff(r.url, 'generate');
     } catch (e) {
       // Se dice CUÁL falló y POR QUÉ: un `sin respuesta: 16` sin nombres no se puede diagnosticar
       // sin volver a pagar. Fail-open igual: la fila queda en `auto` y vuelve a ser candidata.
-      console.log(`⚠️ ${r.external_id} (${Number(r.duracion_seg).toFixed(1)}s): ${e.name || e}`);
+      console.log(`⚠️ ${r.external_id} (${Number(r.duracion_seg).toFixed(1)}s): ${e.name || e} tras ${((Date.now() - t0) / 1000).toFixed(0)}s`);
       sinRespuesta++;
       return;
     }
@@ -361,7 +368,7 @@ async function completar(rows) {
       // 🔑 Dos casos que se veían iguales y no lo son (ADR-096): ENCOLADO es "todavía no" y el
       // video se vuelve a intentar; cualquier otra respuesta vacía SÍ es un veredicto de `generate`
       // sobre ese video, y ahí el candado va — si no, se re-paga en cada corrida para siempre.
-      console.log(`⚠️ ${r.external_id} (${Number(r.duracion_seg).toFixed(1)}s): status ${resp.status}, ${resp.encolado ? 'ENCOLADO (202): no se marca, se reintenta' : 'sin segmentos: se marca auto_tras_generate'}`);
+      console.log(`⚠️ ${r.external_id} (${Number(r.duracion_seg).toFixed(1)}s, ${((Date.now() - t0) / 1000).toFixed(0)}s): status ${resp.status}, ${resp.encolado ? 'ENCOLADO (202): no se marca, se reintenta' : 'sin segmentos: se marca auto_tras_generate'}`);
       if (!resp.encolado) {
         await sbPatch(`transcripciones?id=eq.${r.id}`, 'app', { modo: 'auto_tras_generate' });
         sinMejora++;
@@ -384,6 +391,7 @@ async function completar(rows) {
     await sbPatch(`transcripciones?id=eq.${r.id}`, 'app', {
       script: candidato.texto, cobertura_seg: candidato.cobertura, modo: 'generate',
     });
+    console.log(`✓ ${r.external_id} (${Number(r.duracion_seg).toFixed(1)}s): ${Number(r.cobertura_seg).toFixed(1)}s → ${candidato.cobertura.toFixed(1)}s en ${((Date.now() - t0) / 1000).toFixed(0)}s de generate`);
     completadas++;
   });
   console.log(`\n✓ completadas: ${completadas} · sin mejora (el guion no se pisó; quedan marcados auto_tras_generate y no se re-piden): ${sinMejora} · encolados por Supadata (202, siguen candidatos): ${encolados} · sin respuesta: ${sinRespuesta}`);

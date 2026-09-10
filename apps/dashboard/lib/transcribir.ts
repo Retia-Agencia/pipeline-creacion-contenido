@@ -14,6 +14,23 @@ import { leerClave } from "@/lib/env";
 
 const TOPE_TRANSCRIPT = 6000;
 
+// Cuánto se espera a Supadata, y por qué son DOS números y no uno.
+//
+// `auto` lee subtítulos que ya existen y vuelve rápido: 90 s es el número del nodo del motor,
+// copiado. `generate` corre un ASR contra el audio y, cuando Supadata lo ENCOLA (ADR-096), la
+// respuesta `202` puede tardar minutos en llegar — medido el 10/09: **91 s** para el video de
+// 550 s. Esperarla acá no sirve para NADA: esta ruta corre con `maxDuration = 60`, así que una
+// llamada que pasa el minuto no devuelve un guion, mata la función, deja la fila sin marcar y la
+// pasada siguiente **la vuelve a pagar**.
+//
+// 25 s es el techo que cabe adentro de ese presupuesto. Que alcance sale de la medición: los
+// `generate` que SÍ contestan tardaron **9 s y 13 s** (videos de 76 s y 150 s, pedidos de a uno).
+// ⚠️ Esos 3 datos son a concurrencia 1. Si aparece un `generate` legítimo que tarda más de 25 s
+// bajo carga, este número lo estaría abortando — y se vería como "el reintento no mejora nunca".
+// Lo que lo arregla de raíz no es un timeout más grande sino el polling del `jobId` (ADR-096).
+const TIMEOUT_AUTO_MS = 90_000;
+const TIMEOUT_GENERATE_MS = 25_000;
+
 export type Transcripcion = {
   texto: string; // vacío = el video no tiene voz o Supadata no pudo
   idioma: string; // código de 2 letras; "" si no se pudo detectar
@@ -33,7 +50,10 @@ export async function transcribir(url: string, modo: Modo = "auto"): Promise<Tra
   // carácter por carácter) y de paso sale la cobertura, gratis en la misma respuesta que ya se paga.
   const res = await fetch(
     `https://api.supadata.ai/v1/transcript?url=${encodeURIComponent(url)}&mode=${modo === "generate" ? "generate" : "auto"}`,
-    { headers: { "x-api-key": leerClave("SUPADATA_API_KEY") }, signal: AbortSignal.timeout(90_000) },
+    {
+      headers: { "x-api-key": leerClave("SUPADATA_API_KEY") },
+      signal: AbortSignal.timeout(modo === "generate" ? TIMEOUT_GENERATE_MS : TIMEOUT_AUTO_MS),
+    },
   );
 
   const cuerpo = await res.json().catch(() => ({}));

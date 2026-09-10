@@ -886,38 +886,47 @@ lado. Hoy recibe el aviso y el guion cortado (ADR-095 §Enmienda 2 §A).
 
 ---
 
-### Tarea 9 · Los 22 que ya están cortados, y que nadie va a volver a pedir — ✅ CORRIDA (10/09), 4 de 23 recuperados
+### Tarea 9 · Los 22 que ya están cortados, y que nadie va a volver a pedir — ✅ CERRADA (10/09), 6 de 23 recuperados
 
 > ✅ **Verificada por su efecto, no por haber corrido.** `app.transcripciones` con `origen = 'motor'`
-> pasó de `{auto: 591}` a **`{generate: 4, auto_tras_generate: 15, auto: 572}`**: 4 mejoraron (los
-> cuatro a **0.99** de cobertura, uno de ellos desde **0.04** — 1,0 s de 25,9 s, un guion que era
-> ruido) y **15 quedaron con el candado nuevo**, o sea que el `auto_tras_generate` de ADR-095
-> §Enmienda 3 existe en producción y ya se lo vio funcionar: la segunda corrida se salteó sola las 7
-> de la primera. **El dry-run dio 23**, el número que este plan re-midió.
+> pasó de `{auto: 591}` a **`{generate: 6, auto_tras_generate: 16, auto: 569}`**. De los 23 cortados:
+> **6 recuperados** (los seis a **≥0,99** de cobertura; uno venía de **0,04** — 1,0 s de 25,9 s, un
+> guion que era ruido), **16 con candado puesto tras medirlos de verdad**, y **1 sola candidata
+> viva**, correctamente sin marcar. El dry-run dio **23**.
 >
-> 🩸 **La primera corrida dio CERO completadas, y el motivo no era la API.** Los 23 se partieron
-> **exacto por duración**: los 7 de ≤25,7 s contestaron y los 16 de ≥25,9 s no. `generate` no es
-> `auto` con otro nombre —`auto` lee subtítulos que ya existen, `generate` corre un ASR contra el
-> audio— y las tres copias le daban el mismo `timeout: 90000`. Con 240 s, 12 de esos 16 contestaron.
+> 🩸 **La primera corrida dio CERO completadas, y hicieron falta TRES mediciones para entender por
+> qué. Las dos primeras hipótesis eran falsas y se escribieron acá antes de caerse:**
 >
-> 🔴 **Y los 4 que faltan destaparon algo peor, que este plan no previó: `generate` devuelve `202`
-> para los videos largos** (76,5 s · 129,1 s · 150,4 s · 550,6 s), o sea que encola el ASR y
-> contesta un job, no un transcript. Dos consecuencias:
-> 1. **Uno de esos 4 es `Db9Y_EGulGk`** (`3962433134007046564`, 41,5/150,4), el caso estrella de
->    §1 — *"cortado, `generate` lo salva entero"*. Hoy no se puede salvar.
-> 2. **El `202` pone un candado FALSO en las otras dos copias.** `202` cae adentro de `res.ok`, así
->    que `lib/transcribir.ts` y el nodo del motor leen `cobertura = null` ⇒ `ganaElReintento` da
->    `false` ⇒ `modoResultante(true, false)` escribe **`auto_tras_generate` sobre un video al que
->    nunca le contestaron**, y ese candado es para siempre. `medir-cobertura.mjs` no lo tiene
->    (guarda `cobertura == null` antes de escribir), y por eso los 4 siguen en `auto`. El propio
->    `catch` de `transcribirConReintento` ya escribe la distinción correcta — *"una caída de red no
->    es un veredicto sobre el video"*— y el `202` se le cuela por adelante. **Pide ADR y pide
->    `n8n:push`; no se arregló acá.**
+> 1. *"Es la duración"* — los 23 se partieron exacto por duración (los 7 de ≤25,7 s contestaron, los
+>    16 de ≥25,9 s no). **Falso como causa:** el mismo video de 76,5 s pedido **solo** contesta `200`
+>    con transcript.
+> 2. *"Es el timeout de 90 s"* — se subió `generate` a 240 s y 12 de esos 16 contestaron. **Falso
+>    como causa raíz:** un `generate` que contesta tarda **9 s y 13 s** (videos de 76 s y 150 s). Los
+>    90 s nunca apretaron a una llamada que iba a servir; lo que no cabía en 90 s era **el `202`**,
+>    que tarda ~91 s en llegar.
+> 3. ✅ **Es la CONCURRENCIA.** Con 8 llamadas en vuelo Supadata **encola** y contesta `202`
+>    ([ADR-096](../adr/ADR-096-un-202-de-supadata-no-es-un-error-ni-un-transcript.md)); con
+>    `--concurrencia 1`, **3 de los 4 encolados contestaron el transcript**. Entre ellos
+>    **`Db9Y_EGulGk`** (`3962433134007046564`), el caso estrella de §1 —*"cortado, `generate` lo
+>    salva entero"*— que esta misma sección daba por perdido hace dos horas: **41,5 s → 150,2 s de
+>    150,4**.
+>
+> 🔴 **Y el `202` no era sólo desperdicio: ponía un candado FALSO.** Cae adentro de `res.ok`, así que
+> llegaba a `modoResultante` como `gano = false` —indistinguible de "generate perdió"— y marcaba
+> `auto_tras_generate` **sobre un video al que nunca le contestaron, para siempre**. Un candado falso
+> se ve idéntico a uno legítimo: ningún `count(*)` lo habría delatado. **Arreglado en las tres
+> copias** (ADR-096 §Enmienda 1), con la distinción que importa: un video **mudo** sí es un veredicto
+> y sí merece candado; un **encolado** no se midió nunca.
+>
+> ⏳ **Lo que queda vivo:** el video de **550,6 s** (`3947142661160278921`) se encola **aun estando
+> solo**, así que ninguna concurrencia lo salva. Es **1 fila de 604** y lo destraba el polling del
+> `jobId`, que sigue sin hacerse (ADR-096 §Enmienda 4). Queda sin candado a propósito.
 
 - [x] **Paso 1: dry-run.** 🩸 **No existía:** `--completar --umbral 0.9` sin `--apply` moría con
       `⛔ --completar necesita --apply` (exit 1), o sea que el único paso para mirar antes de gastar
       era gastar. Agregado en `medir-cobertura.mjs`: lista las candidatas, cero llamadas a Supadata.
-- [x] **Paso 2: `--apply`**, en dos corridas (23 + 16 tras el arreglo del timeout).
+- [x] **Paso 2: `--apply`**, en tres corridas (23 · 16 tras subir el timeout · 4 con
+      `--concurrencia 1`, que es la que destrabó el caso estrella).
 - [x] **Paso 3: verificar por efecto** — hecho arriba.
 
 <details>

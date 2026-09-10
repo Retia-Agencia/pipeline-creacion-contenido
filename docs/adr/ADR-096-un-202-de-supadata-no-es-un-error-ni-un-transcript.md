@@ -1,7 +1,11 @@
 # ADR-096 — Un 202 de Supadata no es un error ni un transcript
 
-- **Estado:** propuesta — 2026-09-09 (con Mani, encontrado midiendo el histograma de ADR-095). **No
-  se implementa todavía**: es decisión explícita de documentar y esperar.
+- **Estado:** parcialmente implementada — 2026-09-10. La condición que este ADR se puso a sí mismo
+  (*"se retoma cuando el alcance medido deje de ser 1 de 584"*) **se cumplió**, y lo que se arregló
+  es el daño que este ADR no podía prever. **El polling del `jobId` sigue sin hacerse**, ahora con
+  alcance medido de nuevo: 1 video de 604. Ver §Enmienda.
+- Estado anterior: propuesta — 2026-09-09 (con Mani, encontrado midiendo el histograma de ADR-095),
+  decisión explícita de documentar y esperar.
 
 ## Contexto
 
@@ -111,3 +115,92 @@ trabajo. Se retoma cuando el alcance medido deje de ser 1 de 584.
 
 Enlazado desde [ADR-095](./ADR-095-un-transcript-cortado-no-puede-pasar-por-completo.md) (el
 hallazgo salió midiendo su Tarea 3) y desde el [índice de ADRs](./README.md).
+
+
+---
+
+## Enmienda (2026-09-10) — la espera se acabó sola, y lo que había que arreglar era otra cosa
+
+Corriendo la Tarea 9 de [plan-transcript-completo](../agents/plan-transcript-completo.md) (completar
+los 23 transcripts cortados que ya estaban en la base) el `202` apareció **4 veces en un lote de
+23**, no 1 en 584. Con eso se cumple la condición de arriba. Pero lo que la medición destapó no fue
+lo que este ADR esperaba encontrar.
+
+### 1 · Lo que este ADR no podía prever: el candado se ponía sobre un video que nadie midió
+
+Este ADR se escribió el **09/09**. `auto_tras_generate` nació el **10/09**
+([ADR-095 §Enmienda 3](./ADR-095-un-transcript-cortado-no-puede-pasar-por-completo.md)). Al juntarse,
+el hallazgo dejó de ser "una falla latente que gasta créditos" y pasó a **corromper datos**:
+
+`202` cae adentro de `res.ok`, así que la respuesta llegaba a `modoResultante` como `gano = false`
+—**indistinguible de "generate se probó y perdió"**— y el video quedaba marcado
+`auto_tras_generate` **para siempre**. El candado que existe para no re-pagar lo que ya se midió
+terminaba puesto sobre lo único que **nunca** se midió, y ningún `count(*)` lo habría delatado: un
+candado falso se ve idéntico a uno legítimo.
+
+🔑 **El criterio correcto ya estaba escrito, a cinco líneas de distancia**, en el `catch` de
+`transcribirConReintento`: *"una caída de red no es un veredicto sobre el video"*. El `202` se le
+colaba por adelante **porque no tira excepción**.
+
+**Arreglado** en las tres copias, con la distinción que da todo el valor: un video **mudo**
+(`transcript-unavailable`) sí es un veredicto y sí merece candado; un **encolado** no se midió
+nunca.
+- `domain/cobertura.ts`: `esTranscriptEncolado(cuerpo, status)` + la tabla `CASOS_ENCOLADO`, y
+  `modoResultante` gana un tercer parámetro **sin default**, para que el compilador obligue a los
+  call sites. El del nodo lo obliga `test-nodos.mjs`, que pinza los cuatro desenlaces valor contra
+  valor.
+- `lib/transcribir.ts`: el tipo `Transcripcion` gana `encolado` — exactamente lo que la §Toca de
+  este ADR pedía, y por el motivo que decía: sin ese campo, un `202` tiene la misma forma que "el
+  video no tiene voz".
+- El nodo `Transcribir (Supadata)` y `medir-cobertura.mjs` (que además dejó de re-pagar para siempre
+  los que `generate` contesta vacíos **de verdad**).
+
+### 2 · Y la causa no es la que este ADR supuso: es la CONCURRENCIA, no la duración
+
+Este ADR lo leyó como un problema de videos largos (*"el video más largo del lote"*). Medido el
+10/09, no es eso:
+
+| medición (10/09) | resultado |
+|---|---|
+| 23 cortados, `generate` con **8 llamadas en vuelo** | 4 encolados (`202`) |
+| esos mismos, **de a uno** (`--concurrencia 1`) | **3 de 4 contestan `200` con transcript** |
+| `generate` que SÍ contesta | **9 s y 13 s** (videos de 76 s y 150 s) |
+| el `202` en llegar | **91 s** |
+
+**El mismo video que a 8 en vuelo devuelve `202`, pedido solo devuelve el transcript.** Supadata
+encola por carga, y la duración sólo correlaciona. El único que se encoló **estando solo** es el de
+**550,6 s** (`3947142661160278921`, el que originó este ADR).
+
+Consecuencia práctica que ya se cobró: **`Db9Y_EGulGk`** (`3962433134007046564`), el caso estrella
+de ADR-095 §1 —*"cortado, `generate` lo salva entero"*— se daba por perdido, y bajó de concurrencia
+**se recuperó entero: 41,5 s → 150,2 s de 150,4**.
+
+### 3 · El timeout: dos números distintos, y el criterio es el presupuesto de quien llama
+
+Con `generate` contestando en 9-13 s, **el timeout nunca fue la causa raíz**. Lo que sí hace un
+timeout de 90 s es **esperar 91 s a un `202` que no dice nada**, y eso sí importa donde hay
+presupuesto:
+
+- **`lib/transcribir.ts` → 25 s para `generate`** (90 s para `auto`, sin cambio). Esa ruta corre con
+  `maxDuration = 60`: una llamada que pasa el minuto no devuelve un guion, **mata la función, deja
+  la fila sin marcar y la pasada siguiente la vuelve a pagar**. Esperar más ahí no es paciencia, es
+  gasto.
+- **El nodo del motor queda en 90 s, a propósito.** No tiene techo duro como la ruta, y no hay
+  medición que diga que 90 s esté mal. Bajarlo sin datos abortaría `generate` legítimos bajo carga
+  y se leería como "el reintento no mejora nunca".
+- `medir-cobertura.mjs` queda en 240 s: es una herramienta sin presupuesto, y ahora tiene
+  `--concurrencia` para no provocar el `202` en primer lugar.
+
+⚠️ Los tres datos de latencia son a **concurrencia 1**. Si aparece un `generate` legítimo que tarda
+más de 25 s bajo carga, ese número lo estaría abortando.
+
+### 4 · Lo que sigue SIN hacerse, y ahora con su alcance medido
+
+**El polling del `jobId`.** Ninguna concurrencia salva al video de 550,6 s: se encola aun estando
+solo. Al 10/09 queda **1 fila de 604** (`3947142661160278921`) que no se puede completar sin él,
+y sigue **correctamente sin candado**, o sea que la va a agarrar quien lo implemente. El
+razonamiento de por qué no es una línea suelta (bucle propio en el nodo, cola detrás de
+`maxDuration = 60` en el cockpit) **no cambió** y sigue vigente en §Decisión.
+
+Lo que sí cambió es que ya no es mudo: las tres copias lo dicen en el log, y el que lo sufre no
+queda marcado.
