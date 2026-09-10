@@ -8,7 +8,8 @@
 //                          calcula cobertura, completa duración (candidatos → videos_meta → Apify)
 //                          e imprime el histograma. Sin --apply NO escribe una sola fila.
 //   --apply                junto con --medir: además persiste cobertura_seg/duracion_seg/modo='auto'.
-//                          junto con --completar: única forma de que --completar haga algo.
+//                          junto con --completar: única forma de que --completar escriba. Sin él,
+//                          --completar lista las candidatas y no pide nada (dry-run).
 //   --limite N             acota cuántas filas procesa (para probar barato).
 //   --completar --umbral X --apply
 //                          sobre las filas YA medidas (cobertura_seg/duracion_seg en la base) que
@@ -61,9 +62,15 @@ const UMBRAL = Number(valor('umbral', 0.9));
 
 /** Una respuesta de Supadata, ya normalizada. `cobertura: null` = no se pudo medir. */
 async function pedir(url, modo) {
+  // 🩸 `generate` no es `auto` con otro nombre: `auto` devuelve subtítulos que ya existen y
+  // `generate` corre un ASR contra el audio, que tarda MUCHO más. Medido el 10/09 en la primera
+  // corrida de la Tarea 9: con 90 s para los dos modos, los 23 cortados se partieron **exacto por
+  // duración** — los 7 de ≤25.7 s contestaron y los 16 de ≥25.9 s murieron por timeout, y uno de
+  // esos 16 pedido solo contestó 200 con transcript. Cero completadas por un número, no por la API.
+  const timeoutMs = modo === 'generate' ? 240_000 : 90_000;
   const r = await fetch(
     `https://api.supadata.ai/v1/transcript?url=${encodeURIComponent(url)}&mode=${modo}`,
-    { headers: { 'x-api-key': process.env.SUPADATA_API_KEY }, signal: AbortSignal.timeout(90_000) },
+    { headers: { 'x-api-key': process.env.SUPADATA_API_KEY }, signal: AbortSignal.timeout(timeoutMs) },
   );
   const b = await r.json().catch(() => ({}));
   const segs = Array.isArray(b.content) ? b.content : [];
@@ -305,10 +312,6 @@ async function medir(rows) {
 // ═══════════════════════════════ --completar ═══════════════════════════════
 
 async function completar(rows) {
-  if (!APPLY) {
-    console.error('⛔ --completar necesita --apply: sin escribir no hay nada que "completar".');
-    process.exit(1);
-  }
   // 🔑 `modo === 'generate'` = ya se completó una vez y no mejoró más (ADR-095): un reintento
   // alcanza y el segundo es plata tirada — medido en el propio ADR, 5 llamadas seguidas de
   // `generate` sobre los tres videos de referencia dieron 15 de 15 idénticas. Sin este filtro,
@@ -327,16 +330,37 @@ async function completar(rows) {
   );
   console.log(`Filas bajo el umbral ${UMBRAL}: ${candidatas.length} de ${rows.length} (las demás no tienen cobertura/duración medida, ya están sanas, o ya probaron generate: ${yaCompletadas} se saltean).`);
 
+  // El dry-run del Paso 1 de la Tarea 9: lista a quién le va a pegar ANTES de pagarlo. No hace una
+  // sola llamada a Supadata — la lista sale del mismo predicado que usa el --apply de abajo, así
+  // que lo que se cuenta acá es exactamente lo que se va a pedir.
+  // 🩸 Esto no existía y el plan lo documentaba igual: `--completar --umbral 0.9` sin `--apply`
+  // moría con `⛔ --completar necesita --apply` (exit 1). O sea que el único paso que existía para
+  // mirar antes de gastar era gastar.
+  if (!APPLY) {
+    for (const r of candidatas) {
+      console.log(`  ${r.external_id}  ${Number(r.cobertura_seg).toFixed(1)}/${Number(r.duracion_seg).toFixed(1)} s = ${(r.cobertura_seg / r.duracion_seg).toFixed(2)}  modo=${r.modo}`);
+    }
+    console.log(`\n(dry-run: cero llamadas a Supadata y cero filas escritas. Con --apply son ${candidatas.length} llamadas \`generate\` = ${candidatas.length * 2} créditos.)`);
+    return;
+  }
+
   let completadas = 0, sinMejora = 0, sinRespuesta = 0;
   await pMapLimit(candidatas, 8, async (r) => {
     let resp;
     try {
       resp = await pedirConBackoff(r.url, 'generate');
     } catch (e) {
+      // Se dice CUÁL falló y POR QUÉ: un `sin respuesta: 16` sin nombres no se puede diagnosticar
+      // sin volver a pagar. Fail-open igual: la fila queda en `auto` y vuelve a ser candidata.
+      console.log(`⚠️ ${r.external_id} (${Number(r.duracion_seg).toFixed(1)}s): ${e.name || e}`);
       sinRespuesta++;
       return;
     }
-    if (resp.cobertura == null) { sinRespuesta++; return; }
+    if (resp.cobertura == null) {
+      console.log(`⚠️ ${r.external_id} (${Number(r.duracion_seg).toFixed(1)}s): status ${resp.status}, sin segmentos`);
+      sinRespuesta++;
+      return;
+    }
     const actual = { texto: r.script, cobertura: r.cobertura_seg };
     const candidato = { texto: resp.texto, cobertura: resp.cobertura };
     if (!ganaElReintento(actual, candidato)) {

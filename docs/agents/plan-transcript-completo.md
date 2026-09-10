@@ -886,7 +886,43 @@ lado. Hoy recibe el aviso y el guion cortado (ADR-095 §Enmienda 2 §A).
 
 ---
 
-### Tarea 9 · Los 22 que ya están cortados, y que nadie va a volver a pedir
+### Tarea 9 · Los 22 que ya están cortados, y que nadie va a volver a pedir — ✅ CORRIDA (10/09), 4 de 23 recuperados
+
+> ✅ **Verificada por su efecto, no por haber corrido.** `app.transcripciones` con `origen = 'motor'`
+> pasó de `{auto: 591}` a **`{generate: 4, auto_tras_generate: 15, auto: 572}`**: 4 mejoraron (los
+> cuatro a **0.99** de cobertura, uno de ellos desde **0.04** — 1,0 s de 25,9 s, un guion que era
+> ruido) y **15 quedaron con el candado nuevo**, o sea que el `auto_tras_generate` de ADR-095
+> §Enmienda 3 existe en producción y ya se lo vio funcionar: la segunda corrida se salteó sola las 7
+> de la primera. **El dry-run dio 23**, el número que este plan re-midió.
+>
+> 🩸 **La primera corrida dio CERO completadas, y el motivo no era la API.** Los 23 se partieron
+> **exacto por duración**: los 7 de ≤25,7 s contestaron y los 16 de ≥25,9 s no. `generate` no es
+> `auto` con otro nombre —`auto` lee subtítulos que ya existen, `generate` corre un ASR contra el
+> audio— y las tres copias le daban el mismo `timeout: 90000`. Con 240 s, 12 de esos 16 contestaron.
+>
+> 🔴 **Y los 4 que faltan destaparon algo peor, que este plan no previó: `generate` devuelve `202`
+> para los videos largos** (76,5 s · 129,1 s · 150,4 s · 550,6 s), o sea que encola el ASR y
+> contesta un job, no un transcript. Dos consecuencias:
+> 1. **Uno de esos 4 es `Db9Y_EGulGk`** (`3962433134007046564`, 41,5/150,4), el caso estrella de
+>    §1 — *"cortado, `generate` lo salva entero"*. Hoy no se puede salvar.
+> 2. **El `202` pone un candado FALSO en las otras dos copias.** `202` cae adentro de `res.ok`, así
+>    que `lib/transcribir.ts` y el nodo del motor leen `cobertura = null` ⇒ `ganaElReintento` da
+>    `false` ⇒ `modoResultante(true, false)` escribe **`auto_tras_generate` sobre un video al que
+>    nunca le contestaron**, y ese candado es para siempre. `medir-cobertura.mjs` no lo tiene
+>    (guarda `cobertura == null` antes de escribir), y por eso los 4 siguen en `auto`. El propio
+>    `catch` de `transcribirConReintento` ya escribe la distinción correcta — *"una caída de red no
+>    es un veredicto sobre el video"*— y el `202` se le cuela por adelante. **Pide ADR y pide
+>    `n8n:push`; no se arregló acá.**
+
+- [x] **Paso 1: dry-run.** 🩸 **No existía:** `--completar --umbral 0.9` sin `--apply` moría con
+      `⛔ --completar necesita --apply` (exit 1), o sea que el único paso para mirar antes de gastar
+      era gastar. Agregado en `medir-cobertura.mjs`: lista las candidatas, cero llamadas a Supadata.
+- [x] **Paso 2: `--apply`**, en dos corridas (23 + 16 tras el arreglo del timeout).
+- [x] **Paso 3: verificar por efecto** — hecho arriba.
+
+<details>
+<summary>El plan original de la tarea</summary>
+
 
 **El porqué:** son filas viejas. **11 de los 22 ya están en `app.candidatos` y 12 en
 `processed_items`** (medido el 10/09), o sea que el dedup no los va a traer de nuevo: el reintento
@@ -908,6 +944,8 @@ node Workflows/workflow-short-form-content/medir-cobertura.mjs --completar --umb
       `select modo, count(*) from app.transcripciones where origen = 'motor' group by 1`
       tiene que mostrar `generate` con un número **> 0 y ≤ 22**, y ese número es *cuántos mejoraron*,
       no cuántos se pidieron. Los que no mejoraron son los irrecuperables (`Day8CXdBLwK`).
+
+</details>
 
 ---
 
