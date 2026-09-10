@@ -216,6 +216,34 @@ falsables y la corrida decide.
 > antes de ver el resultado sería hacer trampa con el registro. Si la corrida cae dentro del rango
 > viejo pero fuera del nuevo, el que falló es el modelo deduplicado y hay que decirlo.
 
+### 3.2 El resultado (medido 22:14 UTC)
+
+| qué | predicción commiteada | modelo deduplicado | **medido** | veredicto |
+|---|---|---|---|---|
+| costo Apify | 1,20 – 2,00 | **1,02** | **1,042** | ❌ commiteada · ✅ deduplicado |
+| reels colectados | 500 – 750 | **442** | **~453** | ❌ commiteada · ✅ deduplicado |
+| entregados (`outputs`) | 0 – 2 | 0 | **0** | ✅ las dos |
+| descartes | — | — | **0** | |
+| `processed_items` nuevos | — | — | **3** | |
+
+**Ganó el modelo deduplicado; perdió la predicción commiteada, y por el mismo error de 59 %.** Un
+pool mal contado no falla ruidoso: **falla como un presupuesto que sobra**, que es la dirección
+cómoda y por eso la peligrosa.
+
+**Lo que la corrida deja probado:**
+
+1. ✅ **83 % de ahorro medido** (6,00 → 1,04 USD) con los mismos proyectos, referentes y N.
+   La fórmula de §1.3 queda **validada**: predijo la factura con 2 % de error.
+2. ⛔ **Entrega cero.** 600 reels comprados, 3 transcritos, **0 candidatos y 0 descartes**. Es
+   exactamente lo que anticipaba §3.0: con 50d + 500k el pool son 5 videos y el gate los mata.
+3. 🔴 **Se reprodujo el bug del cierre 145.** n8n dice `success`; la fila de `runs` quedó
+   `en_curso` con **sólo** `metricas.etapa`. **Todas las métricas del embudo se perdieron** — la
+   entrega hubo que medirla contra `app.candidatos` y la factura contra Apify. **Ya van 2 de las
+   últimas 6 corridas del motor.** Ver [costos.md §7](../costos.md).
+
+**Conclusión, y es la que abre la próxima sesión: el costo ya está resuelto; lo que queda abierto es
+el supply.** `min_views` tiene que bajar, y bajarlo **no cuesta un centavo** (invariante 6).
+
 ---
 
 ## 4. Las palancas, ordenadas por retorno

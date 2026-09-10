@@ -20,13 +20,43 @@
 
 **Estados:** ⬜ libre · 🔧 en curso · ✅ hecho · ⛔ bloqueado
 
-## 🚦 ARRANCÁ POR ACÁ — sesión del 2026-09-10 en adelante (post cierre 147)
+## 🚦 ARRANCÁ POR ACÁ — sesión del 2026-09-10 23:00 en adelante (post cierre 148)
 
-> ⛔ **LO PRIMERO, Y NO ES CÓDIGO: NO CORRAS EL MOTOR.** Decisión de Mani el 10/09 —
-> **Apify está gastando créditos desmedidamente y optimizar eso es su prioridad #1**, en otra
-> sesión. Eso **congela la Tarea 11** (mirar la primera corrida nueva) y con ella la medición de
-> **todo** lo que se publicó los días 09 y 10. `POST "$MOTOR_WEBHOOK_URL"` arranca una corrida real
-> y paga: no lo dispares, ni "para probar".
+> 💰 **LO PRIMERO: el costo de Apify YA SE ARREGLÓ y está medido — 6,00 → 1,04 USD por corrida,
+> 83 % menos.** Lo que quedó abierto es lo contrario: **la corrida de control entregó CERO videos.**
+> El costo y la entrega estaban atados por el lugar equivocado y ahora se ven por separado.
+>
+> 📕 **Los dos docs nuevos son la puerta de entrada, no este bloque:**
+> - **[docs/costos.md](../costos.md)** — el mapa monetario entero: los 3 proveedores, el diagrama de
+>   dónde se paga, el histórico, la tabla de decisión ventana × umbral **con costo por celda**, y
+>   los pendientes de plata. **Si la pregunta es "cuánto cuesta", empieza acá.**
+> - **[plan-costo-apify.md](./plan-costo-apify.md)** — el diagnóstico, las predicciones escritas
+>   antes de correr y su veredicto. **Si la pregunta es "por qué", empieza acá.**
+>
+> ✅ **Aplicado y verificado por la fachada que lee el motor (no por el eco del PATCH):**
+> `Días de recencia` 200 → **50**, `Resultados por cuenta de referente` 150 → **25**. Cero código,
+> cero `n8n:push`. ⚠️ Se hizo por SQL, así que **no dejó fila en `app.eventos`**.
+>
+> 🔴 **LA DECISIÓN QUE ABRE LA PRÓXIMA SESIÓN, y es de un solo knob: bajar `Mínimo de vistas`.**
+> Está en **500.000** y es **global** (`app.ajustes` no tiene `proyecto_id`). Medido: el pool de
+> trading de Vieira tiene mediana **22.394** contra **256.556** del resto — 11,5× de diferencia — y
+> sólo el **2,4 %** de sus reels llega a 500k. Con ventana de 50 días el pool entero para llenar
+> **N = 70** son **5 videos**. La corrida 183 lo confirmó entregando 0.
+> **Recomendación medida: 100.000** (45 videos en el pool, ~1 USD la corrida). Bajarlo **no cuesta
+> un centavo** — `min_views` filtra DESPUÉS de pagar. La tabla completa está en
+> [costos.md §4](../costos.md).
+>
+> 🔴 **Y se reprodujo el bug del cierre 145, ahora 2 de las últimas 6 corridas:** la exec **183**
+> terminó `success` en n8n y su fila en `runs` quedó **`en_curso` con sólo `metricas.etapa`**.
+> **Perdió todas las métricas del embudo**, así que la entrega hubo que medirla contra
+> `app.candidatos` y el costo contra la factura de Apify. *Mientras esto siga abierto,
+> `USD/entregado` no se puede calcular para las corridas afectadas y `v_costos_semana` las cuenta
+> como cero.*
+>
+> ⛔ **El ⛔ de "no corras el motor" queda LEVANTADO** (Mani, 10/09 ~21:40, eligió medir en vez de
+> proyectar). Pero el cupo sigue siendo un saldo: **26,85 / 50 USD al 22:14 UTC**, ciclo hasta el
+> 09/10. Una corrida hoy cuesta ~1,10 USD, así que quedan ~21 corridas. **Re-medí con
+> `/v2/users/me/limits` antes de disparar, no cites este número.**
 >
 > ✅ **ADR-095 ESTÁ ENTERO EN PRODUCCIÓN, LOS DOS LADOS, y ahora ADR-096 también (a medias, a
 > propósito).** Motor: `n8n:push` del nodo `Transcribir (Supadata)` el 10/09 19:43 UTC, `n8n:diff`
@@ -110,6 +140,79 @@
 > ⏳ **Lo que sigue sin probarse en vivo:** el rechazo **a mitad de camino** (capa 2) y que
 > `metricas.etapa` sobreviva una corrida completa. Los dos se leen de la próxima corrida real —o
 > sea, **después** de que se levante el ⛔ de Apify.
+
+## 🔒 CIERRE 148 (2026-09-10) — El costo bajó 83 % y la entrega cayó a cero, que es la misma noticia
+
+> **Todo commiteado.** Dos docs nuevos: `docs/costos.md` (el mapa monetario) y
+> `docs/agents/plan-costo-apify.md` (el diagnóstico + predicciones). Sin cambios de código, sin
+> `n8n:push`. Los knobs se movieron en `app.ajustes`, por SQL.
+
+Arrancó por un reporte de **Marú**: las corridas de **Juan Pablo Vieira** (2 proyectos, muchos
+referentes) devolvieron ~32 videos por proyecto y **uno estaba fuera de tema**. Y el cupo de Apify
+iba en la mitad del mes en 21 horas.
+
+### Lo que se midió
+
+- **99,5 % del gasto del día es UN actor**: `apify/instagram-scraper`, 114 corridas, 25,62 de 25,75
+  USD. El motor es ~75 % de eso; el descubrimiento, 0,67.
+- **El embudo del 10/09: ~6.875 reels pagados → 13 entregados = 1,97 USD por video.** Y **11 de los
+  13 entraron por `bajo_umbral_entregados`**, o sea reprobaron relevancia y se entregaron para
+  llenar N. **El "video que era nada" de Marú no es un gate roto: es relleno por falta de supply.**
+- **La causa del pool chico no es Apify: es `min_views = 500.000`, que es GLOBAL.** El pool de
+  trading tiene mediana 22.394 contra 256.556 del resto (11,5×). Sólo 2,4 % de sus reels llega a
+  500k. *Las cuentas de Dani sí producen virales —`casper_smc` tiene un reel de 6,3 M— pero el 2 %
+  de las veces.*
+- **Los 2 proyectos de Vieira comparten 23 de sus 24 cuentas.** No son dos universos de referentes.
+
+### El hallazgo ordenador
+
+🔑 **Dedup, `min_views`, pre-trim, gate y caché corren TODOS después de que Apify cobró.** Ninguno
+baja la factura. **Sólo dos cosas deciden lo que se paga, y las dos viven en `Armar plan de
+corrida`: cuántos handles y `resultados_referente`**, acotados por `dias_recencia`, que es el único
+filtro que corre del lado de Apify. De ahí sale el invariante que gobierna el doc de costos:
+**elegir umbral es gratis; elegir ventana es lo que se paga.**
+
+Y uno que va contra la intuición y quedó en la tabla: **con umbral alto, la ventana LARGA sale más
+barata por video** (0,12 USD en 200d contra 0,52 en 7d), porque los reels viejos ya acumularon
+vistas. **La peor celda de la tabla es ventana corta + umbral alto.**
+
+### Lo aplicado y su medición
+
+`Días de recencia` 200→50, `Resultados por cuenta de referente` 150→25. Corrida de control **183**,
+con las predicciones **commiteadas antes de dispararla**:
+
+| | predicción commiteada | modelo deduplicado | medido |
+|---|---|---|---|
+| costo Apify | 1,20 – 2,00 | **1,02** | **1,042** |
+| entregados | 0 – 2 | 0 | **0** |
+
+**83 % de ahorro, y cero entrega.** Las dos son la misma noticia: el costo estaba atado al lugar
+equivocado. La corrida anterior entregaba 1 video por 6 USD.
+
+### 🩸 Los dos errores propios de esta sesión
+
+1. **Se reportó un pool de 5.808 reels de trading contando el MISMO reel una vez por cada una de
+   las 4 corridas del día.** Deduplicado son 2.400: **59 % de inflación**. No movió la conclusión
+   (la relación entre medianas pasó de 12,6× a 11,5×) pero **sí envenenó la predicción**, que salió
+   15-30 % alta y la corrida la dejó fuera de rango. *Un pool mal contado falla como un presupuesto
+   que sobra, que es la dirección cómoda.* Invariante 7 de `costos.md`.
+2. **Se verificó el cambio de knobs contra la fachada y no contra el eco del PATCH**, y ahí se
+   descubrió que **la fachada devuelve 2 proyectos mientras la tabla tiene 15 con `activo = true`**:
+   **13 proyectos no corren porque su voz está apagada**, y la pantalla no lo dice.
+
+### Lo que queda abierto
+
+- 🔴 **Bajar `min_views`** (recomendado: 100.000). Un knob, gratis, y es lo único que separa a
+  Vieira de recibir videos.
+- 🔴 **El bug de la corrida que termina bien y no se cierra**: exec 183 `success` en n8n,
+  `en_curso` en `runs`, métricas perdidas. **2 de las últimas 6.**
+- ⛔ **Bake-off del actor barato SIN aprobar**: 3,4× más barato medido (0,00067 vs 0,0023 USD/reel)
+  y trae `video_duration` —que falta en 149 de 150 filas de `videos_meta`— **pero devolvió 11 de
+  los 25 pedidos**. Falta 2ª prueba con fecha ISO.
+- Higiene que cuesta plata: el proyecto duplicado por la tilde, 3 cuentas que no devuelven nada,
+  4 cuentas con mediana < 6.000, `app.tarifas` con 52 días sin actualizar.
+
+---
 
 ## 🔒 CIERRE 147 (2026-09-10) — Se corrió la Tarea 9, y el candado que la protegía se estaba poniendo sobre videos que nadie midió
 

@@ -14,6 +14,12 @@ en §Agent skills; acá solo se ubican.
 - [ROADMAP.md](ROADMAP.md) — norte + checklist del MVP. **Gana sobre cualquier otro doc** (ROADMAP §1).
 - [PLAN.md](PLAN.md) — arquitectura, invariantes (§2.5), fases, tabla-resumen de ADRs (§3.1).
 - [docs/one-pager-reels-mvp.md](docs/one-pager-reels-mvp.md) — one-pager no técnico para el jefe.
+- 💰 [docs/costos.md](docs/costos.md) — **la herramienta vista desde la plata**: los 3 proveedores
+  (Apify · Supadata · Anthropic), el diagrama de en qué nodos se paga, el histórico por servicio, y
+  la **tabla de decisión ventana × umbral con costo por celda**. Su invariante manda sobre cualquier
+  discusión de costo: **dedup, `min_views`, pre-trim, gate y caché corren TODOS después de que Apify
+  cobró**, así que ninguno baja la factura — *elegir umbral es gratis, elegir ventana es lo que se
+  paga*. **Si la pregunta empieza con "cuánto cuesta", empieza acá.**
 
 **Estado y dominio (para trabajar)**
 - [docs/agents/handoff.md](docs/agents/handoff.md) — estado vivo del repo (leelo al empezar la sesión).
@@ -41,6 +47,14 @@ en §Agent skills; acá solo se ubican.
   más abajo, en `Armar candidato`— así que el escalón "dejar pasar para rellenar" **nunca pudo vivir
   en el gate**, y desde el cierre 134 vive donde corresponde. Trae el estado de todo lo aplicado, lo pendiente en orden de retorno, las
   mediciones escritas antes de mirarlas, y los invariantes que no hay que re-litigar.
+- [docs/agents/plan-costo-apify.md](docs/agents/plan-costo-apify.md) — el **diagnóstico** del gasto
+  de Apify y el plan de palancas, con las predicciones de la corrida de control **escritas y
+  commiteadas antes de dispararla** (§3.1) y su veredicto (§3.2). Su hallazgo ordenador: *el costo
+  no depende de lo que se entrega sino de lo que se colecta, y los dos números no se tocan* — el
+  motor pagaba **529 reels por cada video entregado**. Bajó 6,00 → 1,04 USD (83 %) con dos knobs y
+  cero código, y la misma corrida entregó **0**, que es la otra mitad de la noticia: lo que queda
+  abierto no es el costo sino `min_views`, que está global en 500.000. El mapa monetario es
+  [costos.md](docs/costos.md); esto es el porqué.
 - [docs/agents/plan-motor-linkedin.md](docs/agents/plan-motor-linkedin.md) — de **esqueleto a motor**:
   las fases 0–4 para que el pipeline de LinkedIn corra. Su hallazgo ordenador: **los dos carriles no
   comparten bloqueos** — el personal está a un pedido (los few-shot) y el copiable necesita los tres.
