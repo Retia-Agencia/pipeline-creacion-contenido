@@ -553,7 +553,7 @@ seccion('Invariantes que no se tocan');
 // (jsCode async con this.helpers.httpRequest → se compila como AsyncFunction y se corre con un
 // `this` mockeado; el mock cuenta llamadas y concurrencia en vuelo)
 // ════════════════════════════════════════════════════════════════════════════
-const runTranscribir = async (items, { presupuesto = 0, delayMs = 5, concurrencia, respuesta, falla, secuencia, backoff = 1, arranque = 0, cache = null, duraciones = {} } = {}) => {
+const runTranscribir = async (items, { presupuesto = 0, delayMs = 5, concurrencia, respuesta, falla, secuencia, backoff = 1, arranque = 0, cache = null, duraciones = {}, fallaDuracion = null } = {}) => {
   const llamadas = [];
   let enVuelo = 0, maxEnVuelo = 0;
   const t0Mock = Date.now();
@@ -587,7 +587,10 @@ const runTranscribir = async (items, { presupuesto = 0, delayMs = 5, concurrenci
     // ADR-095: `Normalizar IG`/`Normalizar TT` son los ancestros de donde sale `duracion_video`.
     // El mock los espeja como uno solo (el nodo mira los dos y se queda con el primero que
     // encuentre) — `duraciones` default `{}` reproduce "sin duración" sin que nadie lo pida.
+    // `fallaDuracion` (fix round 1, hallazgo 3) hace tirar SOLO al nodo nombrado, para probar que el
+    // try/catch por nodo del código real no se cae y usa la duración del otro que sí resolvió.
     if (n === 'Normalizar IG' || n === 'Normalizar TT') {
+      if (fallaDuracion === n) throw new Error('nodo no corrió en esta rama (mock)');
       return { all: () => Object.entries(duraciones).map(([external_id, duracion_video]) => ({ json: { external_id, duracion_video } })) };
     }
     throw new Error('nodo no mockeado: ' + n);
@@ -903,10 +906,12 @@ await (async () => {
       { content: [{ text: 'mas completo aca', offset: 0, duration: 95000 }], lang: 'en' },
     ];
     const { out, llamadas } = await runTranscribir([tvid('k1')], { duraciones: { k1: 100 }, secuencia: s });
-    check('cobertura corta ⇒ un pedido extra con mode=generate, y gana el que cubre más',
-      llamadas.length === 2 && /mode=generate/.test(llamadas[1]) && /mode=auto/.test(llamadas[0])
-        && out[0].transcripcion === 'mas completo aca' && out[0]._tx_modo === 'generate' && out[0]._tx_cobertura === 95,
-      JSON.stringify({ llamadas, tx: out[0].transcripcion, modo: out[0]._tx_modo, cob: out[0]._tx_cobertura }));
+    check('cobertura corta ⇒ hace exactamente 2 llamadas (auto + el reintento)', llamadas.length === 2, llamadas.length + ' llamadas');
+    check('la 1ª pide mode=auto y la 2ª mode=generate', /mode=auto/.test(llamadas[0]) && /mode=generate/.test(llamadas[1]), JSON.stringify(llamadas));
+    check('gana la respuesta que cubre más (95 > 40)', out[0].transcripcion === 'mas completo aca', out[0].transcripcion);
+    check('los campos _tx_modo/_tx_cobertura reflejan al ganador (generate, 95)',
+      out[0]._tx_modo === 'generate' && out[0]._tx_cobertura === 95,
+      JSON.stringify({ modo: out[0]._tx_modo, cob: out[0]._tx_cobertura }));
   }
   {
     // cobertura suficiente (96/100 >= 0.9) ⇒ cero pedidos extra.
@@ -914,9 +919,9 @@ await (async () => {
       duraciones: { k2: 100 },
       respuesta: { content: [{ text: 'todo bien cubierto', offset: 0, duration: 96000 }], lang: 'en' },
     });
-    check('cobertura suficiente ⇒ cero pedidos extra',
-      llamadas.length === 1 && out[0].transcripcion === 'todo bien cubierto' && out[0]._tx_modo === 'auto',
-      JSON.stringify({ llamadas: llamadas.length, tx: out[0].transcripcion }));
+    check('cobertura suficiente ⇒ cero pedidos extra', llamadas.length === 1, llamadas.length + ' llamadas');
+    check('conserva el transcript y el modo de auto', out[0].transcripcion === 'todo bien cubierto' && out[0]._tx_modo === 'auto',
+      JSON.stringify({ tx: out[0].transcripcion, modo: out[0]._tx_modo }));
   }
   {
     // sin duracion_video (el mapa no tiene el id) ⇒ veredicto 'desconocido', cero pedidos extra,
@@ -924,9 +929,10 @@ await (async () => {
     const { out, llamadas } = await runTranscribir([tvid('k3')], {
       respuesta: { content: [{ text: 'texto sin duracion conocida', offset: 0, duration: 20000 }], lang: 'en' },
     });
-    check('sin duracion_video ⇒ cero pedidos extra y el transcript pasa igual (fail-open)',
-      llamadas.length === 1 && out[0].transcripcion === 'texto sin duracion conocida' && out[0]._tx_duracion == null,
-      JSON.stringify({ llamadas: llamadas.length, tx: out[0].transcripcion, dur: out[0]._tx_duracion }));
+    check('sin duracion_video ⇒ cero pedidos extra', llamadas.length === 1, llamadas.length + ' llamadas');
+    check('el transcript pasa igual (fail-open) y _tx_duracion queda sin dato',
+      out[0].transcripcion === 'texto sin duracion conocida' && out[0]._tx_duracion == null,
+      JSON.stringify({ tx: out[0].transcripcion, dur: out[0]._tx_duracion }));
   }
   {
     // el caso DYTvNduEW5X (ADR-095): generate puede ser PEOR. auto cubre 80/100 (parcial, dispara
@@ -936,9 +942,35 @@ await (async () => {
       { content: [{ text: 'generate cubre mucho menos pero es mas largo de texto igual', offset: 0, duration: 50000 }], lang: 'en' },
     ];
     const { out, llamadas } = await runTranscribir([tvid('k4')], { duraciones: { k4: 100 }, secuencia: s });
-    check('generate cubre MENOS (50<80) ⇒ gana auto, nunca se elige por largo (y sí se intentó: 2 llamadas)',
-      llamadas.length === 2 && out[0].transcripcion === 'auto cubre bastante' && out[0]._tx_modo === 'auto' && out[0]._tx_cobertura === 80,
-      JSON.stringify({ llamadas: llamadas.length, tx: out[0].transcripcion, modo: out[0]._tx_modo, cob: out[0]._tx_cobertura }));
+    check('sí se intentó el reintento (2 llamadas)', llamadas.length === 2, llamadas.length + ' llamadas');
+    check('generate cubre MENOS (50<80) ⇒ gana auto, nunca se elige por largo de texto',
+      out[0].transcripcion === 'auto cubre bastante' && out[0]._tx_modo === 'auto',
+      JSON.stringify({ tx: out[0].transcripcion, modo: out[0]._tx_modo }));
+    check('_tx_cobertura queda en la del ganador (80, la de auto)', out[0]._tx_cobertura === 80, out[0]._tx_cobertura);
+  }
+  {
+    // Hallazgo 2 (fix round 1): el presupuesto manda TAMBIÉN sobre el reintento por cobertura
+    // (línea `if (veredicto === 'parcial' && !(BUDGET_MS && ...))`), no solo sobre el retry por
+    // fallas de arriba. Un video cortado que sin presupuesto dispararía el pedido con mode=generate
+    // tiene que quedarse con el de auto si el presupuesto ya venció para cuando termina ese pedido.
+    // delayMs > presupuesto: el ÚNICO pedido (auto) ya alcanza para agotarlo.
+    const s = [{ content: [{ text: 'corto y sin reintento', offset: 0, duration: 40000 }], lang: 'en' }];
+    const { out, llamadas } = await runTranscribir([tvid('bp1')], { duraciones: { bp1: 100 }, secuencia: s, presupuesto: 0.05, delayMs: 100 });
+    check('con el presupuesto vencido durante el pedido de auto, NO se pide el reintento (cero mode=generate)',
+      llamadas.length === 1 && !/mode=generate/.test(llamadas[0]), JSON.stringify(llamadas));
+    check('y el transcript sigue siendo el de auto, aunque esté cortado (fail-open, no se pierde)',
+      out[0].transcripcion === 'corto y sin reintento' && out[0]._tx_modo === 'auto',
+      JSON.stringify({ tx: out[0].transcripcion, modo: out[0]._tx_modo }));
+  }
+  {
+    // Hallazgo 3 (fix round 1): el mock hacía que `Normalizar IG`/`Normalizar TT` respondieran
+    // siempre lo mismo, así que nadie probaba el try/catch por nodo que los protege — si uno de los
+    // dos no corrió en esta rama (lanza), el nodo no se puede caer y tiene que quedarse con la
+    // duración del que sí resolvió. `fallaDuracion` hace tirar solo al nodo nombrado.
+    const s = [{ content: [{ text: 'corto', offset: 0, duration: 40000 }], lang: 'en' }];
+    const { llamadas } = await runTranscribir([tvid('res1')], { duraciones: { res1: 100 }, secuencia: s, fallaDuracion: 'Normalizar IG' });
+    check('si Normalizar IG tira y Normalizar TT resuelve, el nodo no se cae y usa la duración de TT (dispara el reintento por cobertura)',
+      llamadas.length === 2 && /mode=generate/.test(llamadas[1]), JSON.stringify(llamadas));
   }
 })();
 
