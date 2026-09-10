@@ -1,0 +1,70 @@
+-- 041_revoke_public_cache_transcripts.sql — El acceso a la RPC del caché deja de venir por default.
+-- Aplicar DESPUÉS de la `040`. SQL Editor de Supabase → pegar → Run.
+--
+-- Cierra el review de la `040` (Mani, 2026-09-10). No cambia ninguna decisión de ADR-095: es la
+-- mitad que faltaba de sus dos `grant`.
+--
+-- ─────────────────────────────────────────────────────────────────────────────────────────────
+-- QUÉ ARREGLA, Y QUÉ **NO** ARREGLA (medido, no supuesto)
+--
+-- PostgreSQL le da `EXECUTE` a `PUBLIC` —o sea a TODOS los roles, presentes y futuros— en cada
+-- función nueva, y Supabase no lo revoca a nivel de cluster. Los dos `grant` de la `040` hacen el
+-- acceso de `service_role` y `authenticated` **explícito**, pero no le sacan nada a nadie: hoy la
+-- función es ejecutable por cualquier rol que llegue hasta ella.
+--
+-- 🔬 **Y "llegar hasta ella" es justamente lo que hoy no pasa. Medido contra prod el 2026-09-10,
+-- por el camino real (PostgREST con la anon key):**
+--
+--   POST /rest/v1/rpc/cache_transcripts  con la ANON key
+--   → HTTP 401 · {"code":"42501","message":"permission denied for schema app"}
+--
+-- `anon` se choca contra la puerta de **schema**, dos metros antes de la función. Y aunque la
+-- cruzara, la RPC es `security invoker`: las policies de la `021` se evalúan contra QUIEN LLAMA, así
+-- que vería sus propias filas, que son cero. **O sea que hoy esto no tapa ningún agujero.**
+--
+-- 🔑 Entonces por qué se corre igual: porque lo que arregla es el **default**, no un incidente. El
+-- día que alguien haga `grant usage on schema app to anon` para una pantalla pública —exactamente el
+-- tipo de movimiento que la `021` ya hizo en la otra dirección— esta función pasa a ser llamable
+-- **sin que nadie lo haya decidido**. Con este `revoke`, ese día hay que nombrarla para que entre.
+-- Es la diferencia entre "se puede porque nadie lo prohibió" y "se puede porque alguien lo dijo".
+--
+-- 🟢 **Qué NO puede romper.** El único que llama a esta RPC es el nodo `Pedir caché de transcripts`
+-- del motor, con la credencial `supabaseApi` (service_role); el cockpit no la llama nunca (lee
+-- `app.transcripciones` directo, ver `apps/dashboard/lib/transcripciones.ts`). Los dos roles que
+-- importan tienen su `grant` explícito en la `040`, y el **owner conserva sus privilegios** pase lo
+-- que pase, así que el SQL Editor sigue pudiendo probarla.
+--
+-- Idempotente: revocar algo que ya no está no hace nada.
+-- ─────────────────────────────────────────────────────────────────────────────────────────────
+
+revoke execute on function app.cache_transcripts(uuid, text[]) from public;
+
+
+-- ═══════════════════════ Verificación ═══════════════════════
+--
+-- ⚠️ **Esta es la única migración de la serie que NO se puede verificar por su efecto desde afuera**,
+-- y no es un descuido: `anon` ya rebotaba con `42501` ANTES de correr esto, por el schema. La
+-- respuesta de PostgREST es idéntica antes y después, así que mirarla no prueba nada. Hay que
+-- preguntarle al catálogo, en el SQL Editor:
+--
+--   select has_function_privilege('anon',          'app.cache_transcripts(uuid, text[])', 'execute') as anon,
+--          has_function_privilege('authenticated', 'app.cache_transcripts(uuid, text[])', 'execute') as authenticated,
+--          has_function_privilege('service_role',  'app.cache_transcripts(uuid, text[])', 'execute') as service_role;
+--   -- Esperado: anon = false · authenticated = true · service_role = true
+--
+-- Los dos `true` son la mitad que importa: son la prueba de que el `revoke` le sacó el default a
+-- `PUBLIC` **sin** llevarse por delante a los que sí fueron nombrados. Si `service_role` diera
+-- `false`, el motor pierde el caché y su fallo sería MUDO (el nodo tiene `onError: continue`: la
+-- corrida sale en verde y re-paga cada transcript).
+--
+-- Y por el camino real, que tiene que seguir contestando igual que antes:
+--
+--   set -a && source .env && set +a
+--   curl -s -X POST -H "apikey: $SUPABASE_SERVICE_ROLE" -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE" \
+--     -H "Content-Profile: app" -H "content-type: application/json" \
+--     -d '{"p_instance":"<uuid de la instancia>","p_ids":["3971035741880209102"]}' \
+--     "$SUPABASE_URL/rest/v1/rpc/cache_transcripts"
+--   -- Esperado: 200, y cada fila con la clave `modo` (lo que dejó la `040`).
+--
+-- 🐤 Canario: no tiene. No crea datos ni cambia comportamiento observable; lo que cambia es qué pasa
+-- el día que alguien abra el schema.

@@ -204,8 +204,8 @@ en §Agent skills; acá solo se ubican.
   mismo caso que `run_id` en ADR-081. Hasta hoy la métrica se moría en el gate, que pisa `heat_score`
   con su veredicto. **Desempata pasivo y no vota** (ADR-090). 🐤 Su canario nace en cero **sin
   contaminar**: no se insertó ninguna fila de prueba, así que la primera la escribe el motor.
-  ⏳ **La [`039`](core/schema/039_cobertura_transcripts.sql) (ADR-095) está escrita, PENDIENTE DE
-  APLICAR** (Mani, 09/09) — agrega `app.transcripciones.cobertura_seg` / `duracion_seg` / `modo`,
+  ✅ **La [`039`](core/schema/039_cobertura_transcripts.sql) (ADR-095) está APLICADA** (Mani,
+  09/09) — agrega `app.transcripciones.cobertura_seg` / `duracion_seg` / `modo`,
   `app.candidatos.cobertura_seg`, `app.videos_meta.duracion_seg`, y recrea `app.cache_transcripts`
   (`create or replace`) para devolver las dos columnas nuevas, con sus dos `grant` explícitos
   igual que la `037` (ADR-087 §3). Existe porque **un transcript cortado no se puede detectar por
@@ -214,8 +214,27 @@ en §Agent skills; acá solo se ubican.
   la API de Supadata. 🔑 **El veredicto no se guarda**: se deriva de `cobertura_seg / duracion_seg`
   al leer, para no pedir backfill cada vez que el umbral se mueva. El umbral queda **sin número a
   propósito** — sale del histograma que produce la Tarea 3 del plan, no de esta migración. Aditiva
-  e idempotente (`add column if not exists`), sin backfill: el "sin backfill" se mide con los tres
-  ceros del paso 4 del brief, todavía no corridos.
+  e idempotente (`add column if not exists`), sin backfill.
+  Verificada por su efecto el 10/09: las tres columnas contestan por PostgREST sobre las 905 filas
+  de `app.transcripciones`, `app.videos_meta.duracion_seg` acepta escritura, y la RPC devuelve las
+  dos nuevas.
+  ✅ **La [`040`](core/schema/040_cache_modo.sql) (ADR-095 §3.1) está APLICADA** (Mani, 10/09) — le
+  suma `modo` al `returns table` de `app.cache_transcripts`, que es lo que deja al motor no
+  re-pedir para siempre un parcial que ya se completó con `generate`. Verificada por su efecto y
+  por el camino real: `POST /rpc/cache_transcripts` con `Content-Profile: app` devuelve **200 y la
+  clave `modo` en cada fila**, no `PGRST202`. ⚠️ **Con esto se levantó el bloqueo del `n8n:push` del
+  motor, que sigue PENDIENTE**: al 10/09 14:20 UTC el live escribió 16 transcripciones nuevas con
+  `cobertura_seg` y `modo` en `null`, y `n8n:diff` marca drift en los 4 nodos del cambio. *El
+  arreglo existe en el repo y no en producción.*
+  ⏳ **La [`041`](core/schema/041_revoke_public_cache_transcripts.sql) está escrita, PENDIENTE DE
+  APLICAR** (10/09) — `revoke execute … from public` sobre esa misma RPC. 🔬 **Hoy no tapa ningún
+  agujero y el archivo lo dice con el número**: medido contra prod, `anon` rebota con `42501
+  permission denied for schema app` **antes** de llegar a la función, y la RPC es `security
+  invoker`, así que las policies de la `021` filtrarían igual. Lo que arregla es el **default**:
+  Postgres le da `EXECUTE` a `PUBLIC` en cada función nueva, así que el día que alguien abra el
+  schema `app` a `anon` la RPC queda llamable sin que nadie lo decida. **Es la única de la serie
+  que no se puede verificar por su efecto desde afuera** (la respuesta de PostgREST es idéntica
+  antes y después): se verifica con `has_function_privilege` en el SQL Editor.
   ✅ **La [`037`](core/schema/037_origen_transcripciones_y_descartes_id.sql) (ADR-087) está
   APLICADA** (Mani, 01/09), verificada **por su efecto y con cuatro señales**: `transcripciones =
   manual = 130` y **`motor = 0`** · **`descartes_con_id = 0`** (los dos ceros prueban que el *sin
