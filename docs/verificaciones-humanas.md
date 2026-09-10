@@ -1038,6 +1038,62 @@ mano.
 
 ---
 
+## 16. ⬜ **Que el reintento del cockpit DISPARE** *(nuevo del 10/09, Tarea 8 de plan-transcript-completo)*
+
+**Quién:** Mani · **Cuánto tarda:** ~3 min · **Paga:** sí, hasta 3 créditos de Supadata (1 de `auto`
++ 2 del reintento).
+
+**Por qué es el primero de la lista:** es la única verificación que prueba **dos cosas de una** — que
+el deploy del 10/09 llegó a producción (no se pudo ver el build: la cuenta de Vercel conectada no
+tiene el proyecto) **y** que el arreglo le llega a Majo, que es a quien se le rompió. Hasta el 10/09
+el reintento existía sólo en el motor, y ella pega los links del otro lado.
+
+**Qué hacer:** en **Transcribir**, con `https://www.instagram.com/p/DXplmHiCKcg/`.
+
+⚠️ **Su fila YA está en `listo` con `modo` y `cobertura_seg` en `null`** (`3884801500731975456`), así
+que **hay que rehacerla**: volver a pegar el link no alcanza si dedupea.
+
+✅ **La precondición está chequeada (10/09) y por eso este item no es una trampa:** ese video **tiene
+su duración** — `app.videos_meta.duracion_seg = 69,0 s`. Sin ella el veredicto sale `desconocido`, el
+reintento **no dispara**, y la verificación da un falso negativo que se lee como *"el arreglo no
+anda"*.
+
+**Qué mirar en la base, esa fila de `app.transcripciones`:**
+
+| Lo que ves | Qué significa |
+|---|---|
+| **`modo = 'generate'`** y `cobertura_seg` mayor que antes | ✅ Todo anduvo: el deploy está en prod y el reintento mejora el guion |
+| **`modo = 'auto_tras_generate'`** | ✅ El código está en prod y disparó; ese video no se recupera. **No es una falla** |
+| **`modo` sigue en `null`** | 🩸 El build viejo sigue sirviendo, o no la rehiciste. Mirar Vercel antes de tocar código |
+| **`modo = 'auto'` con cobertura baja** | 🩸 El veredicto salió `desconocido`: la duración no llegó a la fila. Mirar `duracion_seg` de la fila, no de `videos_meta` — son dos tablas |
+
+🔬 **Y en el log de la función, una línea que hasta hoy no existía:** si aparece *"Supadata encoló el
+generate (202)"*, el reintento se topó con la cola (ADR-096) y **eso también es correcto** — la fila
+queda en `auto`, sin candado, y la levanta `medir-cobertura.mjs`.
+
+---
+
+## 17. ⬜ **El `comment` de la `042`, en el SQL Editor** *(pendiente desde el 10/09)*
+
+**Quién:** Mani · **Cuánto tarda:** 30 s · **Paga:** no.
+
+**Por qué necesita una mano:** es la única de la serie —con la `041`— que **no se puede verificar por
+su efecto**: PostgREST responde idéntico antes y después. No cambia ni una fila ni una columna,
+corrige el comentario de `app.transcripciones.modo`, que decía `auto | generate` y ahora son **tres**
+valores.
+
+```sql
+select col_description('app.transcripciones'::regclass, attnum)
+from pg_attribute
+where attrelid = 'app.transcripciones'::regclass and attname = 'modo';
+```
+
+**Tiene que nombrar los TRES:** `auto`, `generate` y `auto_tras_generate`. Si nombra dos, la `042` no
+está aplicada y el próximo que lea el catálogo va a creer que `auto` significa *"nunca se probó
+generate"*, que es exactamente la confusión que costó la fuga de plata de ADR-095 §Enmienda 3.
+
+---
+
 ## Registro — lo que ya se cerró, para no repetirlo
 
 | # | Qué | Cuándo |
