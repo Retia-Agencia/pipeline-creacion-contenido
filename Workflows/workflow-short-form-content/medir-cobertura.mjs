@@ -35,9 +35,19 @@ const args = process.argv.slice(2);
 const flag = (n) => args.includes('--' + n);
 const valor = (n, d) => { const i = args.indexOf('--' + n); return i < 0 ? d : args[i + 1]; };
 const APPLY = flag('apply');
-const UMBRAL = Number(valor('umbral', 0.8));
 const LIMITE = valor('limite', null) != null ? Number(valor('limite', null)) : null;
 const COMPLETAR = flag('completar');
+
+// `--umbral` es obligatorio en `--completar` (escribe producción) y tiene default solo en `--medir`
+// (ahí solo colorea el histograma, no escribe nada). El §3.4 del spec existe para que el número
+// salga del histograma medido, no de una opinión previa — un default silencioso se lo saltea.
+if (COMPLETAR && valor('umbral', null) == null) {
+  console.error('⛔ --completar necesita --umbral: el umbral se elige mirando el histograma de');
+  console.error('   --medir, no una opinión previa. Corré --medir primero y pasá el número que veas.');
+  process.exit(1);
+}
+const UMBRAL_TENIA_DEFAULT = valor('umbral', null) == null;
+const UMBRAL = Number(valor('umbral', 0.8));
 
 // ═══════════════════ Las tres piezas del brief, verbatim (no se re-deciden) ═══════════════════
 
@@ -114,31 +124,47 @@ const sbPatch = async (path, esquema, body) => {
   if (!r.ok) throw new Error(`Supabase ${r.status} en PATCH ${path}: ${await r.text()}`);
 };
 
-// ═══════════════════════════════ concurrencia 8 + backoff ═══════════════════════════════
-// Mismo tope que el nodo `Transcribir (Supadata)`: el plan de Supadata es 10 req/s y el límite se
-// cobra en el pico, no en el promedio.
+// ═══════════════════════════════ concurrencia 8 + arranque escalonado + backoff con jitter ═══════
+// Mismos valores que el nodo `Transcribir (Supadata)` (Config: concurrencia_transcribir=8,
+// arranque_transcribir_ms=120, backoff_transcribir_ms=500), no inventados acá. El plan de Supadata
+// es 10 req/s y el límite se cobra en el PICO, no en el promedio — dos picos distintos, dos fixes:
+//
+// 1) ARRANQUE ESCALONADO: `Promise.all(Array.from({length:N}, worker))` lanza los N workers en el
+//    mismo tick — N pedidos en el mismo milisegundo, que es el propio pico del nodo. El comentario
+//    de `Transcribir (Supadata)` lo mide: a 12 en vuelo sin escalonar la ráfaga de arranque ya
+//    pasaba el techo de 10 req/s aunque en régimen 12 en vuelo a ~19s de latencia sean 0.62 req/s.
+//    120ms entre worker y worker ≈ 8.3 req/s de pico, debajo del techo con margen.
+// 2) JITTER EN EL BACKOFF: sin aleatoriedad, los N workers que se comieron el mismo 429 esperan
+//    exactamente lo mismo y RECONSTRUYEN la ráfaga que los tumbó (comentario textual del nodo). Acá
+//    la propia corrida quemó media cosecha en producción por esto.
+const ARRANQUE_MS = 120;
+const BACKOFF_MS = 500;
+const RETRIES = 4; // 5 intentos totales, igual que el nodo.
 
 async function pMapLimit(items, limit, fn) {
   const salida = new Array(items.length);
   let i = 0;
-  async function trabajador() {
+  const dormir = (ms) => new Promise((res) => setTimeout(res, ms));
+  async function trabajador(k) {
+    if (k > 0) await dormir(k * ARRANQUE_MS);
     while (i < items.length) {
       const idx = i++;
       salida[idx] = await fn(items[idx], idx);
     }
   }
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, trabajador));
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, (_, k) => trabajador(k)));
   return salida;
 }
 
 /** Reintenta SOLO 429 (rate limit); cualquier otro status lo devuelve tal cual (fail-open: sin
- *  cobertura no hay veredicto, no hay excepción que tirar). */
-async function pedirConBackoff(url, modo, intentos = 3) {
+ *  cobertura no hay veredicto, no hay excepción que tirar). Backoff exponencial CON jitter
+ *  multiplicativo, igual fórmula que el nodo: `BACKOFF_MS * 2^(intento-1) * (1 + Math.random())`. */
+async function pedirConBackoff(url, modo, intentos = RETRIES + 1) {
   let ultimo;
   for (let i = 0; i < intentos; i++) {
     ultimo = await pedir(url, modo);
     if (ultimo.status !== 429) return ultimo;
-    await new Promise((res) => setTimeout(res, 500 * 2 ** i));
+    await new Promise((res) => setTimeout(res, Math.round(BACKOFF_MS * 2 ** i * (1 + Math.random()))));
   }
   return ultimo;
 }
@@ -210,6 +236,9 @@ async function duracionesDeApify(rows) {
 
 async function medir(rows) {
   console.log(`Filas a medir: ${rows.length}`);
+  if (UMBRAL_TENIA_DEFAULT) {
+    console.log(`(usando --umbral por default: ${UMBRAL} — no escribe nada acá, solo referencia; el umbral real para --completar se elige mirando el histograma de abajo)`);
+  }
   const externalIds = rows.map((r) => r.external_id);
   const [porCandidato, porVideoMeta] = await Promise.all([
     mapaDuracion('candidatos', externalIds),
@@ -273,11 +302,18 @@ async function completar(rows) {
     console.error('⛔ --completar necesita --apply: sin escribir no hay nada que "completar".');
     process.exit(1);
   }
+  // 🔑 `modo === 'generate'` = ya se completó una vez y no mejoró más (ADR-095): un reintento
+  // alcanza y el segundo es plata tirada — medido en el propio ADR, 5 llamadas seguidas de
+  // `generate` sobre los tres videos de referencia dieron 15 de 15 idénticas. Sin este filtro,
+  // correr `--completar --apply` dos veces re-paga 2 créditos por fila (`generate` en `pedir` +
+  // el intento de `mejor()`) para recibir la misma respuesta que ya está guardada — el caso
+  // documentado como cortado e irrecuperable (`Day8CXdBLwK`) se re-pagaría para siempre.
+  const yaCompletadas = rows.filter((r) => r.modo === 'generate').length;
   const candidatas = rows.filter(
-    (r) => r.cobertura_seg != null && r.duracion_seg != null && r.duracion_seg > 0
+    (r) => r.modo !== 'generate' && r.cobertura_seg != null && r.duracion_seg != null && r.duracion_seg > 0
       && r.cobertura_seg < r.duracion_seg * UMBRAL,
   );
-  console.log(`Filas bajo el umbral ${UMBRAL}: ${candidatas.length} de ${rows.length} (las demás no tienen cobertura/duración medida, o ya están sanas).`);
+  console.log(`Filas bajo el umbral ${UMBRAL}: ${candidatas.length} de ${rows.length} (las demás no tienen cobertura/duración medida, ya están sanas, o ya se completaron antes: ${yaCompletadas} en modo 'generate' se saltean).`);
 
   let completadas = 0, sinMejora = 0, sinRespuesta = 0;
   await pMapLimit(candidatas, 8, async (r) => {
