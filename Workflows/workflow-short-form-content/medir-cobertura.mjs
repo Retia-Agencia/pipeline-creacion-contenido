@@ -125,8 +125,9 @@ const sbPatch = async (path, esquema, body) => {
 };
 
 // ═══════════════════════════════ concurrencia 8 + arranque escalonado + backoff con jitter ═══════
-// Mismos valores que el nodo `Transcribir (Supadata)` (Config: concurrencia_transcribir=8,
-// arranque_transcribir_ms=120, backoff_transcribir_ms=500), no inventados acá. El plan de Supadata
+// Arranque y backoff tomados del nodo `Transcribir (Supadata)` (Config: arranque_transcribir_ms=120,
+// backoff_transcribir_ms=500). Concurrencia: script usa 8 (más conservador que el motor, que corre con 12).
+// El plan de Supadata
 // es 10 req/s y el límite se cobra en el PICO, no en el promedio — dos picos distintos, dos fixes:
 //
 // 1) ARRANQUE ESCALONADO: `Promise.all(Array.from({length:N}, worker))` lanza los N workers en el

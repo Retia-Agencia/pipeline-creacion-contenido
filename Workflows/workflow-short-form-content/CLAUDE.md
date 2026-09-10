@@ -58,7 +58,7 @@ ADR-009); el "link" es la URL del video original.
   juzga igual). Por eso el corte de `cap_top_n` es seguro —pasa dentro de `Heat-score v1`, antes de
   ese POST, o sea posterga— y el presupuesto no. **La palanca de throughput es la concurrencia**, no
   el presupuesto: este no puede pasar de ~880 s. Las 5 perillas viven en `Config`
-  (`concurrencia_transcribir` 8 · `presupuesto_transcribir_s` 870 · `backoff_transcribir_ms` 500 ·
+  (`concurrencia_transcribir` 12 · `presupuesto_transcribir_s` 870 · `backoff_transcribir_ms` 500 ·
   `concurrencia_traducir` 8 · `presupuesto_traducir_s` 840) para tunearlas desde n8n **sin re-importar**.
   🔑 **La regla que las ata, y la que hay que sostener al mover cualquiera: CAPACIDAD > `cap_top_n`.**
   Mientras el presupuesto alcance para más videos que el tope, muerde el tope (posterga) y nunca el
