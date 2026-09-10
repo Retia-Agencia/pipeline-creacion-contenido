@@ -152,10 +152,13 @@ tonta**: no filtra por umbral, solo entrega los números. Si el umbral cambia, n
 migración lleva `drop function if exists app.cache_transcripts(uuid, text[])` **antes** del `create
 or replace`.
 
-⚠️ **Y el `drop` se lleva los privilegios de la función.** Con eso, los dos `grant` dejan de ser
-cinturón-y-tirantes y pasan a ser **obligatorios**: sin ellos el motor recibe `42501`, el
-`onError: continueRegularOutput` del nodo se lo traga, y la corrida cierra en verde y sin caché,
-re-pagándole a Supadata en silencio. Es el escenario que documenta ADR-087 §3.
+⚠️ **Y el `drop` se lleva los privilegios de la función — pero eso no deja al motor sin acceso.**
+Postgres le da `EXECUTE` a `PUBLIC` por defecto a toda función nueva, y Supabase no lo revoca a
+nivel de cluster (medido contra prod el 09/09 con `pg_proc.proacl`: `cache_transcripts` sale con
+`PUBLIC` en la lista, `instancias_visibles` no, porque solo a ella la `021` le hizo `revoke`).
+`service_role` y `authenticated` ejecutarían igual sin los `grant`. Los `grant` se quedan porque
+hacen el acceso **explícito e independiente de `PUBLIC`**: el día que alguien la endurezca como la
+`021` endureció `instancias_visibles`, el motor no se cae. Ver ADR-087 §Enmienda.
 
 ⚠️ **Orden obligatorio: la migración va ANTES del deploy de la app**, igual que exigieron la `014`,
 la `016` y la `037`. Sin la columna, PostgREST responde `42703`.
@@ -313,11 +316,14 @@ grant execute on function app.cache_transcripts(uuid, text[]) to authenticated;
       las columnas del `returns table` de una función existente (probado contra Postgres 16.13:
       `ERROR: cannot change return type of existing function`, con el hint de dropearla primero).
 
-      ⚠️ **Y el `drop` se lleva los privilegios de la función.** Con eso, los dos `grant` de abajo
-      dejan de ser cinturón-y-tirantes y pasan a ser **obligatorios**: si alguien los borra "porque
-      ya estaban", el motor recibe `42501`, el `onError: continue` del nodo se lo traga, y la
-      corrida cierra en verde y sin caché — re-pagándole a Supadata en silencio. Es exactamente el
-      error que ADR-087 §3 documenta.
+      ⚠️ **Y el `drop` se lleva los privilegios de la función — pero eso no deja al motor sin
+      acceso.** Postgres le da `EXECUTE` a `PUBLIC` por defecto a toda función nueva, y Supabase no
+      lo revoca a nivel de cluster (medido contra prod el 09/09 con `pg_proc.proacl`:
+      `cache_transcripts` sale con `PUBLIC` en la lista, `instancias_visibles` no, porque solo a
+      ella la `021` le hizo `revoke`). `service_role` y `authenticated` ejecutarían igual sin los
+      `grant` de abajo. Se quedan porque hacen el acceso **explícito e independiente de `PUBLIC`**:
+      el día que alguien la endurezca como la `021` endureció `instancias_visibles`, el motor no se
+      cae. Ver ADR-087 §Enmienda.
 
       🔒 **La RPC no filtra por umbral.** Devuelve los números y el nodo decide. Si el umbral cambia,
       no se toca SQL.

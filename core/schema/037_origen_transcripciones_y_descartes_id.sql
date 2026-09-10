@@ -37,6 +37,11 @@
 -- `url_referente` con el alfabeto de `rescatar-huerfanos.mjs`, probado 300/300 en ADR-070; no se
 -- hace acá porque nada lo necesita todavía y un backfill derivado que se equivoque en silencio es
 -- peor que un `null` que se ve.
+--
+-- 📝 Editada DESPUÉS de aplicarse (Mani, 09/09), y solo el comentario `--` junto al `grant` de más
+-- abajo: decía que sin el `grant` el motor recibiría `42501`, y era falso — ver la corrección al
+-- lado del `grant` y el detalle en ADR-087 §Enmienda. Ningún `alter table`, `create function` ni
+-- `grant` ejecutable cambió una letra.
 
 
 -- ═══════════════════════ §0 · Guardas ═══════════════════════
@@ -160,12 +165,16 @@ comment on function app.cache_transcripts(uuid, text[]) is
   'DEFINITIVA de Supadata (listo o sin_transcript). Los ids van en el body y no en la URL porque '
   'un GET con ~350 ids da 414 en produccion. ADR-087.';
 
--- 🩸 El grant va EXPLÍCITO. `011_grants_app_service_role.sql` puso
--- `alter default privileges in schema app grant all privileges on TABLES / SEQUENCES`, y **las
--- funciones no están en esa lista**: una función nueva NO nace accesible. Es la misma clase de
--- error que la `011` vino a reparar — dar por sentado un grant que nadie otorgó — y su síntoma
--- sería un `42501 permission denied` desde el motor, con `onError: continueRegularOutput`
--- tragándoselo y la corrida cerrando en verde sin caché, re-pagándole a Supadata en silencio.
+-- El grant va EXPLÍCITO, pero no porque sin él la función quede inaccesible. `011_grants_app_
+-- service_role.sql` puso `alter default privileges in schema app grant all privileges on TABLES /
+-- SEQUENCES`, y las funciones no están en esa lista — eso es cierto. Lo que NO es cierto es que
+-- eso deje a la función sin acceso: Postgres le da `EXECUTE` a `PUBLIC` por defecto a toda función
+-- nueva, y Supabase no lo revoca a nivel de cluster (medido contra prod el 09/09 con `pg_proc.
+-- proacl`: `cache_transcripts` sale con `PUBLIC` en la lista). `service_role` y `authenticated`
+-- ejecutarían igual sin este `grant`, heredando de `PUBLIC`. El `grant` se queda porque hace el
+-- acceso explícito e independiente de `PUBLIC`: el día que alguien la endurezca como la `021`
+-- endureció `instancias_visibles` (con un `revoke ... from public`), el motor no se cae. Detalle
+-- en ADR-087 §Enmienda.
 grant execute on function app.cache_transcripts(uuid, text[]) to service_role;
 grant execute on function app.cache_transcripts(uuid, text[]) to authenticated;
 

@@ -31,6 +31,11 @@
 -- ⚠️ CORRÉS ESTE ARCHIVO ENTERO, DE UN SAQUE. Si se corre solo una parte, los `alter table` pueden
 -- quedar aplicados y la RPC (el `drop`+`create`+`grant` de más abajo) no — dejando columnas que el
 -- motor no puede leer por su camino real (`app.cache_transcripts`).
+--
+-- 📝 Editada DESPUÉS de aplicarse (Mani, 09/09), y solo los comentarios `--` de más abajo (el del
+-- `drop` y el de los `grant`): decían que sin los `grant` el motor recibiría `42501`, y era falso —
+-- ver la corrección al lado de cada uno. Ningún `alter table`, `create function` ni `grant`
+-- ejecutable cambió una letra.
 
 alter table app.transcripciones
   add column if not exists cobertura_seg numeric,
@@ -56,11 +61,15 @@ comment on column app.transcripciones.modo is
 -- Por eso el `drop` de abajo va primero; la firma (`uuid, text[]`) es la misma de la `037`, así que
 -- el `drop` apunta exacto a la función vieja y no puede llevarse otra por error.
 --
--- ⚠️ Y el `drop` SE LLEVA LOS PRIVILEGIOS de la función. Con esto, los dos `grant` de más abajo
--- dejan de ser cinturón-y-tirantes: son OBLIGATORIOS. Si alguien los borra "porque ya estaban", el
--- motor recibe `42501`, el `onError: continueRegularOutput` del nodo se lo traga, y la corrida
--- cierra en verde y sin caché — re-pagándole a Supadata en silencio. Es el escenario exacto que
--- documenta ADR-087 §3.
+-- ⚠️ Y el `drop` SE LLEVA LOS PRIVILEGIOS de la función — pero eso NO deja al motor sin acceso.
+-- Postgres le da `EXECUTE` a `PUBLIC` por defecto a toda función nueva, y Supabase no lo revoca a
+-- nivel de cluster (medido contra prod el 09/09: `select proacl from pg_proc where proname =
+-- 'cache_transcripts'` da `{=X/postgres,...}`, y el `=X` sin grantee adelante es justamente
+-- `PUBLIC`). `service_role` y `authenticated` heredarían el `EXECUTE` de `PUBLIC` igual sin los
+-- `grant` de más abajo. Los `grant` se quedan por otra razón: hacen el acceso EXPLÍCITO e
+-- independiente de `PUBLIC`, para que el día que alguien la endurezca como la `021` endureció
+-- `instancias_visibles` (con su `revoke ... from public`), el motor no se caiga. Ver la
+-- corrección completa en ADR-087 §Enmienda.
 drop function if exists app.cache_transcripts(uuid, text[]);
 
 create or replace function app.cache_transcripts(p_instance uuid, p_ids text[])
@@ -76,12 +85,18 @@ as $fn$
     and t.estado in ('listo', 'sin_transcript')
 $fn$;
 
--- ⚠️ Estos dos `grant` YA NO SON OPCIONALES (a diferencia de cuando `create or replace` solo
--- podía conservar privilegios): el `drop` de arriba los borró, así que sin ellos la función queda
--- sin permisos y el motor recibe `42501` en silencio (ver el bloque de arriba). Cuestan nada, van
--- siempre (ADR-087 §3).
+-- Estos dos `grant` no evitan un `42501`: sin ellos, `service_role` y `authenticated` ejecutarían
+-- igual, heredando el `EXECUTE` que Postgres le da a `PUBLIC` por defecto (ver el bloque de
+-- arriba). Van igual porque hacen el acceso explícito e independiente de `PUBLIC` — así que si
+-- algún día se la endurece como a `instancias_visibles` (`021`), el motor sigue funcionando.
+-- Cuestan nada, van siempre.
 grant execute on function app.cache_transcripts(uuid, text[]) to service_role;
 grant execute on function app.cache_transcripts(uuid, text[]) to authenticated;
+
+-- 💡 Candidato explícito, NO hecho acá (decisión de Mani, no de esta migración): una migración
+-- futura podría agregar `revoke execute on function app.cache_transcripts(uuid, text[]) from
+-- public;`, para endurecerla como la `021` endureció `instancias_visibles`. Si se hace, los dos
+-- `grant` de arriba pasan a ser recién ahí los que sostienen el acceso del motor.
 
 
 -- ═══════════════════════ Verificación (por efecto, no por haber corrido) ═══════════════════════

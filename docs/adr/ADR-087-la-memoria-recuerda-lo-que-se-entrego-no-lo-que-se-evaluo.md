@@ -191,3 +191,50 @@ que se re-hace es la traducción y el juicio, que son centavos de Haiku, no el A
 4. 🐤 **Canario:** `select count(*) from app.transcripciones where origen = 'motor'` nace en **cero**
    por definición (la migración no backfillea). **La primera fila la escribe el motor**, así que la
    primera es uso real y no una verificación. A mirar después de la primera corrida del equipo.
+
+## Enmienda — 2026-09-09: el `grant` de `037` no evita un `42501` — nunca hizo falta para eso
+
+*Fix round 2 de la Tarea 1 de `docs/agents/plan-transcript-completo.md`. No toca `core/`: el
+`grant` de `037` se queda igual, solo cambia el porqué escrito. Sin migración nueva.*
+
+**Lo que se creyó.** El comentario junto al `grant` de `app.cache_transcripts` en
+[`037`](../../core/schema/037_origen_transcripciones_y_descartes_id.sql) afirma que *"una función
+nueva NO nace accesible"*, porque `011_grants_app_service_role.sql` hace `alter default privileges
+... on TABLES / SEQUENCES` y **las funciones no están en esa lista**. De ahí se concluyó que sin el
+`grant` explícito, `service_role` y `authenticated` recibirían `42501` al llamar a la RPC — el mismo
+error mudo que el `onError: continueRegularOutput` del nodo se traga, cerrando la corrida en verde y
+sin caché. La verificación de la `037` (`has_function_privilege('service_role', ...)`) corrió
+**con el `grant` ya aplicado**, así que dio `true` — pero eso confirma que el `grant` funciona,
+**no que hiciera falta**. Nunca se probó el contrafáctico: ¿qué pasa si no se hubiera otorgado?
+
+**Lo que se midió (09/09, contra prod).** `select proname, proacl from pg_proc where proname in
+('cache_transcripts', 'instancias_visibles')`:
+
+```
+proname             | proacl
+--------------------+-------------------------------------------------------------------------
+cache_transcripts   | {=X/postgres,postgres=X/postgres,service_role=X/postgres,authenticated=X/postgres}
+instancias_visibles | {postgres=X/postgres,authenticated=X/postgres}
+```
+
+`=X/postgres` **sin grantee adelante es `PUBLIC`**. `cache_transcripts` lo tiene; `instancias_visibles`
+no, porque [`021_rls_capa_2.sql`](../../core/schema/021_rls_capa_2.sql) le hizo un `revoke`
+explícito. Dos funciones del mismo esquema, y la única diferencia es si alguien corrió ese
+`revoke`. Eso prueba tres cosas: **Postgres le da `EXECUTE` a `PUBLIC` por defecto** a toda función
+nueva; **Supabase no lo revoca a nivel de cluster** (si lo hiciera, `cache_transcripts` tampoco lo
+tendría); y este repo lo revoca a mano, función por función, solo donde alguien lo decidió. **Sin el
+`grant` de la `037`, `service_role` y `authenticated` habrían ejecutado igual, heredando de
+`PUBLIC`.**
+
+**Lo que queda en pie.** El `alter default privileges` de la `011` efectivamente **no cubre
+funciones** — eso está bien medido y sigue siendo cierto. Lo que cae es la consecuencia que se le
+adosó: que eso deja a la función **inaccesible**. No la deja, porque el default de Postgres para
+funciones nuevas es `PUBLIC`. El `grant` explícito se queda — en `037` y en la `039` que lo repite —
+pero por la razón correcta: hace el acceso **explícito e independiente de `PUBLIC`**, así que el día
+que alguien la endurezca como la `021` endureció `instancias_visibles` (un `revoke ... from
+public`), el motor no se cae. Ese endurecimiento queda anotado como candidato explícito, sin
+hacerse, en [ADR-095 §Toca](./ADR-095-un-transcript-cortado-no-puede-pasar-por-completo.md).
+
+*Corregido en el mismo barrido: el comentario de `037` (solo texto, migración ya aplicada), los dos
+comentarios de la `039`, y los dos bloques que repetían la afirmación en
+[`plan-transcript-completo.md`](../agents/plan-transcript-completo.md).*
