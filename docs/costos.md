@@ -415,6 +415,12 @@ barato.*
 - [ ] **Cruzar Haiku contra su factura.** Es el **15,1 %** corregido —el segundo del ranking— y está
       sin verificar. El nodo ya recibe `usage` en la respuesta de la API de Anthropic y lo tira;
       loguearlo a `runs.metricas` convierte la estimación en medición sin llamadas extra.
+- [ ] 🩸 **El precio viejo de Supadata está en TRES lugares, no en uno.** Además de `app.tarifas`,
+      está **hardcodeado en la UI**: `transcribir/pegar-enlaces.tsx` estima `~USD 0.014 por link`
+      ("entre Supadata y Haiku"), que arrastra los 0,009 inflados. Con el precio real de 1 crédito
+      son ~0,0066. **Es el número que el equipo ve antes de apretar el botón**, así que sobreestima
+      el gasto ~2× justo en el momento en que alguien decide si sigue o no. Un pegote de 365 links
+      dice 5,11 USD y cuesta ~2,40.
 - [ ] **Contador propio de créditos de Supadata**, ya que no hay endpoint: el repo tiene
       `app.transcripciones.modo` y (desde la `039`) `duracion_seg`, así que
       `count(auto) + 2 × ceil(duracion_seg/60)` sobre `generate` da el consumo del mes sin depender
@@ -459,6 +465,39 @@ barato.*
    error de 5,7× que hizo ver a Supadata como el segundo frente de costo cuando es el tercero.
 8. **Un pool que se llena de varias corridas se deduplica antes de contarlo.** Sin eso cada corrida
    extra parece supply nuevo. Pasó acá, con 59 % de inflación.
+
+---
+
+## 8.5 Recuperar videos ya pagados sin volver a pagarlos
+
+🔑 **Un reel que murió en `min_views` NO se perdió: sigue en el dataset de Apify de esa corrida, y
+leer un dataset propio es GRATIS.** Es la única vía de rescate que existe, porque el repo no guarda
+lo que filtra: `app.descartes` sólo recibe la banda borderline del gate, y `processed_items` guarda
+`{id, platform}` — es una lista negra, no un backup.
+
+**Medido el 10/09 sobre las corridas de Vieira:** de los **2.627** reels únicos de trading en los
+datasets del día, **388 tenían ≥ 100.000 vistas** y **365 no estaban en el Feed**. Se recuperaron
+como URLs a costo cero.
+
+⚠️ **Y re-correr el motor NO los habría traído: 245 de los 365 son más viejos que la ventana de 50
+días**, así que ni bajando `min_views` los colectaría. **El rescate se hace por el pegote de
+Transcribir, no por el motor.**
+
+**Límites del pegote, medidos:** el campo acepta **20.000 caracteres** (`textoPegado`); una URL de
+reel son ~41, o sea que **entran ~487 links por pegada** (los 365 ocupan 14.964). El drenado va en
+lotes de **64** y el bucle del cliente se llama solo hasta vaciar la cola.
+
+⚠️ **Lo que el rescate NO da:** los links entran con `origen = 'manual'` y quedan como
+transcripciones, **no como candidatos calificados en el Feed**. Sirven para trabajar el contenido;
+no cuentan para `aprobados / N pedido` (ADR-089).
+
+```bash
+# los dataset ids de las corridas de un día, y sus items (ambos GRATIS)
+curl -s -H "Authorization: Bearer $APIFY_TOKEN" \
+  "https://api.apify.com/v2/acts/shu8hvrXbJbY3Eb9W/runs?limit=200&desc=1"
+curl -s -H "Authorization: Bearer $APIFY_TOKEN" \
+  "https://api.apify.com/v2/datasets/<datasetId>/items?clean=true&format=jsonl&fields=ownerUsername,videoPlayCount,timestamp,url,shortCode"
+```
 
 ---
 
