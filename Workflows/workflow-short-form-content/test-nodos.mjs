@@ -784,6 +784,38 @@ await (async () => {
     check('y los tres salen con transcripción resuelta', out.every((o) => o._tx_resuelta === true), JSON.stringify(out.map((o) => o._tx_resuelta)));
   }
 
+  // ── Un hit de caché con cobertura PARCIAL deja de contar como resuelto (ADR-095, Tarea 5) ──
+  // 🔑 Es el corazón de la tarea: sin esto la migración `039` arregla el pasado (las filas que la
+  // Tarea 3 ya midió) y el futuro se rompe solo — el caché de ADR-087 devolvería el mismo
+  // transcript cortado para siempre y el motor nunca lo volvería a pedir.
+  {
+    // 30/100 < 0.9 de umbral con la duración conocida ⇒ NO es un hit: se transcribe de nuevo.
+    const { llamadas, out } = await runTranscribir([tvid('pc1')], {
+      duraciones: { pc1: 100 },
+      cache: [{ external_id: 'pc1', estado: 'listo', script: 'guion cortado', idioma: 'en', cobertura_seg: 30, duracion_seg: 30 }],
+      respuesta: { content: [{ text: 'recuperado de Supadata', offset: 0, duration: 96000 }], lang: 'en' },
+    });
+    check('🔴 cache con cobertura parcial (30/100) NO cuenta como resuelto: se re-pide a Supadata', llamadas.length === 1, `llamadas=${llamadas.length}`);
+    check('y el transcript que sale es el nuevo, no el cortado que traía la caché', out[0].transcripcion === 'recuperado de Supadata', out[0].transcripcion);
+  }
+  {
+    // 96/100 >= 0.9 ⇒ sigue siendo un hit normal: cero llamadas, y la cobertura cacheada viaja.
+    const { llamadas, out } = await runTranscribir([tvid('pc2')], {
+      duraciones: { pc2: 100 },
+      cache: [{ external_id: 'pc2', estado: 'listo', script: 'guion completo', idioma: 'en', cobertura_seg: 96, duracion_seg: 96 }],
+    });
+    check('🟢 cache con cobertura suficiente (96/100) sigue sin re-pedirse (0 llamadas)', llamadas.length === 0, `llamadas=${llamadas.length}`);
+    check('y `_tx_cobertura` viaja con el valor que trajo la caché (para que llegue al Feed)', out[0]._tx_cobertura === 96, String(out[0]._tx_cobertura));
+  }
+  {
+    // Fail-open (ADR-095 §3.5): sin duración conocida no hay veredicto posible ('desconocido'), y
+    // eso NO es 'parcial' — el hit se mantiene como antes de esta tarea, cero llamadas.
+    const { llamadas, out } = await runTranscribir([tvid('pc3')], {
+      cache: [{ external_id: 'pc3', estado: 'listo', script: 'guion sin duracion', idioma: 'en', cobertura_seg: 10 }],
+    });
+    check('🔒 sin duración conocida (fail-open) el hit se mantiene: no hay con qué comparar', llamadas.length === 0, `llamadas=${llamadas.length}`);
+  }
+
 // ── `_tx_resuelta`: la bandera con la que se decide QUÉ se quema (ADR-029 §Enmienda) ──
   // Es la línea entre "Supadata contestó" y "no llegué a preguntar". Antes no existía y el
   // presupuesto quemaba: la corrida del 26/08 perdió 144 videos de 250 por una caída de Supadata.
@@ -1454,6 +1486,24 @@ seccion('Preparar transcripciones — la caché de ASR (ADR-087)');
   check('sin nada que guardar devuelve un item vacío y no corta la cadena', Array.isArray(filas) && filas.length === 0, JSON.stringify(filas));
 }
 
+// ── Los tres números de ADR-095 viajan al caché (Tarea 5) ──
+// Sin esto la migración `039` tiene columnas y la RPC las sabe leer, pero nadie las llena: cada
+// corrida futura seguiría cacheando `cobertura_seg`/`duracion_seg`/`modo` en NULL para siempre.
+{
+  const filas = runPrepTx([txvid('con-cob', { _tx_cobertura: 41.5, _tx_duracion: 150.4, _tx_modo: 'generate' })]);
+  check('una fila resuelta con cobertura sale con los tres campos', filas.length === 1
+    && filas[0].cobertura_seg === 41.5 && filas[0].duracion_seg === 150.4 && filas[0].modo === 'generate',
+    JSON.stringify(filas));
+}
+{
+  // Sin duración (no hay veredicto todavía, ADR-095 §2) los tres van null, NUNCA 0 — un 0 sería
+  // una cobertura o duración real que colisiona con el video que de verdad mide cero.
+  const filas = runPrepTx([txvid('sin-cob')]);
+  check('una sin cobertura sale con cobertura_seg: null y no con 0', filas.length === 1
+    && filas[0].cobertura_seg === null && filas[0].duracion_seg === null && filas[0].modo === null,
+    JSON.stringify(filas));
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 // Gate de relevancia — descarte duro de sin-guion (ADR-030): sin transcript = _descarte, sin gastar
 // Haiku ni consumir N; el juicio de los con-guion sigue fail-open. (async, this.helpers.httpRequest)
@@ -1873,16 +1923,30 @@ seccion('Armar candidato — la huella de contenido y la duración (ADR-086)');
   check('la huella se corta a 200: es una llave, no una copia del guion', out[0].huella_guion.length === 200, String(out[0].huella_guion.length));
 }
 
-seccion('Preparar candidatos — los dos datos de medición llegan a la fila (ADR-086)');
+seccion('Armar candidato — la cobertura llega al Feed (ADR-095, Tarea 5)');
 {
-  const filas = runPrepCandidatos([cvid('m1', { duracion_seg: 47.8, huella_guion: 'hola como estas' })]);
-  check('la huella y la duración viajan a PostgREST', filas[0].huella_guion === 'hola como estas' && filas[0].duracion_seg === 47.8, JSON.stringify([filas[0].huella_guion, filas[0].duracion_seg]));
+  // `_tx_cobertura` es lo que `Transcribir (Supadata)` dejó pegado al item (fresco o de caché) y
+  // sobrevive hasta acá por el mismo Object.assign de `Traducir`/`Gate` que sostiene `duracion_video`.
+  const { out } = await runCorte([vid('cs1', 'P1', 0.9, { _tx_cobertura: 41.5 })], { top_n: 100, projects: { P1: { n: 5 } } });
+  check('la cobertura de Transcribir llega a la fila', out[0].cobertura_seg === 41.5, String(out[0].cobertura_seg));
+}
+{
+  // Dato de medición: sin ella va null y no 0 (0 sería una cobertura real que colisiona con la
+  // del video que de verdad no cubrió nada).
+  const { out } = await runCorte([vid('cs2', 'P1', 0.9)], { top_n: 100, projects: { P1: { n: 5 } } });
+  check('sin cobertura conocida va null, no 0', out[0].cobertura_seg === null, String(out[0].cobertura_seg));
+}
+
+seccion('Preparar candidatos — los tres datos de medición llegan a la fila (ADR-086 + ADR-095)');
+{
+  const filas = runPrepCandidatos([cvid('m1', { duracion_seg: 47.8, huella_guion: 'hola como estas', cobertura_seg: 41.5 })]);
+  check('la huella, la duración y la cobertura viajan a PostgREST', filas[0].huella_guion === 'hola como estas' && filas[0].duracion_seg === 47.8 && filas[0].cobertura_seg === 41.5, JSON.stringify([filas[0].huella_guion, filas[0].duracion_seg, filas[0].cobertura_seg]));
 }
 {
   // Sin ellos la fila sale igual: son datos para medir, no pueden tumbar una entrega ya pagada
   // (invariante #1 de PLAN §2.5). Misma forma que `run_id`.
   const filas = runPrepCandidatos([cvid('m2')]);
-  check('sin ellos la fila sale igual, con null (no tumban la entrega)', filas.length === 1 && filas[0].huella_guion === null && filas[0].duracion_seg === null, JSON.stringify([filas[0].huella_guion, filas[0].duracion_seg]));
+  check('sin ellos la fila sale igual, con null (no tumban la entrega)', filas.length === 1 && filas[0].huella_guion === null && filas[0].duracion_seg === null && filas[0].cobertura_seg === null, JSON.stringify([filas[0].huella_guion, filas[0].duracion_seg, filas[0].cobertura_seg]));
 }
 
 seccion('Preparar descartes — misma regla, misma instancia');
