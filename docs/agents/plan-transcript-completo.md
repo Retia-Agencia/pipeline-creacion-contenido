@@ -911,7 +911,33 @@ node Workflows/workflow-short-form-content/medir-cobertura.mjs --completar --umb
 
 ---
 
-### Tarea 10 · La duración de las 149, para que el aviso pueda existir
+### Tarea 10 · La duración de las 149, para que el aviso pueda existir — ✅ HECHA (10/09)
+
+> ✅ **Corrida y verificada por su efecto.** `app.videos_meta` pasó de **1 fila con duración a 179 de
+> 183**, y el `count(*)` TOTAL **no se movió de 183** — que es la señal que prueba que fue merge por
+> PK y no inserción. Costo real **$0,35** (cupo de Apify 25,39 → 25,74 de 50), clavado en la
+> estimación. Herramienta: [`backfill-duraciones-meta.mjs`](../../Workflows/workflow-short-form-content/backfill-duraciones-meta.mjs),
+> camino **(a)** del Paso 1 — el **(b)** sigue sin hacerse y sigue pidiendo ADR.
+>
+> 🔢 **Eran 150, no 149**, y el número se movió DOS veces el mismo día: la tabla pasó de 150 filas a
+> 183 mientras se medía, porque Mani estaba usando el cockpit (colección de 33 videos enriquecida a
+> las 19:02 UTC). *Un canario se re-mide, no se cita — y éste se movió dentro de la misma sesión.*
+>
+> ⚠️ **4 filas quedaron sin duración y NO es un bug del script:** Apify devuelve el post
+> (`type: "Video"`, id correcto) **sin el campo `videoDuration`**. Medido pidiendo una de ellas
+> sola. El script usa el mismo campo y la misma regla que `duracionDeItemApify` del cockpit.
+>
+> 🔑 **Y llenar `videos_meta` NO alcanzaba: hacía falta un segundo escalón, que salió gratis.**
+> `fila.tsx` deriva el veredicto de `t.duracion_seg` de **la fila de `app.transcripciones`**, que se
+> copia al transcribir. Las 32 filas que Majo/Mani transcribieron hoy tenían `cobertura_seg` y
+> `duracion_seg` en `null`, y no se curaban solas. `--filas --apply` las copió sin tocar Apify:
+> **32 filas ahora pueden dar veredicto, y una es un guion cortado de verdad** —
+> `3791690130135350581`, **19,2 s de 64,2 s = 0,30** — que hasta hoy Majo leía sin saber que estaba
+> partido. *Llenar la tabla que el aviso "necesita" no enciende el aviso: hay dos tablas.*
+
+<details>
+<summary>El plan original de la tarea</summary>
+
 
 **El porqué:** el aviso necesita `duracion_seg` de `app.videos_meta` y hay **1 fila de 150** con
 duración. Las 149 restantes **no se curan solas**: ya tienen título y referente, así que
@@ -931,6 +957,8 @@ duración. Las 149 restantes **no se curan solas**: ya tienen título y referent
       `select count(*) from app.videos_meta where duracion_seg is not null` pasa de **1** a ~150, y
       **`count(*)` total no se mueve de 150** (es merge, no insert: si el total sube, el arbiter está
       mal y se están duplicando filas).
+
+</details>
 
 ---
 
