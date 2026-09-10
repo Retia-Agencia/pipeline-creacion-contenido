@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { esTituloDeVerdad, fusionar, nombreDeArchivo, type ParteVideo } from "./video.ts";
+import {
+  duracionDeItemApify,
+  esTituloDeVerdad,
+  fusionar,
+  nombreDeArchivo,
+  type ParteVideo,
+} from "./video.ts";
 
 // Cada test nombra la PROPIEDAD que se sostiene, no la función que llama, y lleva el porqué del
 // caso: casi todos son un bug real medido contra prod el 2026-08-21.
@@ -43,6 +49,19 @@ test("un título-URL NO tapa al título de verdad que viene después", () => {
 test("si el ÚNICO título es una URL, el video queda sin título en vez de mentir", () => {
   const [v] = fusionar([parte({ titulo: "https://www.instagram.com/p/DEKrF2ryWJE/" })]);
   assert.equal(v.titulo, null);
+});
+
+// ── La duración comprada a Apify ──────────────────────────────────────────────
+
+test("videoDuration de Apify se guarda como duracion_seg", () => {
+  assert.equal(duracionDeItemApify({ videoDuration: 45.8 }), 45.8);
+});
+
+test("sin videoDuration, null, nunca 0 (el cero silencioso ya mordió con videoViewCount)", () => {
+  // Un 0 diría "el video dura cero segundos" y arruinaría el veredicto de cobertura de ADR-095.
+  assert.equal(duracionDeItemApify({}), null);
+  assert.equal(duracionDeItemApify({ videoDuration: null }), null);
+  assert.equal(duracionDeItemApify({ videoDuration: 0 }), null);
 });
 
 // ── La fusión ────────────────────────────────────────────────────────────────

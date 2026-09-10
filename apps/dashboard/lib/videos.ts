@@ -20,10 +20,11 @@ const filaMeta = z.object({
   views: z.number().nullable(),
   likes: z.number().nullable(),
   seguidores: z.number().nullable(),
+  duracion_seg: z.number().nullable(),
 });
 
 const COLUMNAS =
-  "plataforma, external_id, titulo, referente, thumbnail_url, views, likes, seguidores";
+  "plataforma, external_id, titulo, referente, thumbnail_url, views, likes, seguidores, duracion_seg";
 
 /** El arbiter de la PK de la `030`, con el tenant adentro como exige PostgREST. */
 const ARBITER = "instance_id,plataforma,external_id";
@@ -76,6 +77,7 @@ export async function guardarMeta(ctx: TenantContext, metas: readonly MetaDeVide
       views: m.views,
       likes: m.likes,
       seguidores: m.seguidores,
+      duracion_seg: m.duracion_seg,
       fuente: "apify",
       traido_en: new Date().toISOString(),
     })),

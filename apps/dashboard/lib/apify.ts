@@ -1,4 +1,5 @@
 import type { Plataforma } from "@/domain/enlace";
+import { duracionDeItemApify } from "@/domain/video";
 
 // La compra de metadata (ADR-072 §5, ADR-073 §4). El BFF es el único portador de secretos.
 //
@@ -30,6 +31,7 @@ export type MetaDeVideo = {
   views: number | null;
   likes: number | null;
   seguidores: number | null;
+  duracion_seg: number | null;
 };
 
 /**
@@ -174,5 +176,7 @@ function normalizar(item: Record<string, unknown>): MetaDeVideo | null {
       numero(item.followersCount) ??
       numero(item.ownerFollowersCount) ??
       numero((item.metaData as Record<string, unknown> | undefined)?.followersCount),
+    // El mismo campo que ya usa `Normalizar IG` del motor para llenar `duracion_seg` (ADR-095).
+    duracion_seg: duracionDeItemApify(item),
   };
 }

@@ -67,6 +67,20 @@ const CAMPOS = [
 ] as const;
 
 /**
+ * La duración del video, del item crudo que devuelve Apify (`item.videoDuration`).
+ *
+ * 🔑 **`null` cuando el dato no vino, nunca `0`** (mismo criterio que `numero()` en `lib/apify.ts`:
+ * `videoViewCount` vuelve `null` y el vacío se confundía con "cero"). Un `0` acá diría "el video
+ * dura cero segundos" y el veredicto de cobertura de ADR-095 (`cobertura_seg / duracion_seg`)
+ * saldría basura. Vive en `domain/` porque es pura y `lib/apify.ts` la llama desde `normalizar()`.
+ */
+export function duracionDeItemApify(item: unknown): number | null {
+  const v = (item as Record<string, unknown> | null | undefined)?.videoDuration;
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/**
  * ¿Este texto es un título de verdad, o una URL disfrazada?
  *
  * 🩸 **No es una precaución teórica: `outputs` guarda la url en `titulo` en 129 filas** (las de
