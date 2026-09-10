@@ -15,6 +15,7 @@ import { asignarTanda, crearTanda, renombrarTanda } from "@/lib/tandas";
 import { LARGO_MAX_TITULO, tituloParaGuardar } from "@/domain/tanda";
 import {
   abandonar,
+  buscarDuracion,
   contarPendientes,
   leerFilasDeTanda,
   cualesEnCola,
@@ -410,7 +411,7 @@ async function procesarUno(
   runId: string | null,
 ): Promise<Salida> {
   try {
-    const { texto, idioma } = await transcribir(fila.url);
+    const { texto, idioma, cobertura } = await transcribir(fila.url);
 
     if (!texto) {
       // El video no tiene habla, o Supadata no pudo: el estado no los distingue, y por eso ni el
@@ -435,7 +436,19 @@ async function procesarUno(
     // dos puertas dejan la misma etiqueta.
     const etiqueta = idioma || "otro";
 
-    await marcarResultado(ctx, fila.id, { estado: "listo", script, idioma: etiqueta });
+    // ADR-095: la duración sale de lo que YA se compró (`app.videos_meta`), nunca de una llamada
+    // nueva a Apify. Si nadie la pagó todavía, queda `null` y el veredicto de la fila es
+    // `desconocido` hasta que una colección la traiga.
+    const duracion = await buscarDuracion(ctx, fila.plataforma, fila.external_id);
+
+    await marcarResultado(ctx, fila.id, {
+      estado: "listo",
+      script,
+      idioma: etiqueta,
+      cobertura_seg: cobertura,
+      duracion_seg: duracion,
+      modo: "auto",
+    });
 
     // Recién acá, con el script en la mano, el enlace entra a la memoria del dedup.
     await registrarEnDedup(ctx, {

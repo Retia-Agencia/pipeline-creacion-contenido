@@ -42,6 +42,14 @@ const filaTranscripcion = z.object({
   error: z.string().nullable(),
   creado_en: z.string(),
   procesado_en: z.string().nullable(),
+  // ADR-095, migración `039`. `cobertura_seg` viene gratis de Supadata (siempre que se pueda
+  // medir); `duracion_seg` la busca `buscarDuracion` en `app.videos_meta` al momento de marcar el
+  // resultado, y queda `null` hasta que alguna colección compre esa metadata (decisión de Mani: la
+  // pantalla de Transcribir no le pide nada a Apify). `modo` es siempre "auto": este cockpit no
+  // reintenta con `generate`, a diferencia del motor.
+  cobertura_seg: z.number().nullable(),
+  duracion_seg: z.number().nullable(),
+  modo: z.string().nullable(),
 });
 export type Transcripcion = z.infer<typeof filaTranscripcion>;
 
@@ -52,7 +60,8 @@ export type Transcripcion = z.infer<typeof filaTranscripcion>;
 // Quién quiera saber si una fila está grabada le pregunta a `lib/grabados.ts` por su
 // `(plataforma, external_id)`, que es la clave que sirve para los tres carriles.
 const COLUMNAS =
-  "id, plataforma, external_id, url, estado, script, idioma, error, creado_en, procesado_en";
+  "id, plataforma, external_id, url, estado, script, idioma, error, creado_en, procesado_en, " +
+  "cobertura_seg, duracion_seg, modo";
 
 /** Los dos estados de los que solo se sale por el botón `Reintentar`. */
 export const ESTADOS_FALLIDOS = ["fallo", "sin_transcript"] as const;
@@ -374,13 +383,44 @@ export async function contarPendientes(ctx: TenantContext): Promise<number> {
 export async function marcarResultado(
   ctx: TenantContext,
   id: string,
-  campos: { estado: Transcripcion["estado"]; script?: string; idioma?: string; error?: string },
+  campos: {
+    estado: Transcripcion["estado"];
+    script?: string;
+    idioma?: string;
+    error?: string;
+    cobertura_seg?: number | null;
+    duracion_seg?: number | null;
+    modo?: string;
+  },
 ): Promise<void> {
   const { error } = await (await scoped(ctx))
     .update("app.transcripciones", { ...campos, procesado_en: new Date().toISOString() })
     .eq("id", id);
   if (error)
     throw new Error(`Supabase respondió con error marcando la transcripción: ${error.message}`);
+}
+
+/**
+ * La duración que ya se le compró a Apify para este video, o `null` si nadie la pagó todavía.
+ *
+ * 🔴 **No llama a Apify** (decisión de Mani, ADR-095 §Fase 4): sin duración, `veredictoCobertura`
+ * da `desconocido` y la fila no dibuja ningún aviso — mejor eso que una compra que esta pantalla
+ * no pidió. Cuando una colección trae la metadata de este mismo video, el veredicto aparece solo
+ * la próxima vez que se marque un resultado, sin pagar nada de nuevo.
+ */
+export async function buscarDuracion(
+  ctx: TenantContext,
+  plataforma: Transcripcion["plataforma"],
+  externalId: string,
+): Promise<number | null> {
+  const { data, error } = await (await scoped(ctx))
+    .select("app.videos_meta", "duracion_seg")
+    .eq("plataforma", plataforma)
+    .eq("external_id", externalId)
+    .maybeSingle();
+  if (error)
+    throw new Error(`Supabase respondió con error buscando la duración: ${error.message}`);
+  return (data as { duracion_seg: number | null } | null)?.duracion_seg ?? null;
 }
 
 // La razón de ser de toda la herramienta: dejar el enlace en la memoria del dedup para que el

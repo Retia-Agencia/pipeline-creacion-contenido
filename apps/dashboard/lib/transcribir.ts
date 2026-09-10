@@ -1,3 +1,4 @@
+import { coberturaDeSegmentos, textoDeSegmentos, type Segmento } from "@/domain/cobertura";
 import { leerClave } from "@/lib/env";
 // Las dos llamadas externas del transcriptor (ADR-031): Supadata para el transcript, Haiku para
 // traducirlo. Viven acá y solo acá — el BFF es el único portador de secretos (plan-cockpit C2).
@@ -13,12 +14,15 @@ const TOPE_TRANSCRIPT = 6000;
 export type Transcripcion = {
   texto: string; // vacío = el video no tiene voz o Supadata no pudo
   idioma: string; // código de 2 letras; "" si no se pudo detectar
+  cobertura: number | null; // hasta qué segundo llegó el transcript (ADR-095). null = no se pudo medir
 };
 
-
 export async function transcribir(url: string): Promise<Transcripcion> {
+  // ADR-095: sin `text=true` Supadata devuelve `content` como segmentos [{text, offset, duration}]
+  // en vez de un string. `textoDeSegmentos` arma el MISMO texto que devolvía `text=true` (verificado
+  // carácter por carácter) y de paso sale la cobertura, gratis en la misma respuesta que ya se paga.
   const res = await fetch(
-    `https://api.supadata.ai/v1/transcript?url=${encodeURIComponent(url)}&text=true&mode=auto`,
+    `https://api.supadata.ai/v1/transcript?url=${encodeURIComponent(url)}&mode=auto`,
     { headers: { "x-api-key": leerClave("SUPADATA_API_KEY") }, signal: AbortSignal.timeout(90_000) },
   );
 
@@ -30,15 +34,20 @@ export async function transcribir(url: string): Promise<Transcripcion> {
     throw new Error(`Supadata respondió ${res.status}`);
   }
 
+  // Se conserva la rama vieja (`content` como string) por si Supadata vuelve a cambiar de forma:
+  // eso no puede tumbar la herramienta (mismo fail-open que el nodo `Transcribir (Supadata)`).
+  const segmentos: Segmento[] = Array.isArray(cuerpo.content) ? cuerpo.content : [];
   const texto: string =
+    (segmentos.length > 0 && textoDeSegmentos(segmentos)) ||
     (typeof cuerpo.content === "string" && cuerpo.content) ||
     (typeof cuerpo.text === "string" && cuerpo.text) ||
     "";
+  const cobertura = segmentos.length > 0 ? coberturaDeSegmentos(segmentos) : null;
   const idioma = String(cuerpo.lang || cuerpo.language || "")
     .toLowerCase()
     .slice(0, 2);
 
-  return { texto: texto.trim().slice(0, TOPE_TRANSCRIPT), idioma };
+  return { texto: texto.trim().slice(0, TOPE_TRANSCRIPT), idioma, cobertura };
 }
 
 // Copiado textual del nodo `Traducir (Claude Haiku)`. Sin tildes, igual que allá.

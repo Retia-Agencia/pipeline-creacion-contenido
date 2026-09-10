@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import {
-  CASOS_COBERTURA, coberturaDeSegmentos, textoDeSegmentos, veredictoCobertura,
+  avisoDeCobertura, CASOS_COBERTURA, coberturaDeSegmentos, textoDeSegmentos, veredictoCobertura,
 } from "./cobertura.ts";
 
 describe("coberturaDeSegmentos", () => {
@@ -40,6 +40,19 @@ describe("veredictoCobertura", () => {
   });
   it("en el borde exacto (cobertura === duracion * umbral), >= incluye la igualdad", () => {
     assert.equal(veredictoCobertura(40, 50, 0.8), "completo");
+  });
+});
+
+describe("avisoDeCobertura", () => {
+  it("un parcial dice cuánto cubre de cuánto dura, redondeado a segundos enteros", () => {
+    assert.equal(avisoDeCobertura("parcial", 29, 45.8), "Guion incompleto: cubre 29 s de 46 s");
+  });
+  it("completo no dibuja nada", () => {
+    assert.equal(avisoDeCobertura("completo", 53.2, 54.0), null);
+  });
+  it("desconocido no dibuja nada: no hay que asustar a Majo por una duración que no llegó", () => {
+    assert.equal(avisoDeCobertura("desconocido", 29, null), null);
+    assert.equal(avisoDeCobertura("desconocido", null, 45.8), null);
   });
 });
 

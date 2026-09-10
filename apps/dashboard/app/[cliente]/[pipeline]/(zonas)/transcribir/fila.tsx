@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Copiar } from "@/components/ui/copiar";
+import { avisoDeCobertura, UMBRAL_COBERTURA, veredictoCobertura } from "@/domain/cobertura";
 import { haceCuanto } from "@/domain/corrida";
 import type { Transcripcion } from "@/lib/transcripciones";
 import { Abandonar } from "./abandonar";
@@ -84,6 +85,12 @@ export function Fila({
     setGrabado(grabadaInicial);
   }
 
+  // ADR-095: el veredicto NUNCA se guarda, se deriva acá al leer. `desconocido` (sin duración
+  // todavía) no dibuja nada — es el estado normal de un video cuya colección no llegó, y avisar ahí
+  // asustaría a Majo por un guion que probablemente está perfecto.
+  const veredicto = veredictoCobertura(t.cobertura_seg, t.duracion_seg, UMBRAL_COBERTURA);
+  const aviso = avisoDeCobertura(veredicto, t.cobertura_seg, t.duracion_seg);
+
   return (
     <li className="space-y-2 border-b pb-4 last:border-0 last:pb-0">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
@@ -122,6 +129,11 @@ export function Fila({
           </div>
         </details>
       )}
+
+      {/* El aviso de ADR-095: para que Majo lo vea en vez de descubrirlo leyendo el guion hasta
+          donde corta. `aviso` ya sale `null` para "completo" y "desconocido" — acá no se repite
+          ese criterio. */}
+      {aviso && <p className="text-xs text-amber-600 dark:text-amber-500">⚠ {aviso}</p>}
 
       {t.error && <p className="text-xs text-muted-foreground">{t.error}</p>}
 

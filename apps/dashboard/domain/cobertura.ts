@@ -32,6 +32,27 @@ export function veredictoCobertura(
   return cobertura >= duracion * umbral ? "completo" : "parcial";
 }
 
+/**
+ * El umbral de producto: 0.9, medido sobre 583 transcripts cacheados (ADR-095) — 561 cubren más
+ * del 90% de su video y el histograma no marca un quiebre entre 0.8 y 0.9 (10 filas en el medio,
+ * 12 abajo de 0.8). Vive acá, al lado de la función que lo consume; el nodo del motor lo declara
+ * en su propia copia textual (`Transcribir (Supadata)`), así que cambiarlo pide tocar los dos
+ * lugares — no solo este archivo.
+ */
+export const UMBRAL_COBERTURA = 0.9;
+
+/**
+ * Lo que Majo lee al lado del guion. `null` cuando no hay nada que avisar: un `"completo"` está
+ * sano, y un `"desconocido"` es el estado normal de un video sin duración todavía — avisar ahí
+ * asustaría por un video que probablemente está perfecto.
+ */
+export function avisoDeCobertura(
+  veredicto: Veredicto, cobertura: number | null, duracion: number | null,
+): string | null {
+  if (veredicto !== "parcial") return null;
+  return `Guion incompleto: cubre ${Math.round(cobertura ?? 0)} s de ${Math.round(duracion ?? 0)} s`;
+}
+
 /** La tabla que corren las DOS implementaciones. Los tres primeros son videos reales. */
 export const CASOS_COBERTURA = [
   { nombre: "DaTf9Wqxt8p — video callado, sano", cobertura: 53.2, duracion: 54.0, umbral: 0.8, espera: "completo" },
