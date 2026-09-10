@@ -22,6 +22,18 @@
 
 ## 🚦 ARRANCÁ POR ACÁ — sesión del 2026-09-09 en adelante (post cierre 143)
 
+> ⛔⛔ **BLOQUEO VIVO (review final de `plan-transcript-completo`, 2026-09-10): NO SE PUEDE HACER
+> `n8n:push` DEL MOTOR HASTA QUE LA MIGRACIÓN [`040`](../../core/schema/040_cache_modo.sql) ESTÉ
+> APLICADA.** El nodo `Transcribir (Supadata)` ya lee `r.modo` de las filas del caché para no
+> re-pedir un parcial que ya se completó con `generate` (el techo de Supadata). La `040` es la que
+> agrega `modo` al `returns table` de `app.cache_transcripts`; sin ella esa clave llega `undefined`,
+> el corte no corta y el irrecuperable se re-pide en cada corrida, **para siempre**. No rompe nada
+> —es fail-open— pero **el arreglo no existe hasta que la migración corra**. La aplica Mani a mano en
+> el SQL Editor, y el archivo trae sus dos verificaciones por efecto (la RPC devolviendo `modo` por
+> PostgREST, y `has_function_privilege` después del `drop`). Mismo orden que exigieron la `037`, la
+> `016` y la `014`: **el consumidor no llega antes que la columna.**
+
+
 > 🟡 **El cupo de Apify volvió a agotarse el 09/09 y costó TRES corridas.** El ciclo cerró en
 > **50,02 de 50 USD** y el ciclo nuevo arrancó el 09/09 a las 23:59 UTC. *Este renglón decía "los dos
 > cupos ya NO son el bloqueante" y envejeció en 2 días: el cupo no es un estado, es un saldo.* Se

@@ -1008,6 +1008,36 @@ neutros** cuando su voz sí tenía perfil. Re-limpiar cuesta plata y la decisió
 
 ---
 
+## 15. ⬜ **El aviso de "guion incompleto" (ADR-095) — y va con UN LINK DE INSTAGRAM Y UNO DE TIKTOK**
+
+**Quién:** Mani o Majo · **Cuánto tarda:** ~5 min + lo que tarde transcribir · **Paga:** sí, dos
+transcripciones de Supadata.
+
+**Qué mirar:** en **Transcribir**, pegar los dos links, procesarlos, y ver qué dice la fila al lado
+del guion. Si el video está cortado tiene que aparecer *"Guion incompleto: cubre N s de M s"*; si
+está sano, nada.
+
+🔴 **La verificación NO se puede hacer sólo con Instagram, y esto es el punto de este item.** El
+aviso necesita la **duración** del video, y la duración sólo llega a `app.videos_meta` por el camino
+de Apify que hoy **es exclusivamente de Instagram**: `domain/video.ts::duracionDeItemApify` lee
+`item.videoDuration` y `lib/apify.ts` hardcodea `plataforma: "instagram"`. El motor sí saca la
+duración de TikTok, pero de otro campo (`item.videoMeta.duration`, en `Normalizar TT`) y no por acá.
+
+⇒ **Para un video de TikTok el veredicto va a ser `desconocido` y la pantalla NO va a avisar nunca**,
+esté cortado o no. Eso hoy es *esperado*, no un bug de esta pantalla (ADR-095 §3.6). Probar sólo con
+Instagram **pasa en verde tapando la mitad del sistema**: el propósito de pedir los dos links es que
+quien verifique VEA ese silencio y no lo descubra dentro de tres meses con un guion cortado en la
+mano.
+
+**Qué significa si falla:**
+- *Instagram, video cortado y sin aviso:* la duración no llegó (¿alguna colección la compró?) o el
+  veredicto está mal. Mirar `app.transcripciones.cobertura_seg` / `duracion_seg` de esa fila.
+- *Instagram, video sano CON aviso:* falso positivo — el umbral 0.9 estaría quemando videos buenos
+  (reels que terminan con música y logo). Es lo que ADR-095 §3.4 midió que no pasaba en 561 de 583.
+- *TikTok sin aviso:* **esperado hoy.** Anotarlo, no arreglarlo acá.
+
+---
+
 ## Registro — lo que ya se cerró, para no repetirlo
 
 | # | Qué | Cuándo |

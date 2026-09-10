@@ -41,13 +41,21 @@ const COMPLETAR = flag('completar');
 // `--umbral` es obligatorio en `--completar` (escribe producción) y tiene default solo en `--medir`
 // (ahí solo colorea el histograma, no escribe nada). El §3.4 del spec existe para que el número
 // salga del histograma medido, no de una opinión previa — un default silencioso se lo saltea.
+// Ese default es 0.9 desde el review final: ver el porqué al lado de la constante.
 if (COMPLETAR && valor('umbral', null) == null) {
   console.error('⛔ --completar necesita --umbral: el umbral se elige mirando el histograma de');
   console.error('   --medir, no una opinión previa. Corré --medir primero y pasá el número que veas.');
   process.exit(1);
 }
 const UMBRAL_TENIA_DEFAULT = valor('umbral', null) == null;
-const UMBRAL = Number(valor('umbral', 0.8));
+// 🩸 El default era **0.8**, o sea el número que ADR-095 §3.4 DESCARTÓ mirando el histograma que
+// este mismo script produjo. Un tercer lugar con el umbral y un valor distinto de los otros dos: la
+// próxima persona que corriera `--medir` sin flag habría leído un histograma coloreado contra un
+// corte que el sistema no usa. El único umbral del producto es **0.9** (`UMBRAL_COBERTURA` en
+// `apps/dashboard/domain/cobertura.ts`, copiado dentro del bloque textual del nodo, y comparado
+// entre los dos por `test-nodos.mjs`). Acá no se importa porque este script es node pelado y corre
+// contra prod, pero el número y su porqué son los mismos: si cambia allá, cambia acá.
+const UMBRAL = Number(valor('umbral', 0.9));
 
 // ═══════════════════ Las tres piezas del brief, verbatim (no se re-deciden) ═══════════════════
 
@@ -238,7 +246,7 @@ async function duracionesDeApify(rows) {
 async function medir(rows) {
   console.log(`Filas a medir: ${rows.length}`);
   if (UMBRAL_TENIA_DEFAULT) {
-    console.log(`(usando --umbral por default: ${UMBRAL} — no escribe nada acá, solo referencia; el umbral real para --completar se elige mirando el histograma de abajo)`);
+    console.log(`(usando --umbral por default: ${UMBRAL} — el umbral de producto de ADR-095, el mismo que UMBRAL_COBERTURA en apps/dashboard/domain/cobertura.ts. Acá no escribe nada, solo colorea; para --completar el umbral se pasa a mano mirando el histograma de abajo)`);
   }
   const externalIds = rows.map((r) => r.external_id);
   const [porCandidato, porVideoMeta] = await Promise.all([

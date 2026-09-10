@@ -19,7 +19,7 @@
 import { readFileSync } from 'node:fs';
 // ADR-095 §3.2: la tabla de fixtures vive UNA vez en el dominio puro y se corre contra la copia
 // textual del nodo `Transcribir (Supadata)` — si divergen, esto falla ruidoso.
-import { CASOS_COBERTURA } from '../../apps/dashboard/domain/cobertura.ts';
+import { CASOS_COBERTURA, CASOS_RESPUESTA, CASOS_SEGMENTOS, UMBRAL_COBERTURA } from '../../apps/dashboard/domain/cobertura.ts';
 
 const w = JSON.parse(readFileSync(new URL('./workflow.json', import.meta.url), 'utf8'));
 const jsCode = (n) => {
@@ -921,14 +921,79 @@ await (async () => {
   {
     // §3.2: la tabla de fixtures del dominio puro corrida contra la COPIA TEXTUAL del nodo — si
     // divergen (alguien tocó una copia y no la otra), esto revienta ruidoso.
+    // 🩸 Y pinza las TRES funciones, no una. Hasta el review final corría sólo
+    // `veredictoCobertura` —porque `CASOS_COBERTURA` es una tabla de (cobertura, duracion, umbral)—
+    // y la que quedaba libre era `textoDeSegmentos`, o sea justo la del invariante de ADR-009 (el
+    // motor y el cockpit tienen que producir el MISMO script literal). Ya habían divergido: con
+    // `{text: 0}` una daba '0' y la otra '', y con un `segs` que no es arreglo una tiraba.
     const codigo = jsCode('Transcribir (Supadata)');
     const inicio = codigo.indexOf('// ⤵ COPIA TEXTUAL');
     const fin = codigo.indexOf('// ⤴ FIN COPIA TEXTUAL');
     if (inicio === -1 || fin === -1) throw new Error('no encontré los marcadores de la copia textual en el nodo');
-    const copia = new Function(codigo.slice(inicio, fin) + '\nreturn { textoDeSegmentos, coberturaDeSegmentos, veredictoCobertura };')();
+    const copia = new Function(codigo.slice(inicio, fin) + '\nreturn { UMBRAL_COBERTURA, textoDeSegmentos, coberturaDeSegmentos, textoDeRespuesta, coberturaDeRespuesta, veredictoCobertura };')();
+
     const fallos = CASOS_COBERTURA.filter((c) => copia.veredictoCobertura(c.cobertura, c.duracion, c.umbral) !== c.espera);
     check('la copia del nodo pasa CASOS_COBERTURA importada del .ts (' + CASOS_COBERTURA.length + ' casos)',
       fallos.length === 0, JSON.stringify(fallos.map((c) => c.nombre)));
+
+    const fallosSeg = CASOS_SEGMENTOS.filter((c) =>
+      copia.textoDeSegmentos(c.segs) !== c.texto || copia.coberturaDeSegmentos(c.segs) !== c.cobertura);
+    check('la copia del nodo pasa CASOS_SEGMENTOS (texto + cobertura, ' + CASOS_SEGMENTOS.length + ' casos)',
+      fallosSeg.length === 0, JSON.stringify(fallosSeg.map((c) => c.nombre)));
+
+    const fallosResp = CASOS_RESPUESTA.filter((c) =>
+      copia.textoDeRespuesta(c.cuerpo) !== c.texto || copia.coberturaDeRespuesta(c.cuerpo) !== c.cobertura);
+    check('la copia del nodo pasa CASOS_RESPUESTA (qué rama gana, ' + CASOS_RESPUESTA.length + ' casos)',
+      fallosResp.length === 0, JSON.stringify(fallosResp.map((c) => c.nombre)));
+
+    // El umbral no es una función, así que ninguna tabla lo compara: va valor contra valor. Vivía
+    // FUERA de los marcadores (o sea, fuera de lo que este test extrae) y en tres lugares con dos
+    // números distintos — `medir-cobertura.mjs` usaba el 0.8 que ADR-095 §3.4 descartó.
+    check('el UMBRAL_COBERTURA del nodo es el mismo que el del .ts (' + UMBRAL_COBERTURA + ')',
+      copia.UMBRAL_COBERTURA === UMBRAL_COBERTURA, 'nodo=' + copia.UMBRAL_COBERTURA + ' ts=' + UMBRAL_COBERTURA);
+  }
+  {
+    // Important 4 del review final, por el camino real del nodo (no sólo por la función pura): una
+    // respuesta `{content: [], text: "..."}` tiene que dar el texto, como ya lo daba el cockpit.
+    const { out, llamadas } = await runTranscribir([tvid('vacio1')], {
+      respuesta: { content: [], text: 'el fallback del cuerpo', lang: 'en' },
+    });
+    check('🔴 `content: []` con `text` ⇒ el motor usa el texto (antes devolvía "sin voz")',
+      out[0].transcripcion === 'el fallback del cuerpo', JSON.stringify(out[0].transcripcion));
+    check('y no dispara reintento por cobertura: sin segmentos no hay cobertura que juzgar',
+      llamadas.length === 1, llamadas.length + ' llamadas');
+  }
+  {
+    // Critical 1 del review final: un hit de caché PARCIAL que ya se completó con `generate` no se
+    // re-pide más. Sin esto (y sin la `040`, que trae `modo` en la RPC) un cortado irrecuperable
+    // —`Day8CXdBLwK` es el caso documentado— se re-pediría en cada corrida, para siempre.
+    const { out, llamadas } = await runTranscribir([tvid('gen1')], {
+      duraciones: { gen1: 100 },
+      cache: [{ external_id: 'gen1', estado: 'listo', script: 'lo mejor que se pudo', idioma: 'en', cobertura_seg: 30, duracion_seg: 100, modo: 'generate' }],
+    });
+    check('🔴 un parcial ya completado con `generate` NO se re-pide (cero llamadas)', llamadas.length === 0, llamadas.length + ' llamadas');
+    check('y su guion sale igual, con el modo que lo produjo', out[0].transcripcion === 'lo mejor que se pudo' && out[0]._tx_modo === 'generate',
+      JSON.stringify({ tx: out[0].transcripcion, modo: out[0]._tx_modo }));
+
+    // El mismo parcial SIN `modo` (o con 'auto') sí se re-pide: es el caso de Tarea 5, que sigue vivo.
+    const b = await runTranscribir([tvid('gen2')], {
+      duraciones: { gen2: 100 },
+      cache: [{ external_id: 'gen2', estado: 'listo', script: 'cortado', idioma: 'en', cobertura_seg: 30, duracion_seg: 100, modo: 'auto' }],
+    });
+    check('un parcial en modo `auto` sigue re-pidiéndose (1 llamada)', b.llamadas.length === 1, b.llamadas.length + ' llamadas');
+  }
+  {
+    // Important 7 del review final: el reintento por cobertura agrega llamadas al MISMO cupo de
+    // Supadata, así que sus 429 tienen que contarse en `_tx_429` — es el único instrumento que dice
+    // cuánto aire queda antes del techo.
+    const s = [
+      { content: [{ text: 'corto', offset: 0, duration: 40000 }], lang: 'en' },
+      { _throw: 'limit-exceeded (429)' },
+    ];
+    const { out, llamadas } = await runTranscribir([tvid('r4')], { duraciones: { r4: 100 }, secuencia: s });
+    check('un 429 en el reintento por cobertura se cuenta en _tx_429 (era invisible)', out[0]._tx_429 === 1, String(out[0]._tx_429));
+    check('y el transcript de auto sobrevive igual (fail-open)', out[0].transcripcion === 'corto' && llamadas.length === 2,
+      JSON.stringify({ tx: out[0].transcripcion, llamadas: llamadas.length }));
   }
   {
     // duración conocida + cobertura corta (40/100 < 0.9) ⇒ EXACTAMENTE un pedido extra con

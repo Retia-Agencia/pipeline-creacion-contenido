@@ -15,18 +15,20 @@ a preguntar por `jobId` (polling) para obtener el transcript cuando esté listo.
 
 Ninguno de los dos consumidores de Supadata contempla este modo:
 
-- **`apps/dashboard/lib/transcribir.ts`**, línea 29: `if (!res.ok && !cuerpo?.error) { throw new
-  Error(...) }`. `202` es un código `2xx`, así que `res.ok` es `true` y esta línea no dispara. Tres
-  líneas después (34-36), `cuerpo.content` no existe en una respuesta `{jobId: "..."}` — es
-  `undefined`, no un string — así que `texto` queda en `""`. La función devuelve `{ texto: "",
-  idioma: "" }`: **exactamente la misma forma que "el video no tiene voz"**. Nada distingue los dos
-  casos en el tipo de retorno.
+- **`apps/dashboard/lib/transcribir.ts`**, en su **guarda de status** (`if (!res.ok &&
+  !cuerpo?.error) { throw ... }`): `202` es un código `2xx`, así que `res.ok` es `true` y esa línea
+  no dispara. Y en la **elección de texto** que viene justo después (hoy `textoDeRespuesta(cuerpo)`,
+  en `domain/cobertura.ts`), una respuesta `{jobId: "..."}` no trae `content` ni `text`, así que
+  `texto` queda en `""`. La función devuelve `{ texto: "", idioma: "", cobertura: null }`:
+  **exactamente la misma forma que "el video no tiene voz"**. Nada distingue los dos casos en el
+  tipo de retorno.
+  *(Se citan por NOMBRE de bloque y no por número de línea: la rama del review final ya movió esas
+  líneas dos veces — una cita por número envejece en el commit siguiente.)*
 
 - **El nodo `Transcribir (Supadata)`** de `Workflows/workflow-short-form-content/workflow.json`, en
   el `_uno` del pool: `this.helpers.httpRequest(...)` con `json: true` no lanza para un `202` (es
-  éxito HTTP). La respuesta cae en `txt = (typeof resp.content === 'string' && resp.content) ||
-  (typeof resp.text === 'string' && resp.text) || ''`, que da `''` porque el cuerpo trae `jobId` y no
-  `content`. Como `String(txt).trim()` es falso, **no** se marca `definitivo = true` por ese camino;
+  éxito HTTP). La respuesta cae en la elección de texto (hoy `textoDeRespuesta(resp)`, dentro del bloque
+  `⤵ COPIA TEXTUAL`), que da `''` porque el cuerpo trae `jobId` y no `content` ni `text`. Como `String(txt).trim()` es falso, **no** se marca `definitivo = true` por ese camino;
   tampoco por `_sinVoz` (`resp.error !== 'transcript-unavailable'`). El código sigue al `for` del
   reintento: **agota los `RETRIES = 4` intentos** (4 reintentos + el original = 5 llamadas) contra un
   job que no va a completar sincrónicamente ninguna de las 5 veces, y termina sin marcar `resueltos`
@@ -74,6 +76,13 @@ de nuevo, y ahí se dimensiona con más de un caso.**
 - 🩸 **El motor sigue pagando 5 créditos por nada** cada vez que un video largo dispara el modo
   asíncrono, y el fenómeno crece si el catálogo de referentes empieza a incluir contenido más largo
   (la tabla de ADR-095 ya muestra que 120-300s no es una franja vacía: 20 filas).
+- 🩸 **Y el reintento por cobertura de ADR-095 AUMENTA la exposición a este 202, no la deja igual.**
+  El reintento dispara `mode=generate` justo sobre los videos con poca cobertura, que son en buena
+  medida **los largos** — o sea exactamente la población que Supadata manda al modo asíncrono (el
+  caso que originó este ADR, `DbHEVZkP5uJ`, es el video más largo del lote cortado). Cada uno de
+  esos reintentos puede volver `202` y contarse como "no mejoró", gastando un crédito más y dejando
+  el mismo silencio. No cambia la decisión de no arreglarlo ahora —el alcance medido sigue siendo 1
+  de 584— pero sí el número de veces por corrida en que puede aparecer, y por eso queda escrito.
 - El síntoma sigue siendo indistinguible de "video sin voz" en cualquier lectura actual del sistema
   (logs, `app.transcripciones`, el Feed) hasta que alguien lo arregle.
 
@@ -91,8 +100,8 @@ de nuevo, y ahí se dimensiona con más de un caso.**
 
 ## Toca
 
-- **Nada todavía.** Cuando se implemente: `apps/dashboard/lib/transcribir.ts` (línea 29 y el tipo
-  `Transcripcion`) y el nodo `Transcribir (Supadata)` de
+- **Nada todavía.** Cuando se implemente: `apps/dashboard/lib/transcribir.ts` (su guarda de status
+  y el tipo `Transcripcion`) y el nodo `Transcribir (Supadata)` de
   `Workflows/workflow-short-form-content/workflow.json` (el bucle de `_uno`).
 
 ## Hecho cuando

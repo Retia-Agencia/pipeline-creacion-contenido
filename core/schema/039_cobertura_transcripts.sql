@@ -135,3 +135,12 @@ grant execute on function app.cache_transcripts(uuid, text[]) to authenticated;
 -- 🐤 Canario: `select count(cobertura_seg) from app.transcripciones` nace en CERO por definición
 -- (esta migración no backfillea nada). La primera fila la escribe el motor la próxima vez que
 -- transcriba, no una verificación manual.
+
+-- ═══════════════════════ Orden: esto va ANTES del deploy de la app ═══════════════════════
+--
+-- ⚠️ **La `039` se aplica ANTES de deployar `apps/dashboard`.** `filaTranscripcion`
+-- (`apps/dashboard/lib/transcripciones.ts`) pide `cobertura_seg`, `duracion_seg` y `modo` en el
+-- `COLUMNAS` de sus **4 lecturas**; sin las columnas, PostgREST responde `42703` y las cuatro
+-- mueren. Es la misma nota que ya llevan la `014`, la `016` y la `037` — y el mismo motivo por el
+-- que la `040` bloquea el `n8n:push` del motor: **el consumidor no puede llegar antes que la
+-- columna.** (Esta migración ya está aplicada, Mani 09/09; la nota faltaba.)

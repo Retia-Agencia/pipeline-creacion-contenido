@@ -1,4 +1,4 @@
-import { coberturaDeSegmentos, textoDeSegmentos, type Segmento } from "@/domain/cobertura";
+import { coberturaDeRespuesta, textoDeRespuesta } from "@/domain/cobertura";
 import { leerClave } from "@/lib/env";
 // Las dos llamadas externas del transcriptor (ADR-031): Supadata para el transcript, Haiku para
 // traducirlo. Viven acá y solo acá — el BFF es el único portador de secretos (plan-cockpit C2).
@@ -34,15 +34,13 @@ export async function transcribir(url: string): Promise<Transcripcion> {
     throw new Error(`Supadata respondió ${res.status}`);
   }
 
-  // Se conserva la rama vieja (`content` como string) por si Supadata vuelve a cambiar de forma:
-  // eso no puede tumbar la herramienta (mismo fail-open que el nodo `Transcribir (Supadata)`).
-  const segmentos: Segmento[] = Array.isArray(cuerpo.content) ? cuerpo.content : [];
-  const texto: string =
-    (segmentos.length > 0 && textoDeSegmentos(segmentos)) ||
-    (typeof cuerpo.content === "string" && cuerpo.content) ||
-    (typeof cuerpo.text === "string" && cuerpo.text) ||
-    "";
-  const cobertura = segmentos.length > 0 ? coberturaDeSegmentos(segmentos) : null;
+  // La elección de rama (segmentos / `content` string / `text`) vive en `domain/cobertura.ts` y no
+  // acá: escrita dos veces, ya había divergido del nodo con `content: []` — el cockpit usaba `text`
+  // y el motor devolvía "sin voz" para el mismo video. Se conserva la rama vieja (`content` como
+  // string) por si Supadata vuelve a cambiar de forma: eso no puede tumbar la herramienta (mismo
+  // fail-open que el nodo `Transcribir (Supadata)`).
+  const texto = textoDeRespuesta(cuerpo);
+  const cobertura = coberturaDeRespuesta(cuerpo);
   const idioma = String(cuerpo.lang || cuerpo.language || "")
     .toLowerCase()
     .slice(0, 2);

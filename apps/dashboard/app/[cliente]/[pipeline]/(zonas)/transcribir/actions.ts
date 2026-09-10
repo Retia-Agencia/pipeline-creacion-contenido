@@ -5,6 +5,7 @@ import type { TenantContext } from "@/domain/tenant";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { claveDe, parsearEnlaces, repartirEnlaces, type EnlaceVideo } from "@/domain/enlace";
+import { duracionOpcional } from "@/domain/cobertura";
 import { exigirTenant } from "@/lib/auth";
 import { cualesGrabadas, desmarcar, marcar } from "@/lib/grabados";
 import { registrarEvento } from "@/lib/eventos";
@@ -439,7 +440,17 @@ async function procesarUno(
     // ADR-095: la duración sale de lo que YA se compró (`app.videos_meta`), nunca de una llamada
     // nueva a Apify. Si nadie la pagó todavía, queda `null` y el veredicto de la fila es
     // `desconocido` hasta que una colección la traiga.
-    const duracion = await buscarDuracion(ctx, fila.plataforma, fila.external_id);
+    //
+    // 🔴 **`duracionOpcional` y no `buscarDuracion` a secas, y no es cosmético.** Esta línea corre
+    // DENTRO del `try` cuyo `catch` marca la fila como `fallo`, y `buscarDuracion` tira si PostgREST
+    // devuelve error: un 5xx transitorio de Supabase perdía el transcript de Supadata **y** la
+    // traducción de Haiku —las dos ya pagadas, dos líneas arriba— y Majo las re-pagaba al apretar
+    // `Reintentar`. La duración sólo alimenta una ETIQUETA; sin ella el veredicto es `desconocido`
+    // y la fila se guarda igual, que es exactamente lo que pasaba antes de ADR-095. Es su §3.5:
+    // *"el peor caso del arreglo tiene que ser el comportamiento actual"*.
+    const duracion = await duracionOpcional(() =>
+      buscarDuracion(ctx, fila.plataforma, fila.external_id),
+    );
 
     await marcarResultado(ctx, fila.id, {
       estado: "listo",

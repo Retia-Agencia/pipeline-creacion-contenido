@@ -179,6 +179,67 @@ recall, porque un falso positivo es inofensivo por construcción (§📏).
 Sin duración no hay veredicto y el transcript pasa como hoy; si el reintento falla, queda el de
 `auto`. **El peor caso del arreglo es el comportamiento actual.** Es el invariante #1 de PLAN §2.5.
 
+### §3.6 · El aviso hoy **sólo puede existir para Instagram**, y eso no estaba escrito
+
+`domain/video.ts::duracionDeItemApify` lee únicamente `item.videoDuration`, y `lib/apify.ts`
+hardcodea `plataforma: "instagram"`. La duración de TikTok vive en otro campo — el motor la saca de
+`item.videoMeta.duration` en `Normalizar TT` — así que **`app.videos_meta` nunca va a tener
+`duracion_seg` para un video de TikTok**.
+
+Consecuencia directa sobre este ADR, y es la parte nueva: sin duración el veredicto es
+`desconocido`, y `avisoDeCobertura` no dibuja nada para `desconocido` (a propósito, §3.5). O sea que
+**la pantalla nunca va a avisar de un guion de TikTok cortado**, aunque lo esté. No es un fallo
+ruidoso: es la mitad del sistema en silencio.
+
+La limitación de plataforma es **preexistente** (el cockpit compra metadata sólo de Instagram desde
+ADR-072); lo que es nuevo es esta consecuencia. Se escribe y **no se arregla acá**: soportar TikTok
+es tocar `lib/apify.ts` y el normalizador, que es otro alcance. Lo que sí cambia hoy es la
+verificación manual — `docs/verificaciones-humanas.md` exige ahora **un link de Instagram Y uno de
+TikTok**, porque probar sólo con Instagram pasa en verde tapando exactamente esta mitad.
+
+## Enmienda — el review final (2026-09-10)
+
+Cinco arreglos sobre lo ya implementado. Los tres primeros son bugs de verdad, medidos en el código:
+
+1. 🩸 **El arreglo de la Tarea 5 no persistía.** Un hit de caché parcial cae a `pendientes` y se
+   re-transcribe, el motor consigue algo mejor… y `POST Transcripciones` lo tira, porque manda
+   `Prefer: resolution=ignore-duplicates` y la fila ya existe. Cada corrida futura lo volvía a pedir
+   y a tirar, **sin tope**. No se arregla con `merge-duplicates`: el `on_conflict` es
+   `(instance_id, plataforma, external_id)` y las filas **manuales** de Majo comparten ese espacio de
+   llaves (`origen` no es parte del arbiter), así que un merge del motor podría pisarle su
+   transcripción. Se arregla **dejando de pedirlo**: la migración
+   [`040`](../../core/schema/040_cache_modo.sql) suma `modo` al `returns table` de
+   `app.cache_transcripts`, y el nodo saltea el re-pedido cuando el hit ya vino en `modo =
+   'generate'` — el techo de Supadata: si con eso siguió corto es irrecuperable (`Day8CXdBLwK`).
+   El criterio ya estaba escrito en `medir-cobertura.mjs`; lo que faltaba era que el motor lo viera.
+2. 🩸 **`buscarDuracion` podía destruir una transcripción ya pagada.** Tiraba si PostgREST devolvía
+   error, y se la llamaba **antes** de `marcarResultado({estado: "listo"})`, dentro del `try` cuyo
+   `catch` marca la fila como `fallo`: un 5xx transitorio perdía el transcript de Supadata **y** la
+   traducción de Haiku, y Majo re-pagaba las dos. Es lo contrario de §3.5. Ahora pasa por
+   `duracionOpcional` (dominio puro, probada con una búsqueda que tira): sin duración, sin aviso, y
+   el guion guardado igual.
+3. 🩸 **Con `content: []` el motor y el cockpit producían textos distintos.** `Array.isArray([])` es
+   `true`, así que el nodo entraba a la rama de segmentos, sacaba `""` y **nunca miraba `text`**;
+   la app preguntaba `segmentos.length > 0` y sí usaba el fallback. El mismo video daba guion en el
+   cockpit y "sin voz" en el motor — el invariante de ADR-009, roto en silencio. La elección de rama
+   es ahora una función compartida (`textoDeRespuesta` / `coberturaDeRespuesta`), copiada al nodo
+   dentro del bloque textual.
+4. **El mecanismo de §3.2 pinzaba 1 de 3 funciones, y dejaba libre la del invariante.**
+   `CASOS_COBERTURA` es una tabla de `(cobertura, duracion, umbral) → veredicto`, así que sólo podía
+   ejercitar `veredictoCobertura`; `textoDeSegmentos` **ya había divergido** (guarda de
+   `Array.isArray` en una copia y no en la otra, `??` contra `||`: con `{text: 0}` daban `"0"` y
+   `""`). Se agregan `CASOS_SEGMENTOS` y `CASOS_RESPUESTA`, exportadas del mismo `.ts`, y el test
+   corre las **cinco** funciones contra la copia del nodo. Ganó la forma con guarda y con `??`,
+   porque **no pierde texto en silencio** y porque un `.map` sobre algo que no es arreglo tumba un
+   Code node entero.
+5. **El umbral vivía en tres lugares con dos números.** En el nodo estaba **fuera** de los
+   marcadores `⤵/⤴ COPIA TEXTUAL` (o sea, fuera de lo que el test extrae), y `medir-cobertura.mjs`
+   tenía default **0.8** — el número que §3.4 descartó. Además, los 8 casos de `CASOS_COBERTURA`
+   corrían todos a 0.8, así que **el 0.9 de producción no lo ejercitaba nadie**. Hoy: el umbral está
+   dentro del bloque copiado, `test-nodos.mjs` compara valor contra valor, hay 4 casos nuevos a 0.9
+   (uno de ellos, 40/50, separa los dos umbrales a propósito) y el default de `medir-cobertura.mjs`
+   es 0.9 con su porqué escrito.
+
 ## Consecuencias
 
 **A favor**
@@ -219,6 +280,13 @@ Sin duración no hay veredicto y el transcript pasa como hoy; si el reintento fa
   💡 **Candidato explícito, no hecho acá:** una migración futura podría agregar `revoke execute on
   function app.cache_transcripts(uuid, text[]) from public;`, para endurecerla como la `021`
   endureció `instancias_visibles`. Decisión de Mani, no de esta migración.
+- **`core/` (review final):** migración [`040`](../../core/schema/040_cache_modo.sql) — `modo` en el
+  `returns table` de `app.cache_transcripts` (ver §Enmienda 1).
+  ⛔⛔ **EL `n8n:push` DEL MOTOR NO SE PUEDE HACER HASTA QUE LA `040` ESTÉ APLICADA.** El nodo
+  `Transcribir (Supadata)` ya lee `r.modo` de las filas del caché; sin la migración esa clave llega
+  `undefined`, el corte no corta, y el parcial irrecuperable se sigue re-pidiendo en cada corrida.
+  No rompe nada (fail-open), pero **el arreglo no existe hasta que la migración corra**. Mismo orden
+  que exigieron la `037`, la `016` y la `014`: el consumidor no llega antes que la columna.
 - **Motor:** `Transcribir (Supadata)` (pedir segmentos sin `text=true`, calcular
   `cobertura_seg`, reintentar con `generate` cuando conviene, cablear `duracion_video` desde
   `Normalizar IG`/`Normalizar TT`), `Armar candidato` (leer `cobertura_seg` de la caché).

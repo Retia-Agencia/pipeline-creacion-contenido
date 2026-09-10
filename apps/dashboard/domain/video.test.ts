@@ -55,6 +55,9 @@ test("si el ÚNICO título es una URL, el video queda sin título en vez de ment
 
 test("videoDuration de Apify se guarda como duracion_seg", () => {
   assert.equal(duracionDeItemApify({ videoDuration: 45.8 }), 45.8);
+  // Apify manda el número como string en algunos actores: la conversión es la razón del `Number()`,
+  // así que va probada — sin esto, el `typeof v === "number" ? v : Number(v)` no lo ejercita nadie.
+  assert.equal(duracionDeItemApify({ videoDuration: "45.8" }), 45.8);
 });
 
 test("sin videoDuration, null, nunca 0 (el cero silencioso ya mordió con videoViewCount)", () => {
@@ -62,6 +65,8 @@ test("sin videoDuration, null, nunca 0 (el cero silencioso ya mordió con videoV
   assert.equal(duracionDeItemApify({}), null);
   assert.equal(duracionDeItemApify({ videoDuration: null }), null);
   assert.equal(duracionDeItemApify({ videoDuration: 0 }), null);
+  // Y una duración negativa tampoco es un dato: dividir por ella daría un veredicto al revés.
+  assert.equal(duracionDeItemApify({ videoDuration: -3 }), null);
 });
 
 // ── La fusión ────────────────────────────────────────────────────────────────
