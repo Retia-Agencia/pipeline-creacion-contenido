@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   avisoDeCobertura, CASOS_COBERTURA, CASOS_RESPUESTA, CASOS_SEGMENTOS, coberturaDeRespuesta,
   coberturaDeSegmentos, duracionOpcional, textoDeRespuesta, textoDeSegmentos, veredictoCobertura,
+  CASOS_REINTENTO, debeReintentar, ganaElReintento, modoResultante, UMBRAL_COBERTURA, yaProboGenerate,
 } from "./cobertura.ts";
 
 describe("coberturaDeSegmentos", () => {
@@ -125,6 +126,91 @@ describe("CASOS_RESPUESTA", () => {
       const cuerpo = c.cuerpo as Parameters<typeof textoDeRespuesta>[0];
       assert.equal(textoDeRespuesta(cuerpo), c.texto, c.nombre);
       assert.equal(coberturaDeRespuesta(cuerpo), c.cobertura, c.nombre);
+    }
+  });
+});
+
+// ── ADR-095 §Enmienda 3: el reintento por cobertura, como decisión pura ──────────────────────
+// Se prueba acá y no contra Supadata porque es la única forma de ejercitar los tres desenlaces
+// (no dispara / dispara y gana / dispara y pierde). El tercero era invisible hasta esta enmienda.
+
+describe("yaProboGenerate", () => {
+  it("'generate' ya lo probó: ganó", () => {
+    assert.equal(yaProboGenerate("generate"), true);
+  });
+  it("'auto_tras_generate' ya lo probó: perdió, y por eso NO hay que volver a pedirlo", () => {
+    assert.equal(yaProboGenerate("auto_tras_generate"), true);
+  });
+  it("'auto' pelado no lo probó nunca", () => {
+    assert.equal(yaProboGenerate("auto"), false);
+  });
+  it("vacío, null o undefined = una fila vieja, anterior a ADR-095: no lo probó", () => {
+    assert.equal(yaProboGenerate(""), false);
+    assert.equal(yaProboGenerate(null), false);
+    assert.equal(yaProboGenerate(undefined), false);
+  });
+});
+
+describe("debeReintentar", () => {
+  it("un parcial que nunca probó generate se reintenta (Day8CXdBLwK antes de probarlo)", () => {
+    assert.equal(debeReintentar(29.0, 45.8, UMBRAL_COBERTURA, "auto"), true);
+  });
+  it("🔴 un parcial que YA probó generate y perdió NO se vuelve a pedir: es la fuga", () => {
+    assert.equal(debeReintentar(29.0, 45.8, UMBRAL_COBERTURA, "auto_tras_generate"), false);
+  });
+  it("un parcial que ya se completó con generate tampoco", () => {
+    assert.equal(debeReintentar(29.0, 45.8, UMBRAL_COBERTURA, "generate"), false);
+  });
+  it("un video sano no se reintenta, aunque nunca haya probado generate", () => {
+    assert.equal(debeReintentar(53.2, 54.0, UMBRAL_COBERTURA, "auto"), false);
+  });
+  it("sin duración no se reintenta: 'desconocido' no es 'parcial'", () => {
+    assert.equal(debeReintentar(29.0, null, UMBRAL_COBERTURA, "auto"), false);
+  });
+});
+
+describe("ganaElReintento", () => {
+  it("gana quien cubre MÁS SEGUNDOS, no quien trae más texto", () => {
+    assert.equal(ganaElReintento({ texto: "a".repeat(500), cobertura: 41.5 },
+                                 { texto: "b", cobertura: 150.0 }), true);
+  });
+  // El reintento PUEDE ser peor: medido el 09/09, `DYTvNduEW5X` cubría 0.68 de su video con `auto`
+  // y 0.15 con `generate`. Los números de abajo son ilustrativos —la medición está en ratios, no en
+  // segundos— y lo que se prueba es la dirección: cuando el candidato cubre menos, pierde.
+  it("generate puede ser PEOR que auto, y entonces pierde", () => {
+    assert.equal(ganaElReintento({ texto: "auto", cobertura: 30 },
+                                 { texto: "generate", cobertura: 7 }), false);
+  });
+  it("empate: se queda con lo que ya estaba, no se pisa por nada", () => {
+    assert.equal(ganaElReintento({ texto: "a", cobertura: 29 },
+                                 { texto: "b", cobertura: 29 }), false);
+  });
+  it("un reintento sin cobertura medible nunca gana", () => {
+    assert.equal(ganaElReintento({ texto: "a", cobertura: 29 },
+                                 { texto: "b", cobertura: null }), false);
+  });
+  it("pero si lo que había no tenía cobertura, cualquier medición gana", () => {
+    assert.equal(ganaElReintento({ texto: "a", cobertura: null },
+                                 { texto: "b", cobertura: 1 }), true);
+  });
+});
+
+describe("modoResultante", () => {
+  it("no se reintentó: 'auto', como siempre", () => {
+    assert.equal(modoResultante(false, false), "auto");
+  });
+  it("se reintentó y ganó: 'generate' — el texto es de generate", () => {
+    assert.equal(modoResultante(true, true), "generate");
+  });
+  it("🔑 se reintentó y perdió: 'auto_tras_generate' — el texto es de auto, pero el candado queda puesto", () => {
+    assert.equal(modoResultante(true, false), "auto_tras_generate");
+  });
+});
+
+describe("CASOS_REINTENTO — la tabla que corren las DOS copias", () => {
+  it("la copia del nodo la ejercita test-nodos.mjs; acá se prueba la de este archivo", () => {
+    for (const c of CASOS_REINTENTO) {
+      assert.equal(debeReintentar(c.cobertura, c.duracion, c.umbral, c.modo), c.espera, c.nombre);
     }
   });
 });

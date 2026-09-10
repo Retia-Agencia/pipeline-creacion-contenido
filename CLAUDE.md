@@ -234,6 +234,20 @@ en §Agent skills; acá solo se ubican.
   motor, que sigue PENDIENTE**: al 10/09 14:20 UTC el live escribió 16 transcripciones nuevas con
   `cobertura_seg` y `modo` en `null`, y `n8n:diff` marca drift en los 4 nodos del cambio. *El
   arreglo existe en el repo y no en producción.*
+  ⬜ **La [`042`](core/schema/042_modo_auto_tras_generate.sql) (ADR-095 §Enmienda 3) está ESCRITA y
+  SIN APLICAR** (10/09). No cambia ni una fila ni una columna: corrige el `comment` de
+  `app.transcripciones.modo`, que decía `auto | generate` y ahora son **tres** valores. El tercero,
+  `auto_tras_generate`, es el **candado**: dice *"generate ya se probó acá y perdió"*. 🩸 **Existe
+  por una fuga de plata, no por prolijidad**: `modo` sólo se escribía cuando `generate` GANABA, así
+  que "disparó y perdió" quedaba escrito `'auto'`, y los dos lugares que deciden re-pedir un
+  transcript —el nodo `Transcribir (Supadata)` y `medir-cobertura.mjs --completar`— **vuelven a
+  pagar ese video en cada corrida, para siempre**. El caso tiene nombre desde el 09/09
+  (`Day8CXdBLwK`) y el comentario de `medir-cobertura.mjs` ya prometía protegerlo; lo que faltaba
+  era la línea que escribe la marca. **La `040` cerró la puerta sólo para los que ganan.** Medido el
+  10/09: los **23** parciales están los 23 en `'auto'`, o sea cero candados puestos.
+  🔑 **Es la segunda de la serie que NO se puede verificar por su efecto desde afuera** (como la
+  `041`): PostgREST responde idéntico antes y después. Se verifica en el catálogo con
+  `col_description`, y tiene que nombrar los tres valores.
   ✅ **La [`041`](core/schema/041_revoke_public_cache_transcripts.sql) está APLICADA** (Mani,
   10/09) — `revoke execute … from public` sobre esa misma RPC. 🔬 **No tapa ningún agujero de hoy, y
   el archivo lo dice con el número**: medido contra prod, `anon` rebota con `42501 permission denied

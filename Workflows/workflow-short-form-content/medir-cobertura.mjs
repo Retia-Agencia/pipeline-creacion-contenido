@@ -22,7 +22,7 @@
 //
 // Fail-open en todo: sin duración no hay veredicto (la fila queda con cobertura y sin duración,
 // legible después); si Apify no contesta, esas filas se dicen en la salida y no se inventa nada.
-import { coberturaDeSegmentos, textoDeSegmentos } from '../../apps/dashboard/domain/cobertura.ts';
+import { coberturaDeSegmentos, ganaElReintento, textoDeSegmentos, yaProboGenerate } from '../../apps/dashboard/domain/cobertura.ts';
 
 const { SUPABASE_URL, SUPABASE_SERVICE_ROLE, SUPADATA_API_KEY, APIFY_TOKEN } = process.env;
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE || !SUPADATA_API_KEY) {
@@ -77,11 +77,9 @@ async function pedir(url, modo) {
  * pisado un guion sano con basura.
  * Y ante empate gana el viejo: no se reescribe una fila para dejarla igual.
  */
-function mejor(actual, candidato) {
-  if (candidato.cobertura == null) return actual;
-  if (actual.cobertura == null) return candidato;
-  return candidato.cobertura > actual.cobertura ? candidato : actual;
-}
+// La regla del ganador vive en `domain/cobertura.ts` (`ganaElReintento`) y se importa: era la
+// TERCERA copia de la misma comparación —el nodo, el .ts y ésta— y es justo la que decide si se
+// pisa un guion ya pagado. Las otras dos ya están pinzadas entre sí por `test-nodos.mjs`.
 
 /** El histograma es la salida del modo --medir: de acá sale el umbral, no de una opinión. */
 function histograma(ratios) {
@@ -317,12 +315,17 @@ async function completar(rows) {
   // correr `--completar --apply` dos veces re-paga 2 créditos por fila (`generate` en `pedir` +
   // el intento de `mejor()`) para recibir la misma respuesta que ya está guardada — el caso
   // documentado como cortado e irrecuperable (`Day8CXdBLwK`) se re-pagaría para siempre.
-  const yaCompletadas = rows.filter((r) => r.modo === 'generate').length;
+  // 🩸 ADR-095 §Enmienda 3: esto decía `r.modo === 'generate'` y el comentario de arriba prometía
+  // una protección que el código NO daba. `generate` sólo se escribía cuando GANABA, así que un
+  // video donde el reintento se probó y perdió —`Day8CXdBLwK`, el ejemplo del propio comentario—
+  // volvía a la lista de candidatas en cada corrida. El candado es `auto_tras_generate`, y por eso
+  // el predicado es `yaProboGenerate` y no una comparación contra un solo valor.
+  const yaCompletadas = rows.filter((r) => yaProboGenerate(r.modo)).length;
   const candidatas = rows.filter(
-    (r) => r.modo !== 'generate' && r.cobertura_seg != null && r.duracion_seg != null && r.duracion_seg > 0
+    (r) => !yaProboGenerate(r.modo) && r.cobertura_seg != null && r.duracion_seg != null && r.duracion_seg > 0
       && r.cobertura_seg < r.duracion_seg * UMBRAL,
   );
-  console.log(`Filas bajo el umbral ${UMBRAL}: ${candidatas.length} de ${rows.length} (las demás no tienen cobertura/duración medida, ya están sanas, o ya se completaron antes: ${yaCompletadas} en modo 'generate' se saltean).`);
+  console.log(`Filas bajo el umbral ${UMBRAL}: ${candidatas.length} de ${rows.length} (las demás no tienen cobertura/duración medida, ya están sanas, o ya probaron generate: ${yaCompletadas} se saltean).`);
 
   let completadas = 0, sinMejora = 0, sinRespuesta = 0;
   await pMapLimit(candidatas, 8, async (r) => {
@@ -336,14 +339,21 @@ async function completar(rows) {
     if (resp.cobertura == null) { sinRespuesta++; return; }
     const actual = { texto: r.script, cobertura: r.cobertura_seg };
     const candidato = { texto: resp.texto, cobertura: resp.cobertura };
-    const ganador = mejor(actual, candidato);
-    if (ganador !== candidato) { sinMejora++; return; }
+    if (!ganaElReintento(actual, candidato)) {
+      // 🔑 Se escribe el CANDADO aunque no se escriba el guion. El texto de `auto` sigue intacto
+      // —no se pisa nada— pero el video queda marcado como "generate ya se probó acá", que es lo
+      // único que impide que la próxima corrida del motor y el próximo `--completar` lo vuelvan a
+      // pagar. Sin esta línea el filtro de arriba no protege a nadie (ADR-095 §Enmienda 3).
+      await sbPatch(`transcripciones?id=eq.${r.id}`, 'app', { modo: 'auto_tras_generate' });
+      sinMejora++;
+      return;
+    }
     await sbPatch(`transcripciones?id=eq.${r.id}`, 'app', {
       script: candidato.texto, cobertura_seg: candidato.cobertura, modo: 'generate',
     });
     completadas++;
   });
-  console.log(`\n✓ completadas: ${completadas} · sin mejora (quedó auto, no se pisó): ${sinMejora} · sin respuesta de Supadata: ${sinRespuesta}`);
+  console.log(`\n✓ completadas: ${completadas} · sin mejora (el guion no se pisó; quedan marcados auto_tras_generate y no se re-piden): ${sinMejora} · sin respuesta de Supadata: ${sinRespuesta}`);
 }
 
 // ═══════════════════════════════ main ═══════════════════════════════

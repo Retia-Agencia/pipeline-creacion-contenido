@@ -224,3 +224,90 @@ export async function duracionOpcional(
     return null;
   }
 }
+
+// ═══════════════ El reintento por cobertura (ADR-095 §Enmienda 3) ═══════════════
+//
+// 🩸 **Esto nace de una FUGA, no de un pedido de instrumentación.** Hasta acá `modo` sólo se
+// escribía cuando `generate` GANABA, así que tres cosas distintas quedaban escritas igual:
+//
+//   · el reintento nunca disparó              → 'auto'
+//   · disparó y perdió                        → 'auto'
+//   · disparó y se cayó                       → 'auto'
+//
+// El segundo caso es el caro. El nodo `Transcribir (Supadata)` re-pide todo hit de caché que sea
+// parcial y no diga 'generate', y `medir-cobertura.mjs --completar` usa el mismo criterio; los dos
+// vuelven a pagar el mismo video **en cada corrida, para siempre**, cuando `generate` ya se probó y
+// no alcanzó. El caso está documentado con nombre propio desde el 09/09 (`Day8CXdBLwK`, 29.0 s de
+// 45.8 s: sigue cortado DESPUÉS de `generate`) y aun así seguía adentro del bucle. La `040` cerró
+// la puerta sólo para los que ganan.
+//
+// El tercer caso NO marca nada a propósito: si el reintento se cayó, no se aprendió nada del video
+// y tiene que volver a intentarse. Marcarlo sería convertir una caída de red en un veredicto.
+
+export type Modo = "auto" | "generate" | "auto_tras_generate";
+
+/** Un intento de transcript, para compararlo con otro. */
+export type Intento = { texto: string; cobertura: number | null };
+
+/**
+ * ¿Este video ya pasó por `generate` alguna vez? Es el candado: `generate` es el techo de Supadata
+ * (15 de 15 llamadas idénticas, ADR-095 §Contexto), así que probarlo dos veces es pagar dos veces
+ * por la misma respuesta.
+ *
+ * 🔑 Vacío/`null` es "fila anterior a ADR-095", no "ya se probó": esas filas nunca vieron un
+ * reintento y merecen uno. Es la lectura conservadora — como mucho paga una vez de más, y esa vez
+ * deja el candado puesto para siempre.
+ */
+export function yaProboGenerate(modo: string | null | undefined): boolean {
+  return modo === "generate" || modo === "auto_tras_generate";
+}
+
+/**
+ * La decisión de gastar una llamada más. Pura a propósito: es la única forma de ejercitar los tres
+ * desenlaces sin pegarle a Supadata, y el que la copia (el nodo de n8n) no tiene cómo testear.
+ */
+export function debeReintentar(
+  cobertura: number | null, duracion: number | null, umbral: number, modo: string | null | undefined,
+): boolean {
+  if (yaProboGenerate(modo)) return false;
+  return veredictoCobertura(cobertura, duracion, umbral) === "parcial";
+}
+
+/**
+ * Quién gana entre lo que ya había y lo que trajo el reintento.
+ *
+ * ⚠️ **Gana quien cubre más SEGUNDOS, nunca quien trae más TEXTO** (ADR-095 §3.3). No es una
+ * preferencia de estilo: medido el 09/09, `DYTvNduEW5X` pasó de 31.1 s con `auto` a 6.9 s con
+ * `generate` — el reintento puede ser peor, y un desempate por largo de texto se lo habría comido.
+ * En empate manda lo que ya estaba: nunca se pisa un guion por otro que no demostró ser mejor.
+ */
+export function ganaElReintento(actual: Intento, candidato: Intento): boolean {
+  if (candidato.cobertura == null) return false;
+  if (actual.cobertura == null) return true;
+  return candidato.cobertura > actual.cobertura;
+}
+
+/** Qué queda escrito en `modo` según lo que pasó. Es el instrumento y el candado a la vez. */
+export function modoResultante(seReintento: boolean, gano: boolean): Modo {
+  if (!seReintento) return "auto";
+  return gano ? "generate" : "auto_tras_generate";
+}
+
+/**
+ * La tabla que corren las DOS implementaciones de `debeReintentar` (ésta y la copia textual del
+ * nodo `Transcribir (Supadata)`). Mismo mecanismo que `CASOS_COBERTURA`: si divergen, `test-nodos.mjs`
+ * falla ruidoso. Los tres primeros son videos reales.
+ */
+export const CASOS_REINTENTO = [
+  { nombre: "Day8CXdBLwK sin probar todavía: se reintenta", cobertura: 29.0, duracion: 45.8, umbral: UMBRAL_COBERTURA, modo: "auto", espera: true },
+  { nombre: "🔴 Day8CXdBLwK que ya probó y PERDIÓ: no se vuelve a pedir (la fuga)", cobertura: 29.0, duracion: 45.8, umbral: UMBRAL_COBERTURA, modo: "auto_tras_generate", espera: false },
+  { nombre: "Db9Y_EGulGk que ya se completó con generate: tampoco", cobertura: 41.5, duracion: 150.4, umbral: UMBRAL_COBERTURA, modo: "generate", espera: false },
+  { nombre: "DaTf9Wqxt8p sano: no hay nada que reintentar", cobertura: 53.2, duracion: 54.0, umbral: UMBRAL_COBERTURA, modo: "auto", espera: false },
+  { nombre: "sin duración: 'desconocido' no autoriza a gastar", cobertura: 29.0, duracion: null, umbral: UMBRAL_COBERTURA, modo: "auto", espera: false },
+  { nombre: "sin cobertura: tampoco", cobertura: null, duracion: 45.8, umbral: UMBRAL_COBERTURA, modo: "auto", espera: false },
+  { nombre: "fila vieja (modo vacío) y cortada: se reintenta, no se da por probada", cobertura: 29.0, duracion: 45.8, umbral: UMBRAL_COBERTURA, modo: "", espera: true },
+  { nombre: "el borde exacto no gasta: 45/50 a 0.9 es completo", cobertura: 45, duracion: 50, umbral: UMBRAL_COBERTURA, modo: "auto", espera: false },
+] as const satisfies readonly {
+  nombre: string; cobertura: number | null; duracion: number | null; umbral: number;
+  modo: string; espera: boolean;
+}[];

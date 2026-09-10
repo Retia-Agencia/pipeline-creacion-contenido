@@ -43,10 +43,18 @@ const filaTranscripcion = z.object({
   creado_en: z.string(),
   procesado_en: z.string().nullable(),
   // ADR-095, migración `039`. `cobertura_seg` viene gratis de Supadata (siempre que se pueda
-  // medir); `duracion_seg` la busca `buscarDuracion` en `app.videos_meta` al momento de marcar el
-  // resultado, y queda `null` hasta que alguna colección compre esa metadata (decisión de Mani: la
-  // pantalla de Transcribir no le pide nada a Apify). `modo` es siempre "auto": este cockpit no
-  // reintenta con `generate`, a diferencia del motor.
+  // medir); `duracion_seg` la busca `buscarDuracion` en `app.videos_meta` **antes** de transcribir,
+  // y queda `null` hasta que alguna colección compre esa metadata (decisión de Mani: la pantalla de
+  // Transcribir no le pide nada a Apify).
+  //
+  // 🩸 Este comentario decía *"`modo` es siempre \"auto\": este cockpit no reintenta con `generate`,
+  // a diferencia del motor"*, y desde ADR-095 §Enmienda 3 es falso: el cockpit reintenta igual que
+  // el motor, y `modo` toma los tres valores (`auto | generate | auto_tras_generate`). El tercero
+  // es el que dice "generate ya se probó acá y perdió", o sea el que impide re-pagarlo para siempre.
+  //
+  // ⚠️ Sin `duracion_seg` no hay veredicto y sin veredicto no hay reintento: al 10/09 sólo 1 de las
+  // 150 filas de `app.videos_meta` tiene duración, así que el reintento de esta pantalla está
+  // prácticamente apagado hasta que se corra el backfill (Tarea 10 del plan-transcript-completo).
   cobertura_seg: z.number().nullable(),
   duracion_seg: z.number().nullable(),
   modo: z.string().nullable(),

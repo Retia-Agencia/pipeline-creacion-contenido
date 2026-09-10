@@ -9,7 +9,7 @@ import { duracionOpcional } from "@/domain/cobertura";
 import { exigirTenant } from "@/lib/auth";
 import { cualesGrabadas, desmarcar, marcar } from "@/lib/grabados";
 import { registrarEvento } from "@/lib/eventos";
-import { transcribir, traducir } from "@/lib/transcribir";
+import { transcribirConReintento, traducir } from "@/lib/transcribir";
 import { abrirRunTranscriptor, barrerRunsZombieTranscriptor, cerrarRunTranscriptor } from "@/lib/runs";
 import { registrarEnHistorico } from "@/lib/historicos";
 import { asignarTanda, crearTanda, renombrarTanda } from "@/lib/tandas";
@@ -412,7 +412,25 @@ async function procesarUno(
   runId: string | null,
 ): Promise<Salida> {
   try {
-    const { texto, idioma, cobertura } = await transcribir(fila.url);
+    // ADR-095: la duración sale de lo que YA se compró (`app.videos_meta`), nunca de una llamada
+    // nueva a Apify. Si nadie la pagó todavía, queda `null`: el veredicto de la fila es
+    // `desconocido`, no hay aviso y —desde la §Enmienda 3— tampoco hay reintento.
+    //
+    // 🔴 **Va ANTES de transcribir y no después, y eso es el arreglo, no un reordenamiento.** El
+    // reintento por cobertura necesita la duración para saber si el guion vino cortado; buscándola
+    // después, la decisión se tomaba cuando ya no había nada que decidir. Que esté acá arriba
+    // además la deja donde no puede costar nada: todavía no se le pagó a nadie.
+    //
+    // 🔑 **`duracionOpcional` y no `buscarDuracion` a secas.** Esta línea corre DENTRO del `try`
+    // cuyo `catch` marca la fila como `fallo`, y `buscarDuracion` tira si PostgREST devuelve error.
+    // La duración sólo alimenta una ETIQUETA y una decisión de gasto; sin ella la fila se guarda
+    // igual, que es exactamente lo que pasaba antes de ADR-095 (su §3.5: *"el peor caso del arreglo
+    // tiene que ser el comportamiento actual"*).
+    const duracion = await duracionOpcional(() =>
+      buscarDuracion(ctx, fila.plataforma, fila.external_id),
+    );
+
+    const { texto, idioma, cobertura, modo } = await transcribirConReintento(fila.url, duracion);
 
     if (!texto) {
       // El video no tiene habla, o Supadata no pudo: el estado no los distingue, y por eso ni el
@@ -437,28 +455,16 @@ async function procesarUno(
     // dos puertas dejan la misma etiqueta.
     const etiqueta = idioma || "otro";
 
-    // ADR-095: la duración sale de lo que YA se compró (`app.videos_meta`), nunca de una llamada
-    // nueva a Apify. Si nadie la pagó todavía, queda `null` y el veredicto de la fila es
-    // `desconocido` hasta que una colección la traiga.
-    //
-    // 🔴 **`duracionOpcional` y no `buscarDuracion` a secas, y no es cosmético.** Esta línea corre
-    // DENTRO del `try` cuyo `catch` marca la fila como `fallo`, y `buscarDuracion` tira si PostgREST
-    // devuelve error: un 5xx transitorio de Supabase perdía el transcript de Supadata **y** la
-    // traducción de Haiku —las dos ya pagadas, dos líneas arriba— y Majo las re-pagaba al apretar
-    // `Reintentar`. La duración sólo alimenta una ETIQUETA; sin ella el veredicto es `desconocido`
-    // y la fila se guarda igual, que es exactamente lo que pasaba antes de ADR-095. Es su §3.5:
-    // *"el peor caso del arreglo tiene que ser el comportamiento actual"*.
-    const duracion = await duracionOpcional(() =>
-      buscarDuracion(ctx, fila.plataforma, fila.external_id),
-    );
-
     await marcarResultado(ctx, fila.id, {
       estado: "listo",
       script,
       idioma: etiqueta,
       cobertura_seg: cobertura,
       duracion_seg: duracion,
-      modo: "auto",
+      // 🔑 `modo` ya no es la constante `"auto"`: lo decide `transcribirConReintento`, y su tercer
+      // valor (`auto_tras_generate`) es lo que impide que un cortado irrecuperable se re-pague en
+      // cada corrida para siempre (ADR-095 §Enmienda 3).
+      modo,
     });
 
     // Recién acá, con el script en la mano, el enlace entra a la memoria del dedup.

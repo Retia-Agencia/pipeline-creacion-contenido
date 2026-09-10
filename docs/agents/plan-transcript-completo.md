@@ -819,15 +819,38 @@ git commit -am "Majo ve cuando un guion viene cortado, en vez de descubrirlo ley
 > que se vio **al publicar**, escrito en [ADR-095 §Enmienda 2](../adr/ADR-095-un-transcript-cortado-no-puede-pasar-por-completo.md).
 >
 > 🔑 **El orden importa y no es el orden de dificultad.** La 8 es la única que le cambia algo a
-> Majo; la 9 es la única con fecha de vencimiento (si nadie la corre, 22 guiones quedan cortados
-> para siempre); la 10 sólo sirve para que el aviso pueda dibujarse, que es consuelo y no arreglo.
+> Majo; la 9 es la única con fecha de vencimiento (si nadie la corre, los guiones cortados quedan
+> cortados para siempre).
+>
+> 🩸 **Y este renglón decía que la 10 "sólo sirve para que el aviso pueda dibujarse, que es consuelo
+> y no arreglo". Es al revés: la 10 es el INTERRUPTOR de la 8.** Sin duración no hay veredicto, y
+> sin veredicto no hay reintento. Medido el 10/09: de **275** transcripciones `listo` del cockpit,
+> **150** tienen fila en `app.videos_meta` y **1** tiene `duracion_seg` ⇒ el reintento que agrega la
+> Tarea 8 dispararía para **1 video de 275**. Y las 149 que faltan **son los videos de Majo**, no
+> videos ajenos. (ADR-095 §Enmienda 3 §D.)
+>
+> 🔢 **Los cortados son 23, no 22** (re-medido el 10/09: entró uno nuevo en la corrida de exec 181).
+> El número se re-mide con el dry-run del Paso 1, no se cita de acá.
 
 ---
 
-### Tarea 8 · El cockpit reintenta, igual que el motor
+### Tarea 8 · El cockpit reintenta, igual que el motor — ✅ HECHA (10/09), sin deployar
 
 **El porqué en una línea:** el reintento con `generate` vive sólo en el nodo, y Majo trabaja del otro
 lado. Hoy recibe el aviso y el guion cortado (ADR-095 §Enmienda 2 §A).
+
+> 🔴 **Hacerla destapó que el arreglo era otro, y más caro.** El reintento no sólo vivía del lado
+> equivocado: **su resultado se escribía a medias**. `modo` sólo se escribía cuando `generate`
+> ganaba, así que "disparó y perdió" quedaba escrito `'auto'` — indistinguible de "nunca disparó" —
+> y los dos lugares que deciden re-pedir (el nodo y `medir-cobertura.mjs --completar`) **vuelven a
+> pagar ese video en cada corrida, para siempre**. Al 10/09 los **23** parciales están los 23 en
+> `'auto'`: cero candados puestos. Todo el razonamiento, en ADR-095 §Enmienda 3.
+>
+> Por eso la tarea entregó **más** de lo escrito abajo: un tercer valor `auto_tras_generate`, el
+> predicado `yaProboGenerate` / `debeReintentar` en el dominio con su tabla `CASOS_REINTENTO`
+> pinzada contra la copia del nodo, `ganaElReintento` unificado (era la tercera copia de la misma
+> comparación), y la migración [`042`](../../core/schema/042_modo_auto_tras_generate.sql) que
+> corrige el `comment` de la columna.
 
 **Archivos:**
 - Modificar: `apps/dashboard/lib/transcribir.ts` (`transcribir()` acepta el modo; segundo intento)
@@ -835,24 +858,31 @@ lado. Hoy recibe el aviso y el guion cortado (ADR-095 §Enmienda 2 §A).
   de ser la constante `"auto"`)
 - Mirar sin copiar: el bloque `⤵ COPIA TEXTUAL` de `Transcribir (Supadata)` en `workflow.json`
 
-- [ ] **Paso 1: test que falla** en `apps/dashboard/domain/cobertura.test.ts` (o donde viva la
+- [x] **Paso 1: test que falla** en `apps/dashboard/domain/cobertura.test.ts` (o donde viva la
       decisión pura): con `auto` bajo el umbral, se pide `generate`; con `auto` sobre el umbral,
       **no** se pide; entre dos respuestas gana **la que cubre más segundos**, no la más larga
       (ADR-095 §3.3, medido en `DaTf9Wqxt8p`).
       ⚠️ **La decisión de reintentar tiene que ser una función pura**, no un `if` adentro del
       `await`: es la única forma de que el test la ejercite sin pegarle a Supadata.
-- [ ] **Paso 2: correrlo y verlo fallar.** Run: `cd apps/dashboard && npm test`
-- [ ] **Paso 3: implementar.** Un solo reintento (`generate` es el techo: ADR-095 §Contexto, 15 de
+- [x] **Paso 2: correrlo y verlo fallar.** Run: `cd apps/dashboard && npm test`
+- [x] **Paso 3: implementar.** Un solo reintento (`generate` es el techo: ADR-095 §Contexto, 15 de
       15 llamadas idénticas). Se persiste `modo: "generate"` **sólo si el reintento ganó**; si
       empata o cubre menos, queda `auto` y el guion de `auto`.
       ⚠️ **Fail-open, como todo el resto:** si el reintento se cae, queda lo que trajo `auto`. El
       peor caso del arreglo tiene que ser el comportamiento de hoy (§3.5).
       💰 Cuesta 2 créditos de Supadata contra 1, y sólo sobre los cortados (~4%).
-- [ ] **Paso 4: correr y ver pasar.** Run: `cd apps/dashboard && npm test && npm run typecheck && npm run build`
+- [x] **Paso 4: correr y ver pasar.** ✅ 544 tests, typecheck y build en verde; además
+      `test-nodos.mjs` (**313 checks**), `auditar-workflows.mjs` sin hallazgos y `npm run validate`
+      (2740 checks). Run: `cd apps/dashboard && npm test && npm run typecheck && npm run build`
 - [ ] **Paso 5: verificar en la pantalla** con `https://www.instagram.com/p/DXplmHiCKcg/` (en `auto`
       cubre 17.5 s de ~44 s) y confirmar en la base que esa fila queda con **`modo = 'generate'`** y
       más cobertura que antes.
-- [ ] **Paso 6: commit + deploy**, y recién ahí decirle a Majo que está.
+      ⚠️ **Este video necesita su `duracion_seg` en `app.videos_meta` para que el reintento
+      dispare.** Si no la tiene, el veredicto es `desconocido` y la verificación va a dar un falso
+      negativo que se lee como "el arreglo no anda". Mirar eso ANTES de apretar.
+- [ ] **Paso 6: `n8n:push` del nodo `Transcribir (Supadata)`** — el cambio del candado es de los
+      dos lados, y el motor es el que más re-paga. Va con su `n8n:diff` antes y después.
+- [ ] **Paso 7: commit + deploy**, y recién ahí decirle a Majo que está.
 
 ---
 
@@ -911,8 +941,21 @@ medido.* Los tres números, escritos **antes** de mirarlos:
 
 - [ ] `select count(*) from app.transcripciones where modo = 'generate'` — hoy **0**. Tiene que
       dejar de ser 0 en la primera corrida que toque un video cortado.
-- [ ] `metricas.llamadas.supadata` de esa corrida contra la cantidad de videos transcritos: la
-      diferencia son los reintentos, y tiene que parecerse al **3,8%** medido (22 de 584), no al 100%.
+- [ ] ~~`metricas.llamadas.supadata` de esa corrida contra la cantidad de videos transcritos: la
+      diferencia son los reintentos~~ 🔴 **ESTE CHECK NO PUEDE FUNCIONAR.** `llamadas.supadata` está
+      definido en `Resumen del run` como `_distinct($('Transcribir (Supadata)').all())` — **videos
+      distintos, no llamadas** — así que la diferencia contra "videos transcritos" es **cero por
+      construcción**, dispare o no el reintento. Leído del código el 10/09, no deducido. El
+      reemplazo, si se quiere el número, es un contador propio de reintentos en el nodo; hoy el
+      único rastro de un reintento que **gana** es `modo = 'generate'` en la base, y el de uno que
+      **pierde** es `auto_tras_generate` (ADR-095 §Enmienda 3).
+- [ ] 🆕 **Ya hubo dos corridas post-push y nadie las miró: execs 181 (16:05→16:41) y 182
+      (17:17→17:47) del 10/09.** Escribieron 7 transcripciones con `cobertura_seg` y `duracion_seg`,
+      o sea que el código nuevo corre. **Una es parcial** (`3841875677876678939`, 9,5 s de 10,75 s =
+      0,88) y quedó en `modo = 'auto'` — con el código de ayer eso es indistinguible entre "el
+      reintento no disparó" y "disparó y perdió", que es exactamente la ceguera que arregla la
+      §Enmienda 3. La 182 además dejó un aviso sin leer: *"posible caida de Supadata: 80% de
+      transcripciones vacias esta corrida"*.
 - [ ] El log `[Transcribir] cache: … (N hits con cobertura parcial se re-piden)`: **ese N tiene que
       dejar de crecer corrida a corrida sobre los mismos videos.** Es el canario de la `040` y es el
       único que dice si el arreglo de verdad persistió.

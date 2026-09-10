@@ -311,6 +311,89 @@ de `modo = 'generate'` de la primera corrida nueva.
 `processed_items`**, así que el dedup no los va a volver a traer. Se curan corriendo
 `medir-cobertura.mjs --completar` a mano (Tarea 9) o no se curan.
 
+## Enmienda 3 — el reintento que perdía no dejaba rastro, y por eso se re-pagaba para siempre (2026-09-10)
+
+Al ir a llevar el reintento al cockpit (§Enmienda 2 §A) apareció que el problema no era sólo *de qué
+lado* vive el reintento, sino que **su resultado se escribía a medias**.
+
+### §A · Tres cosas distintas se escribían iguales
+
+`modo` sólo se escribía cuando `generate` **ganaba**. Todo lo demás quedaba en `'auto'`:
+
+| lo que pasó | lo que quedaba escrito | ¿se puede distinguir? |
+|---|---|---|
+| el reintento nunca disparó | `auto` | — |
+| **el reintento disparó y PERDIÓ** | `auto` | **no** |
+| el reintento disparó y se cayó | `auto` | no |
+
+### §B · Y el del medio no es un hueco de medición, es una fuga de plata
+
+Dos lugares deciden re-pedir un transcript usando ese campo, y los dos preguntan lo mismo:
+
+- el nodo `Transcribir (Supadata)`: un hit de caché parcial que **no** diga `'generate'` se re-pide;
+- `medir-cobertura.mjs --completar`: filtra las candidatas con `r.modo !== 'generate'`.
+
+O sea que un video donde `generate` **ya se probó y no alcanzó** vuelve a la cola **en cada corrida,
+para siempre**. El caso tiene nombre propio desde el 09/09 —`Day8CXdBLwK`, 29.0 s de 45.8 s, sigue
+cortado después de `generate`— y el comentario de `medir-cobertura.mjs` **ya prometía protegerlo**:
+
+> *"el caso documentado como cortado e irrecuperable (`Day8CXdBLwK`) se re-pagaría para siempre"*
+
+La intención estaba escrita hace un día. Lo que faltaba era la línea que escribe la marca. **La `040`
+cerró la puerta sólo para los que ganan.**
+
+📏 Medido el 10/09 contra prod: **los 23 parciales que hay están los 23 en `modo = 'auto'`**, o sea
+que hoy no hay un solo video con el candado puesto.
+
+### §C · La decisión: un tercer valor, y el predicado en el dominio
+
+`modo` pasa a ser `auto | generate | auto_tras_generate`:
+
+- **`auto`** — una sola llamada. Nunca se reintentó.
+- **`generate`** — el reintento ganó, y el texto guardado es suyo.
+- **`auto_tras_generate`** — el reintento se hizo y **perdió**. El texto es el de `auto` (no se pisa
+  nada) y el video **no se vuelve a pedir**.
+
+🔑 **El desenlace "se cayó" NO marca nada, a propósito.** Una caída de red no es un veredicto sobre
+el video: ese video merece otro intento. Marcarlo convertiría un timeout en una sentencia.
+
+La pregunta *"¿ya se probó generate acá?"* deja de estar escrita como una comparación suelta contra
+un valor y pasa a ser **una función pura del dominio**, `yaProboGenerate`, con `debeReintentar`
+encima. Las tres implementaciones que decidían gastar —el nodo, el cockpit y `medir-cobertura.mjs`—
+pasan a leer del mismo lugar, y `CASOS_REINTENTO` las pinza igual que `CASOS_COBERTURA` pinza al
+veredicto (§3.2). **`ganaElReintento` también se unificó**: era la TERCERA copia de la misma
+comparación, y es la que decide si se pisa un guion ya pagado.
+
+Sin migración de datos: `modo` es `text` libre. La [`042`](../../core/schema/042_modo_auto_tras_generate.sql)
+corrige el `comment` de la columna, que es lo que lee el que abre el SQL Editor y no el repo.
+
+### §D · Y el reintento en el cockpit **nace apagado** si nadie compra las duraciones
+
+Con el reintento ya del lado de Majo, queda a la vista una dependencia que el plan tenía anotada al
+revés (*"la 10 sólo sirve para que el aviso pueda dibujarse, que es consuelo y no arreglo"*):
+
+**sin duración no hay veredicto, y sin veredicto no hay reintento.** Medido el 10/09:
+
+- **275** transcripciones `listo` del cockpit; **150** tienen fila en `app.videos_meta`;
+- **1** tiene `duracion_seg`.
+
+⇒ el reintento del cockpit, hoy, dispararía para **1 video de 275**. Y `app.videos_meta` se escribe
+**sólo** desde el enriquecido de colecciones: la pantalla Transcribir nunca la crea. **La Tarea 10
+no es consuelo: es el interruptor de la Tarea 8**, y las 149 que le faltan duración son los videos
+de Majo, no videos ajenos.
+
+### §E · Lo que esta enmienda NO hace
+
+- **No cambia el umbral** (sigue 0.9) ni cómo se elige el ganador (sigue por segundos, §3.3).
+- **No hace backfill.** Las filas viejas en `'auto'` son correctas: nunca vieron un reintento y
+  merecen uno.
+- **No arregla el instrumento de la corrida.** `metricas.llamadas.supadata` está definido como
+  `_distinct($('Transcribir (Supadata)').all())` —videos distintos, no llamadas— así que **la
+  diferencia contra "videos transcritos" es cero por construcción, dispare o no el reintento**. El
+  check #2 de la Tarea 11 del plan no puede funcionar como está escrito; queda anotado acá y no se
+  toca en esta enmienda.
+
+
 ## Consecuencias
 
 **A favor**

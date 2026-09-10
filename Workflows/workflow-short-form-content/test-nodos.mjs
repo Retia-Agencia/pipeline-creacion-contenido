@@ -19,7 +19,7 @@
 import { readFileSync } from 'node:fs';
 // ADR-095 §3.2: la tabla de fixtures vive UNA vez en el dominio puro y se corre contra la copia
 // textual del nodo `Transcribir (Supadata)` — si divergen, esto falla ruidoso.
-import { CASOS_COBERTURA, CASOS_RESPUESTA, CASOS_SEGMENTOS, UMBRAL_COBERTURA } from '../../apps/dashboard/domain/cobertura.ts';
+import { CASOS_COBERTURA, CASOS_REINTENTO, CASOS_RESPUESTA, CASOS_SEGMENTOS, UMBRAL_COBERTURA } from '../../apps/dashboard/domain/cobertura.ts';
 
 const w = JSON.parse(readFileSync(new URL('./workflow.json', import.meta.url), 'utf8'));
 const jsCode = (n) => {
@@ -930,7 +930,7 @@ await (async () => {
     const inicio = codigo.indexOf('// ⤵ COPIA TEXTUAL');
     const fin = codigo.indexOf('// ⤴ FIN COPIA TEXTUAL');
     if (inicio === -1 || fin === -1) throw new Error('no encontré los marcadores de la copia textual en el nodo');
-    const copia = new Function(codigo.slice(inicio, fin) + '\nreturn { UMBRAL_COBERTURA, textoDeSegmentos, coberturaDeSegmentos, textoDeRespuesta, coberturaDeRespuesta, veredictoCobertura };')();
+    const copia = new Function(codigo.slice(inicio, fin) + '\nreturn { UMBRAL_COBERTURA, textoDeSegmentos, coberturaDeSegmentos, textoDeRespuesta, coberturaDeRespuesta, veredictoCobertura, yaProboGenerate, debeReintentar, ganaElReintento, modoResultante };')();
 
     const fallos = CASOS_COBERTURA.filter((c) => copia.veredictoCobertura(c.cobertura, c.duracion, c.umbral) !== c.espera);
     check('la copia del nodo pasa CASOS_COBERTURA importada del .ts (' + CASOS_COBERTURA.length + ' casos)',
@@ -945,6 +945,22 @@ await (async () => {
       copia.textoDeRespuesta(c.cuerpo) !== c.texto || copia.coberturaDeRespuesta(c.cuerpo) !== c.cobertura);
     check('la copia del nodo pasa CASOS_RESPUESTA (qué rama gana, ' + CASOS_RESPUESTA.length + ' casos)',
       fallosResp.length === 0, JSON.stringify(fallosResp.map((c) => c.nombre)));
+
+    // ADR-095 §Enmienda 3. `debeReintentar` es la que decide GASTAR, y por eso es la que más caro
+    // sale si diverge: de un lado no reintenta nada y del otro re-pide para siempre. Se pinza igual
+    // que las demás, con la tabla del .ts.
+    const fallosRe = CASOS_REINTENTO.filter((c) =>
+      copia.debeReintentar(c.cobertura, c.duracion, c.umbral, c.modo) !== c.espera);
+    check('la copia del nodo pasa CASOS_REINTENTO (cuándo se gasta una llamada más, ' + CASOS_REINTENTO.length + ' casos)',
+      fallosRe.length === 0, JSON.stringify(fallosRe.map((c) => c.nombre)));
+
+    // 🔑 Los tres desenlaces de `modoResultante`, valor contra valor: es lo único que distingue
+    // "disparó y perdió" de "nunca disparó", y esa distinción ES el candado contra la re-compra.
+    check("la copia del nodo escribe 'auto_tras_generate' cuando el reintento pierde",
+      copia.modoResultante(false, false) === 'auto'
+      && copia.modoResultante(true, true) === 'generate'
+      && copia.modoResultante(true, false) === 'auto_tras_generate',
+      'nodo=' + [copia.modoResultante(false, false), copia.modoResultante(true, true), copia.modoResultante(true, false)].join('/'));
 
     // El umbral no es una función, así que ninguna tabla lo compara: va valor contra valor. Vivía
     // FUERA de los marcadores (o sea, fuera de lo que este test extrae) y en tres lugares con dos
@@ -1041,8 +1057,14 @@ await (async () => {
     const { out, llamadas } = await runTranscribir([tvid('k4')], { duraciones: { k4: 100 }, secuencia: s });
     check('sí se intentó el reintento (2 llamadas)', llamadas.length === 2, llamadas.length + ' llamadas');
     check('generate cubre MENOS (50<80) ⇒ gana auto, nunca se elige por largo de texto',
-      out[0].transcripcion === 'auto cubre bastante' && out[0]._tx_modo === 'auto',
+      out[0].transcripcion === 'auto cubre bastante',
       JSON.stringify({ tx: out[0].transcripcion, modo: out[0]._tx_modo }));
+    // 🩸 Esta línea decía `_tx_modo === 'auto'` y afirmaba LA FUGA de ADR-095 §Enmienda 3: con
+    // 'auto' pelado, el filtro de caché vuelve a ver un parcial no-completado y re-pide el mismo
+    // video en la próxima corrida, y en la siguiente, para siempre. El texto de auto gana (eso no
+    // cambió), pero el candado tiene que quedar puesto.
+    check("...y queda marcado 'auto_tras_generate': el texto es de auto, pero generate YA se probó",
+      out[0]._tx_modo === 'auto_tras_generate', JSON.stringify({ modo: out[0]._tx_modo }));
     check('_tx_cobertura queda en la del ganador (80, la de auto)', out[0]._tx_cobertura === 80, out[0]._tx_cobertura);
   }
   {
