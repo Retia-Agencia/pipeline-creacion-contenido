@@ -20,36 +20,50 @@
 
 **Estados:** ⬜ libre · 🔧 en curso · ✅ hecho · ⛔ bloqueado
 
-## 🚦 ARRANCÁ POR ACÁ — sesión del 2026-09-10 en adelante (post cierre 145)
+## 🚦 ARRANCÁ POR ACÁ — sesión del 2026-09-10 en adelante (post cierre 146)
 
-> ✅ **BLOQUEO LEVANTADO (10/09). La `040` está aplicada y el `n8n:push` del motor ya está en el
-> live** (15:54 UTC, `n8n:diff` verde, snapshot en `.n8n-snapshots/motor-2026-09-10T15-54-51-014Z.json`).
-> Con él entraron los 4 nodos de ADR-095: `Transcribir (Supadata)` · `Armar candidato` ·
-> `Preparar candidatos` · `Preparar transcripciones`.
+> ✅ **ADR-095 ESTÁ ENTERO EN PRODUCCIÓN, LOS DOS LADOS.** El motor (`n8n:push` 10/09 19:14 UTC,
+> `n8n:diff` verde, workflow activo, snapshot en
+> `.n8n-snapshots/motor-2026-09-10T19-14-23-660Z.json`) **y** el cockpit (`ab25c3f` en `origin/main`).
+> Las migraciones `039`–`042` aplicadas. Majo ya reintenta igual que el motor.
 >
-> ⚠️ **Y ahora el renglón que importa: NADIE LO MIDIÓ.** La última corrida (exec 178) arrancó 14:46 y
-> terminó 15:07, o sea **antes** del push: corrió el código viejo. `modo = 'generate'` sigue en **0**
-> y ese cero es correcto. Los tres números a mirar en la primera corrida nueva están escritos, antes
-> de mirarlos, en [plan-transcript-completo §Tarea 11](./plan-transcript-completo.md). *Construido y
-> verde no es medido.*
+> 🔴 **LO PRIMERO A MIRAR: NADIE MIDIÓ NADA DE ESTO TODAVÍA.** No hubo una sola corrida del motor
+> después del push de las 19:14. Los tres números, escritos ANTES de mirarlos, están en
+> [plan-transcript-completo §Tarea 11](./plan-transcript-completo.md) — con la advertencia de que
+> **uno de los tres NO PUEDE funcionar**: `metricas.llamadas.supadata` está definido como
+> `_distinct($('Transcribir (Supadata)').all())`, o sea **videos distintos, no llamadas**, así que su
+> diferencia contra "videos transcritos" es cero por construcción. *Construido y verde no es medido.*
 >
-> 🔴 **Y el arreglo NO le llegó a quien lo reportó.** El reintento con `generate` vive **sólo en el
-> motor**; el cockpit —donde Majo pega los links— pide `mode=auto` una vez y nada más. Lo que ella
-> recibe es el aviso, y el aviso hoy casi no puede dibujarse: necesita duración y hay **1 fila de 150**
-> en `app.videos_meta` con `duracion_seg`. Las tres salidas, con su costo medido, son las **Tareas 8,
-> 9 y 10** del plan; el porqué, [ADR-095 §Enmienda 2](../adr/ADR-095-un-transcript-cortado-no-puede-pasar-por-completo.md).
-> **La 9 es la única con vencimiento**: 11 de los 22 cortados ya están en `candidatos` y 12 en
-> `processed_items`, así que el motor no los va a volver a pedir nunca.
+> ⏳ **Y hay dos verificaciones humanas de un minuto que nadie hizo** (cierre 146):
+> **(a)** la `042` en el catálogo — `select col_description('app.transcripciones'::regclass, attnum)
+> from pg_attribute where attrelid = 'app.transcripciones'::regclass and attname = 'modo';` tiene que
+> nombrar los **tres** valores; **(b)** abrir la pantalla Transcribir y mirar el video
+> `3791690130135350581`: tiene que decir **"Guion incompleto: cubre 19 s de 64 s"**. Si no aparece,
+> el deploy del cockpit no salió. Es el **primer aviso dibujable de la historia del sistema**.
+>
+> 🎯 **LO SIGUIENTE, Y ESTÁ DESBLOQUEADO: la Tarea 9** — los **23** transcripts cortados que ya
+> existen. Es la única con vencimiento: 11 están en `app.candidatos` y 12 en `processed_items`, así
+> que el dedup no los va a volver a traer nunca. Se corren a mano o quedan cortados para siempre.
+> Ahora sí conviene, porque el motor ya lee el candado que ese script escribe.
 
+> 🐛 **Bug abierto y SIN diagnosticar (viene del cierre 145, y hoy se movió):** la corrida de exec
+> 178 terminó `success` en n8n a las 15:07 y su fila en `runs` quedó `en_curso`. **No la cerró ella:
+> la cerró la corrida siguiente**, como `fallo`, a las 16:05:50 — el segundo exacto en que arrancó
+> exec 181. Consecuencia: **perdió sus métricas** (quedó sólo `metricas.etapa`), o sea que no hay
+> `aprobados / N pedido` para esa corrida, que es el norte de ADR-089. Es la familia de ADR-094 al
+> revés: aquella cierra las que **mueren**, ésta terminó **bien** y no se cerró sola.
 
-> 🟡 **El cupo de Apify volvió a agotarse el 09/09 y costó TRES corridas.** El ciclo cerró en
-> **50,02 de 50 USD** y el ciclo nuevo arrancó el 09/09 a las 23:59 UTC. *Este renglón decía "los dos
+> 🟡 **El cupo de Apify: 25,74 de 50 USD y el ciclo arrancó el 10/09 a las 00:00 UTC** (re-medido
+> el 10/09 19:00 con `/v2/users/me/limits`). **La mitad del mes en 19 horas.** El ciclo anterior
+> cerró en 50,02 de 50 y costó TRES corridas. *Este renglón decía "los dos
 > cupos ya NO son el bloqueante" y envejeció en 2 días: el cupo no es un estado, es un saldo.* Se
 > re-mide con `/v2/users/me/limits`, no se cita.
 >
-> 🔑 **Y lo que lo reventó no fue el motor.** Apify marca el origen de cada corrida: dos corridas
-> `origin: MCP` (11:03 y 11:09 UTC) gastaron **USD 12,30** — exploración con agente. El motor gastó
-> ~1,68 ese día. **El pipeline y las sesiones de Claude comparten una sola cuenta con un solo tope.**
+> 🔑 **Apify marca el origen de cada corrida, y eso ya evitó un diagnóstico errado.** El 09/09 dos
+> corridas `origin: MCP` (11:03 y 11:09 UTC) gastaron **USD 12,30** — exploración con agente, no el
+> motor, que gastó ~1,68 ese día. **El 10/09 se volvió a mirar y NO se repitió: las 60 corridas del
+> día son `origin: API`** (el pipeline), a ~$0,34 por referente. O sea que el gasto de hoy es el
+> motor corriendo, no una sesión de agente. **El pipeline y las sesiones de Claude comparten una sola cuenta con un solo tope.**
 > ADR-094 ahora lo **avisa**; separarlo (token o cuenta propia para el motor) es decisión pendiente
 > de Mani, que eligió anotarlo y no tocarlo el 09/09.
 
@@ -71,6 +85,120 @@
 > ⏳ **Lo que sigue sin probarse en vivo:** el rechazo **a mitad de camino** (capa 2) y que
 > `metricas.etapa` sobreviva una corrida completa. Los dos se leen de la próxima corrida real del
 > equipo, sin tocar nada. Ver ADR-094 §Hecho cuando.
+## 🩸 CIERRE 146 (2026-09-10) — El reintento no vivía del lado equivocado: escribía su resultado a medias, y eso se re-pagaba en cada corrida
+
+> **Todo commiteado, empujado y publicado.** `06acacd` (la fuga + Tarea 8) y `ab25c3f` (Tarea 10),
+> los dos en `origin/main`. `n8n:push` del motor a las 19:14 UTC. Migración `042` aplicada por Mani.
+> Cero working tree sucio.
+
+La sesión arrancó para hacer la **Tarea 8** (llevar el reintento con `generate` al cockpit, porque
+Majo pega los links ahí y el arreglo vivía sólo en el motor). Terminó siendo otra cosa.
+
+### 1 · Lo que el handoff no sabía, medido al empezar
+
+Siete cosas, ninguna citada del doc:
+
+1. **Ya hubo dos corridas post-push del cierre 145** — execs **181** (16:05→16:41) y **182**
+   (17:17→17:47). Escribieron 7 transcripciones con `cobertura_seg` y `duracion_seg`: el código nuevo
+   corre. El handoff decía que nadie lo había ejercitado y eso venció el mismo día.
+2. **Una de esas 7 es parcial**: `3841875677876678939`, 9,5 s de 10,75 s = **0,88**, bajo el umbral.
+   Quedó en `modo = 'auto'`.
+3. **Y no había forma de saber si el reintento disparó**, que es lo que destapó todo (§2).
+4. **El check #2 de la Tarea 11 no puede funcionar**: `metricas.llamadas.supadata` es
+   `_distinct($('Transcribir (Supadata)').all())` — videos distintos, **no llamadas** — así que su
+   diferencia contra "videos transcritos" es **cero por construcción**. Leído del código, no deducido.
+5. **Los cortados son 23, no 22.**
+6. **El bug de exec 178 se movió**: la cerró la corrida siguiente como `fallo`, perdiendo sus métricas.
+7. **La 182 dejó un aviso sin leer**: *"posible caida de Supadata: 80% de transcripciones vacias esta
+   corrida"* (4 de 5). Es ADR-094 funcionando; nadie lo miró.
+
+### 2 · La fuga: `modo` se escribía sólo cuando `generate` GANABA
+
+Tres desenlaces distintos quedaban escritos `'auto'`: *nunca disparó*, *disparó y perdió*, *disparó y
+se cayó*. El del medio es el caro, porque **dos lugares deciden re-pedir un transcript preguntando
+por ese campo**: el filtro de caché del nodo (`rModo !== 'generate' && parcial` ⇒ re-pide) y
+`medir-cobertura.mjs --completar` (`r.modo !== 'generate'`). O sea que un video donde `generate` ya se
+probó y no alcanzó **vuelve a la cola en cada corrida, para siempre**.
+
+🔑 **Y el comentario de `medir-cobertura.mjs` ya prometía protegerlo, con el caso por nombre:**
+
+> *"el caso documentado como cortado e irrecuperable (`Day8CXdBLwK`) se re-pagaría para siempre"*
+
+La intención estaba escrita **el día anterior**. Lo que faltaba era la línea que escribe la marca:
+en `sinMejora` el script hace `return` sin escribir. **La `040` cerró la puerta sólo para los que
+ganan.** Medido contra prod: **los 23 parciales están los 23 en `'auto'`** — cero candados puestos.
+
+📌 **Tres señales independientes**, no una: el filtro del nodo, el `return` sin escribir de
+`medir-cobertura.mjs`, y el propio comentario que documenta el caso que no protege.
+
+### 3 · La decisión: un tercer valor, y el predicado en el dominio
+
+[ADR-095 §Enmienda 3](../adr/ADR-095-un-transcript-cortado-no-puede-pasar-por-completo.md) +
+[`042`](../../core/schema/042_modo_auto_tras_generate.sql) (sólo corrige el `comment`; `modo` es
+`text` libre, sin migración de datos ni backfill).
+
+`modo` = `auto | generate | **auto_tras_generate**`. El tercero es el candado: *el texto sigue siendo
+el de `auto` (no se pisa nada) y el video no se vuelve a pedir*.
+
+🔑 **El desenlace "se cayó" NO marca nada, a propósito.** Una caída de red no es un veredicto sobre el
+video: merece otro intento. Marcarlo convertiría un timeout en una sentencia de irrecuperable.
+
+`yaProboGenerate` / `debeReintentar` / `ganaElReintento` / `modoResultante` viven en
+`apps/dashboard/domain/cobertura.ts`, los copia el nodo, y **`CASOS_REINTENTO` los pinza** igual que
+`CASOS_COBERTURA` pinza al veredicto. `ganaElReintento` era la **TERCERA** copia de la misma
+comparación (nodo + .ts + `medir-cobertura.mjs`) y es justo la que decide si se pisa un guion pagado.
+
+### 4 · Y la Tarea 10 no era "consuelo": era el INTERRUPTOR de la Tarea 8
+
+El plan decía que la 10 *"sólo sirve para que el aviso pueda dibujarse, que es consuelo y no
+arreglo"*. **Es al revés**: sin duración no hay veredicto, y sin veredicto **no hay reintento**.
+Medido antes de construir: de **275** transcripciones `listo` del cockpit, **150** tenían fila en
+`app.videos_meta` y **1** tenía `duracion_seg` ⇒ el reintento nuevo habría disparado para **1 video
+de 275**. Y las que faltaban **son los videos de Majo**, no videos ajenos.
+
+Se corrió, con [`backfill-duraciones-meta.mjs`](../../Workflows/workflow-short-form-content/backfill-duraciones-meta.mjs):
+
+- `app.videos_meta`: **de 1 a 179 de 183** con duración. **El `count(*)` TOTAL no se movió de 183** —
+  esa es la señal que prueba merge por PK y no inserción.
+- Costo real **$0,35** (cupo 25,39 → 25,74), clavado en la estimación de $0,34.
+- **4 quedaron sin duración y NO es un bug del script**: Apify devuelve el post (`type: "Video"`, id
+  correcto) **sin el campo `videoDuration`**. Medido pidiendo una sola.
+
+🩸 **Y llenar `videos_meta` NO alcanzaba: hay DOS tablas.** `fila.tsx` deriva el veredicto de
+`t.duracion_seg` de **la fila de `app.transcripciones`**, que se copia al transcribir. Las 32
+transcritas hoy quedaron con `null` y no se curaban solas. El paso `--filas` las copió **sin tocar
+Apify**, y ahí apareció lo único visible de toda la sesión: **un guion cortado de verdad**,
+`3791690130135350581`, **19,2 s de 64,2 s = 0,30**, que hasta hoy se leía sin aviso.
+
+### 5 · Un número que se movió DOS veces dentro de la misma sesión
+
+`app.videos_meta` pasó de **150 filas a 183** mientras se medía: **Mani** (`4698ac74`) estaba usando
+el cockpit en ese momento — 39 links pegados a las 18:59, 6 abandonados, una colección de 33 creada y
+enriquecida a las 19:02, y eso escribió 32 duraciones. **No es adopción: es él mismo.**
+✅ **Adopción real del día: Dani Rodríguez** (`22981a69`), `colecciones.limpiar` ×2 y
+`colecciones.quitar` a las 18:09–18:19. *Un canario se re-mide, no se cita — y éste se movió mientras
+se escribía el renglón que lo citaba.*
+
+### 6 · Verde, y con qué
+
+544 tests + `typecheck` + `build` del cockpit · **313 checks** de `test-nodos.mjs` · `auditar-workflows.mjs`
+sin hallazgos · `validate` con 2749 checks · `n8n:diff` verde en los 5 · el nodo leído del live por la
+API trae `yaProboGenerate`, `auto_tras_generate`, el filtro nuevo y `modoResultante`, con
+**`placeholder literal: false`**.
+
+⚠️ **Un test viejo afirmaba la fuga** (`_tx_modo === 'auto'` cuando el reintento pierde) y hubo que
+corregirlo: estaba escrito para el comportamiento que había, no para el correcto.
+
+### 7 · Lo que sigue, en orden
+
+1. **Tarea 9** — los 23 cortados. Desbloqueada: el motor ya lee el candado. Es la única con vencimiento.
+2. **Tarea 11** — mirar la primera corrida post-push (no hubo ninguna todavía), con el check #2 tachado.
+3. **Las dos verificaciones humanas de un minuto** (la `042` en el catálogo, el aviso en la pantalla).
+4. **Diagnosticar** la corrida que termina bien y no se cierra sola.
+
+**Skills sugeridas para la próxima:** `/diagnose` para el bug de la corrida que no se cierra;
+`/tdd` si se toca el contador de reintentos que hoy no existe.
+
 ## 🚀 CIERRE 145 (2026-09-10) — Se publicó el arreglo de ADR-095, y publicarlo mostró que no es un arreglo sino dos
 
 > **Todo commiteado y en el live.** `045bc07` (la `041`), `25a38fc` (su verificación) y el
