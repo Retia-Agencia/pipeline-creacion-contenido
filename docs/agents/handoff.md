@@ -58,6 +58,18 @@
 > 09/10. Una corrida hoy cuesta ~1,10 USD, así que quedan ~21 corridas. **Re-medí con
 > `/v2/users/me/limits` antes de disparar, no cites este número.**
 >
+> 🩸 **Y una tarifa del repo está mal por 5,7×, dato aportado por Mani al cierre:** Supadata es
+> **plan Mega, 47 USD/mes = 30.000 créditos**, y **cobra por crédito, no por video** — `auto` = 1
+> crédito (0,00157 USD), `generate` = **2 créditos por MINUTO**, traducción = 30 por minuto.
+> `app.tarifas` dice `0,009 USD/video`. Corregido en el doc: **el ranking real es Apify 73,9 % ·
+> Haiku 18,8 % · Supadata 6,8 %**, y el histórico baja de 109,71 a **83,03 USD**. La cifra vieja
+> hacía ver a Supadata como el segundo frente de costo cuando es el tercero y lleva gastado el 12 %
+> de **un solo mes** de su cupo en toda la historia del proyecto. **Falta escribir la corrección en
+> `app.tarifas`** — hoy sólo está en el doc.
+>
+> ⚠️ **Anthropic es el único de los tres proveedores SIN tope**, o sea el único que no se frena
+> solo, y con la corrección quedó segundo. Nadie le ha mirado la factura nunca.
+>
 > ✅ **ADR-095 ESTÁ ENTERO EN PRODUCCIÓN, LOS DOS LADOS, y ahora ADR-096 también (a medias, a
 > propósito).** Motor: `n8n:push` del nodo `Transcribir (Supadata)` el 10/09 19:43 UTC, `n8n:diff`
 > **verde en los 5**, workflow activo, snapshot `.n8n-snapshots/motor-2026-09-10T19-43-03-945Z.json`.
