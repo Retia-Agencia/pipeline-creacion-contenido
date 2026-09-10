@@ -240,6 +240,77 @@ Cinco arreglos sobre lo ya implementado. Los tres primeros son bugs de verdad, m
    (uno de ellos, 40/50, separa los dos umbrales a propósito) y el default de `medir-cobertura.mjs`
    es 0.9 con su porqué escrito.
 
+## Enmienda 2 — lo que se vio al publicar (2026-09-10)
+
+El push del motor al live destapó dos cosas que este ADR **no decía**, y una de ellas cambia quién
+recibe el arreglo.
+
+### §A · El reintento es del MOTOR. El cockpit avisa y no reintenta.
+
+Todo lo escrito arriba —el `generate`, el "gana la que cubre más segundos", el techo de Supadata—
+vive **sólo** en el nodo `Transcribir (Supadata)`. En el cockpit, `lib/transcribir.ts` pide
+`mode=auto` **una sola vez, fija**, y `actions.ts` escribe siempre `modo: "auto"`. No hay segundo
+intento.
+
+🩸 **Y ahí está lo incómodo: quien reportó el problema usa el lado que no lo arregla.** El reporte de
+Majo (09/09, por WhatsApp) es sobre links pegados a mano en la pestaña Transcribir, no sobre el Feed.
+Lo que ella recibe de todo este ADR es **el aviso**, o sea saber que el guion está cortado. El guion
+sigue cortado.
+
+Y el aviso, hoy, casi no puede dibujarse: necesita `duracion_seg` de `app.videos_meta`, y al 10/09
+hay **1 fila de 150** con duración (la del paso 5 de la Tarea 6). Las otras 149 **no se curan
+solas**: `necesitaEnriquecer` sólo compra metadata de videos sin título **y** sin referente, y ésas
+ya tienen los dos, así que `queFaltaEnriquecer` las excluye para siempre.
+
+No se decide acá. Las tres salidas quedan escritas como Tareas 8, 9 y 10 de
+[plan-transcript-completo.md](../agents/plan-transcript-completo.md), con su costo medido cada una.
+Lo que sí queda decidido es que **este ADR no puede seguir leyéndose como si el arreglo fuera uno
+solo**: son dos caminos con dos alcances distintos, y el asimétrico es el que mira el equipo.
+
+### §B · §3.6 deja de ser deducción y pasa a ser medición
+
+§3.6 dedujo del código que un TikTok nunca va a tener duración. Medido el 10/09, por el camino real:
+
+```
+traerMetadata(["https://www.tiktok.com/@garyvee/video/7528533857688243511"])
+→ [apify] respondió 400 trayendo metadata de 1 videos
+→ []
+```
+
+`queFaltaEnriquecer` no filtra por plataforma, así que un TikTok pegado en una colección **se manda
+igual** al scraper de Instagram, vuelve `400`, y el fail-open lo traga con un `console.error` que no
+lee nadie. La conclusión de §3.6 se confirma y además se sabe **cómo** falla: en silencio y pagando
+el viaje.
+
+🟢 **La otra mitad, que §3.6 no afirmaba, también se midió, y ésa está sana:** el transcript de
+TikTok funciona igual de bien que el de Instagram. Dos videos con su duración real comprada al actor
+de TikTok que ya usa el motor:
+
+| video | duración (Apify) | cobertura (Supadata, `auto`) | veredicto |
+|---|---|---|---|
+| `@garyvee/7528533857688243511` | 17 s | **17.1 s** | completo |
+| `@garyvee/7114641064446676267` | 61 s | **60.3 s** | completo |
+
+O sea: **lo que está roto para TikTok no es transcribir, es enterarse.** El parseo, los segmentos y
+la cobertura andan; lo único que falta es la duración contra la cual compararla.
+
+### §C · El "Hecho cuando" #3 y el canario #4 siguen sin medirse, y no por falta de código
+
+El `n8n:push` de los 4 nodos entró al live el 10/09 15:54 UTC (`n8n:diff` verde, el nodo leído por la
+API trae `r.modo`, `cobertura` y `generate`, sin placeholder literal). **Pero ninguna corrida lo
+ejercitó todavía:** la última (exec 178) arrancó 14:46 y terminó 15:07, o sea **antes** del push, así
+que corrió el código viejo. `select count(*) from app.transcripciones where modo = 'generate'` da
+**0**, y ese cero es correcto: no hay nada que medir hasta la próxima corrida.
+
+📏 Lo que esa corrida tiene que dejar, medido el 10/09 antes de mirar: de las **584** filas del motor
+con cobertura (que las escribió el backfill de la Tarea 3, **no** el motor), **22 son parciales al
+0.9** — el 3,8%. Ese es el orden de magnitud contra el cual comparar `llamadas.supadata` y el conteo
+de `modo = 'generate'` de la primera corrida nueva.
+
+⚠️ **Y esos 22 no los va a curar el motor solo:** **11 ya están en `app.candidatos`** y **12 en
+`processed_items`**, así que el dedup no los va a volver a traer. Se curan corriendo
+`medir-cobertura.mjs --completar` a mano (Tarea 9) o no se curan.
+
 ## Consecuencias
 
 **A favor**

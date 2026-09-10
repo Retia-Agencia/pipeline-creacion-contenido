@@ -812,10 +812,118 @@ git commit -am "Majo ve cuando un guion viene cortado, en vez de descubrirlo ley
 
 ---
 
+## Lo que quedó pendiente después de publicar (2026-09-10)
+
+> Las Tareas 1–7 están hechas y publicadas: la `039`, la `040` y la `041` aplicadas y verificadas, y
+> el `n8n:push` de los 4 nodos en el live el 10/09 15:54 UTC (`n8n:diff` verde). Lo de abajo es lo
+> que se vio **al publicar**, escrito en [ADR-095 §Enmienda 2](../adr/ADR-095-un-transcript-cortado-no-puede-pasar-por-completo.md).
+>
+> 🔑 **El orden importa y no es el orden de dificultad.** La 8 es la única que le cambia algo a
+> Majo; la 9 es la única con fecha de vencimiento (si nadie la corre, 22 guiones quedan cortados
+> para siempre); la 10 sólo sirve para que el aviso pueda dibujarse, que es consuelo y no arreglo.
+
+---
+
+### Tarea 8 · El cockpit reintenta, igual que el motor
+
+**El porqué en una línea:** el reintento con `generate` vive sólo en el nodo, y Majo trabaja del otro
+lado. Hoy recibe el aviso y el guion cortado (ADR-095 §Enmienda 2 §A).
+
+**Archivos:**
+- Modificar: `apps/dashboard/lib/transcribir.ts` (`transcribir()` acepta el modo; segundo intento)
+- Modificar: `apps/dashboard/app/[cliente]/[pipeline]/(zonas)/transcribir/actions.ts` (`modo` deja
+  de ser la constante `"auto"`)
+- Mirar sin copiar: el bloque `⤵ COPIA TEXTUAL` de `Transcribir (Supadata)` en `workflow.json`
+
+- [ ] **Paso 1: test que falla** en `apps/dashboard/domain/cobertura.test.ts` (o donde viva la
+      decisión pura): con `auto` bajo el umbral, se pide `generate`; con `auto` sobre el umbral,
+      **no** se pide; entre dos respuestas gana **la que cubre más segundos**, no la más larga
+      (ADR-095 §3.3, medido en `DaTf9Wqxt8p`).
+      ⚠️ **La decisión de reintentar tiene que ser una función pura**, no un `if` adentro del
+      `await`: es la única forma de que el test la ejercite sin pegarle a Supadata.
+- [ ] **Paso 2: correrlo y verlo fallar.** Run: `cd apps/dashboard && npm test`
+- [ ] **Paso 3: implementar.** Un solo reintento (`generate` es el techo: ADR-095 §Contexto, 15 de
+      15 llamadas idénticas). Se persiste `modo: "generate"` **sólo si el reintento ganó**; si
+      empata o cubre menos, queda `auto` y el guion de `auto`.
+      ⚠️ **Fail-open, como todo el resto:** si el reintento se cae, queda lo que trajo `auto`. El
+      peor caso del arreglo tiene que ser el comportamiento de hoy (§3.5).
+      💰 Cuesta 2 créditos de Supadata contra 1, y sólo sobre los cortados (~4%).
+- [ ] **Paso 4: correr y ver pasar.** Run: `cd apps/dashboard && npm test && npm run typecheck && npm run build`
+- [ ] **Paso 5: verificar en la pantalla** con `https://www.instagram.com/p/DXplmHiCKcg/` (en `auto`
+      cubre 17.5 s de ~44 s) y confirmar en la base que esa fila queda con **`modo = 'generate'`** y
+      más cobertura que antes.
+- [ ] **Paso 6: commit + deploy**, y recién ahí decirle a Majo que está.
+
+---
+
+### Tarea 9 · Los 22 que ya están cortados, y que nadie va a volver a pedir
+
+**El porqué:** son filas viejas. **11 de los 22 ya están en `app.candidatos` y 12 en
+`processed_items`** (medido el 10/09), o sea que el dedup no los va a traer de nuevo: el reintento
+del motor no los alcanza. O se corren a mano, o quedan cortados para siempre.
+
+La herramienta ya existe y su criterio ya está escrito (`r.modo !== 'generate'`):
+
+```bash
+set -a && source .env && set +a
+node Workflows/workflow-short-form-content/medir-cobertura.mjs --completar --umbral 0.9        # dry-run
+node Workflows/workflow-short-form-content/medir-cobertura.mjs --completar --umbral 0.9 --apply
+```
+
+- [ ] **Paso 1: dry-run** y confirmar que la lista son 22 y no más (si son más, alguien midió de
+      nuevo entremedio: mirar antes de escribir).
+- [ ] **Paso 2: `--apply`.** 22 llamadas `generate` = 44 créditos de Supadata. **Nunca pisa un guion
+      sano:** si el reintento cubre igual o menos, no escribe.
+- [ ] **Paso 3: verificar por efecto**, no por haber corrido:
+      `select modo, count(*) from app.transcripciones where origen = 'motor' group by 1`
+      tiene que mostrar `generate` con un número **> 0 y ≤ 22**, y ese número es *cuántos mejoraron*,
+      no cuántos se pidieron. Los que no mejoraron son los irrecuperables (`Day8CXdBLwK`).
+
+---
+
+### Tarea 10 · La duración de las 149, para que el aviso pueda existir
+
+**El porqué:** el aviso necesita `duracion_seg` de `app.videos_meta` y hay **1 fila de 150** con
+duración. Las 149 restantes **no se curan solas**: ya tienen título y referente, así que
+`necesitaEnriquecer` las excluye. Sin esto, la Tarea 7 está construida y apagada.
+
+- [ ] **Paso 1: decidir el camino.** Dos, y no son equivalentes:
+      **(a)** un script de backfill que le pida a Apify sólo la duración de las 149 (~149 llamadas,
+      ~$0,35 medido a $0,0023 por video) — barato y de una vez;
+      **(b)** relajar `necesitaEnriquecer` para que "le falta la duración" también cuente como
+      necesita enriquecer — más limpio hacia adelante, pero **cambia el criterio de gasto** de una
+      función que hoy dice explícitamente que no compra cosmética (`domain/colecciones.ts`), o sea
+      que pide ADR.
+      *Sugerencia: (a) ahora y (b) sólo si aparece un segundo caso; el criterio de (b) es una
+      decisión de producto disfrazada de refactor.*
+- [ ] **Paso 2: correrlo con `--limite 3` primero** y mirar las 3 filas antes de las 149.
+- [ ] **Paso 3: verificar por efecto:**
+      `select count(*) from app.videos_meta where duracion_seg is not null` pasa de **1** a ~150, y
+      **`count(*)` total no se mueve de 150** (es merge, no insert: si el total sube, el arbiter está
+      mal y se están duplicando filas).
+
+---
+
+### Tarea 11 · Mirar la primera corrida nueva (no es código)
+
+El push está en el live y **nadie lo midió**: la exec 178 arrancó antes. *Construido y verde no es
+medido.* Los tres números, escritos **antes** de mirarlos:
+
+- [ ] `select count(*) from app.transcripciones where modo = 'generate'` — hoy **0**. Tiene que
+      dejar de ser 0 en la primera corrida que toque un video cortado.
+- [ ] `metricas.llamadas.supadata` de esa corrida contra la cantidad de videos transcritos: la
+      diferencia son los reintentos, y tiene que parecerse al **3,8%** medido (22 de 584), no al 100%.
+- [ ] El log `[Transcribir] cache: … (N hits con cobertura parcial se re-piden)`: **ese N tiene que
+      dejar de crecer corrida a corrida sobre los mismos videos.** Es el canario de la `040` y es el
+      único que dice si el arreglo de verdad persistió.
+
+---
+
 ## Cierre del plan
 
-- [ ] Actualizar [handoff.md](./handoff.md) con el cierre de sesión: qué se midió, el histograma, el
+- [x] Actualizar [handoff.md](./handoff.md) con el cierre de sesión: qué se midió, el histograma, el
       umbral elegido y su porqué, y el canario del §8 con su consulta escrita y **sin** su resultado.
-- [ ] Actualizar el renglón de `core/schema/` en `CLAUDE.md` con el estado de la `039`, verificado
-      por efecto.
-- [ ] Actualizar el mapa de docs de `CLAUDE.md` con este plan.
+      *(Cierres 143 y 145.)*
+- [x] Actualizar el renglón de `core/schema/` en `CLAUDE.md` con el estado de la `039`, verificado
+      por efecto. *(Y el de la `040` y la `041`, 10/09.)*
+- [x] Actualizar el mapa de docs de `CLAUDE.md` con este plan. *(10/09.)*

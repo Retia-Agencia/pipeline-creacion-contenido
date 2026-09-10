@@ -20,18 +20,26 @@
 
 **Estados:** ⬜ libre · 🔧 en curso · ✅ hecho · ⛔ bloqueado
 
-## 🚦 ARRANCÁ POR ACÁ — sesión del 2026-09-09 en adelante (post cierre 143)
+## 🚦 ARRANCÁ POR ACÁ — sesión del 2026-09-10 en adelante (post cierre 145)
 
-> ⛔⛔ **BLOQUEO VIVO (review final de `plan-transcript-completo`, 2026-09-10): NO SE PUEDE HACER
-> `n8n:push` DEL MOTOR HASTA QUE LA MIGRACIÓN [`040`](../../core/schema/040_cache_modo.sql) ESTÉ
-> APLICADA.** El nodo `Transcribir (Supadata)` ya lee `r.modo` de las filas del caché para no
-> re-pedir un parcial que ya se completó con `generate` (el techo de Supadata). La `040` es la que
-> agrega `modo` al `returns table` de `app.cache_transcripts`; sin ella esa clave llega `undefined`,
-> el corte no corta y el irrecuperable se re-pide en cada corrida, **para siempre**. No rompe nada
-> —es fail-open— pero **el arreglo no existe hasta que la migración corra**. La aplica Mani a mano en
-> el SQL Editor, y el archivo trae sus dos verificaciones por efecto (la RPC devolviendo `modo` por
-> PostgREST, y `has_function_privilege` después del `drop`). Mismo orden que exigieron la `037`, la
-> `016` y la `014`: **el consumidor no llega antes que la columna.**
+> ✅ **BLOQUEO LEVANTADO (10/09). La `040` está aplicada y el `n8n:push` del motor ya está en el
+> live** (15:54 UTC, `n8n:diff` verde, snapshot en `.n8n-snapshots/motor-2026-09-10T15-54-51-014Z.json`).
+> Con él entraron los 4 nodos de ADR-095: `Transcribir (Supadata)` · `Armar candidato` ·
+> `Preparar candidatos` · `Preparar transcripciones`.
+>
+> ⚠️ **Y ahora el renglón que importa: NADIE LO MIDIÓ.** La última corrida (exec 178) arrancó 14:46 y
+> terminó 15:07, o sea **antes** del push: corrió el código viejo. `modo = 'generate'` sigue en **0**
+> y ese cero es correcto. Los tres números a mirar en la primera corrida nueva están escritos, antes
+> de mirarlos, en [plan-transcript-completo §Tarea 11](./plan-transcript-completo.md). *Construido y
+> verde no es medido.*
+>
+> 🔴 **Y el arreglo NO le llegó a quien lo reportó.** El reintento con `generate` vive **sólo en el
+> motor**; el cockpit —donde Majo pega los links— pide `mode=auto` una vez y nada más. Lo que ella
+> recibe es el aviso, y el aviso hoy casi no puede dibujarse: necesita duración y hay **1 fila de 150**
+> en `app.videos_meta` con `duracion_seg`. Las tres salidas, con su costo medido, son las **Tareas 8,
+> 9 y 10** del plan; el porqué, [ADR-095 §Enmienda 2](../adr/ADR-095-un-transcript-cortado-no-puede-pasar-por-completo.md).
+> **La 9 es la única con vencimiento**: 11 de los 22 cortados ya están en `candidatos` y 12 en
+> `processed_items`, así que el motor no los va a volver a pedir nunca.
 
 
 > 🟡 **El cupo de Apify volvió a agotarse el 09/09 y costó TRES corridas.** El ciclo cerró en
@@ -63,11 +71,73 @@
 > ⏳ **Lo que sigue sin probarse en vivo:** el rechazo **a mitad de camino** (capa 2) y que
 > `metricas.etapa` sobreviva una corrida completa. Los dos se leen de la próxima corrida real del
 > equipo, sin tocar nada. Ver ADR-094 §Hecho cuando.
+## 🚀 CIERRE 145 (2026-09-10) — Se publicó el arreglo de ADR-095, y publicarlo mostró que no es un arreglo sino dos
+
+> **Todo commiteado y en el live.** `045bc07` (la `041`), `25a38fc` (su verificación) y el
+> `n8n:push` de los 4 nodos. Cero working tree sucio.
+
+Mani aplicó la `040` y pidió tres verificaciones. Las tres se hicieron contra prod, ejercitando el
+**código real** (`lib/apify.ts`, `lib/videos.ts`, `lib/transcribir.ts` importados tal cual con un
+resolve hook, no reimplementados).
+
+### Las tres verificaciones
+
+1. **La duración llega a `app.videos_meta`** ✅ — `traerMetadata` + `guardarMeta` sobre un video que
+   **ya estaba** en la tabla, para que fuera merge y no fila nueva: `duracion_seg: 29.375`, total
+   **150 → 150**, 1 de 150 con duración. ⚠️ Pero *"una colección muestra la duración"* **es falso**:
+   ninguna pantalla la dibuja (`grep duracion` en `app/` da sólo el aviso de Transcribir y
+   `duracionLegible`, que es la duración de una *corrida*). La duración es insumo del veredicto, no UI.
+2. **Transcribir con TikTok** ✅ y ❌ a la vez — el transcript anda igual de bien que en Instagram
+   (17.1 s de 17 s · 60.3 s de 61 s, con la duración comprada al actor de TikTok que ya usa el motor),
+   pero el **aviso no puede existir**: medido, `traerMetadata` de un TikTok manda la URL al scraper de
+   Instagram, vuelve **400** y devuelve `[]` con un `console.error` que no lee nadie. Confirma ADR-095
+   §3.6 y le agrega el **cómo** falla. *Lo roto en TikTok no es transcribir, es enterarse.*
+3. **El canario `modo = 'generate'`** ✅ da **0**, sin contaminar (no se insertó ninguna fila de
+   prueba). Pero cero **no** es "no hay nada que reintentar": de las **584** filas del motor con
+   cobertura —que las escribió el **backfill** de la Tarea 3, no el motor— **22 son parciales al 0.9
+   (3,8%)**.
+
+### La `041`, que Mani pidió revisar antes de hacerla
+
+`revoke execute on function app.cache_transcripts(uuid, text[]) from public`. Se revisó **antes** de
+escribirla y el archivo dice con números que **hoy no tapa ningún agujero**: `anon` rebota con
+`42501 permission denied for schema app` en la puerta del **schema**, dos metros antes de la función,
+y la RPC es `security invoker`, así que las policies de la `021` filtrarían igual. Lo que arregla es
+el **default** de Postgres (`EXECUTE` a `PUBLIC` en cada función nueva). Aplicada y verificada en el
+catálogo: **`anon = false · authenticated = true · service_role = true`**.
+🔑 **Es la única migración de la serie que NO se puede verificar por su efecto desde afuera**: la
+respuesta de PostgREST es idéntica antes y después. Está escrito en el archivo para que nadie pierda
+media hora buscando el cambio en un `curl`.
+
+### El push, con sus dos señales
+
+`test-nodos.mjs` verde y `auditar-workflows.mjs` sin hallazgos **antes**. Después, además del
+`n8n:diff` verde, se leyó el nodo del live por la API: `23624b · placeholder literal: False ·
+r.modo: True · cobertura: True · generate: True`. Ese `placeholder literal: False` no es adorno: la
+key de Supadata se resolvió desde el `.env` y no del live (el script lo avisó), y un
+`<SUPADATA_API_KEY>` sin resolver es exactamente lo que tumbó al error handler dos veces.
+
+### 🔴 Bug encontrado de paso, sin diagnosticar: una corrida que terminó OK y no se cerró
+
+**exec 178 terminó `success` en n8n a las 15:07:45 y su fila en `runs` sigue `en_curso` con `fin` en
+`null`.** Dos consecuencias: esa corrida **perdió sus métricas** (no hay `aprobados / N pedido` para
+ella, que es el norte de ADR-089), y el `Guard single-flight` bloqueó cualquier corrida del motor
+hasta las 15:46 UTC, porque lee corridas vivas de los últimos `ventana_corrida_min = 60`. La ventana
+ya pasó, así que **no bloquea más** y por eso no es urgente. Es la familia de ADR-094 al revés:
+aquella cierra las que **mueren**, ésta terminó **bien** y no se cerró.
+
+### 💰 El cupo, otra vez
+
+De **2,84 a 13,43 de 50 USD en tres horas**, y casi todo son las **tres** corridas del motor de hoy
+(execs 176, 177, 178: ~$0,345 por referente, `origin: API` las 20 corridas de Apify revisadas). Las
+verificaciones de esta sesión costaron ~**$0,07**. A ese ritmo el ciclo no llega al 09/10. *El cupo
+no es un estado, es un saldo.*
+
 ## 🖼️ CIERRE 144 (2026-09-09) — Tres bugs de UI de la pestaña Transcribir, y el "sin título/miniatura" NO era un bug sino una feature no construida
 
-> ⚠️ **En el working tree, sin commitear y sin deployar.** 5 archivos de `apps/dashboard`, cero
-> `core/`, cero migración, cero n8n. Mani pidió cerrar la sesión con todo anotado; queda pendiente
-> **verlo en el navegador contra prod y deployar** (ver abajo).
+> ✅ **Commiteado y DEPLOYADO** (Mani lo confirmó mirando la app, 10/09). 5 archivos de
+> `apps/dashboard`, cero `core/`, cero migración, cero n8n. *Este renglón decía "en el working tree,
+> sin commitear y sin deployar" y quedó viejo un día después.*
 
 Mani reportó tres cosas de la pestaña Transcribir. Se leyó el código de las cuatro (los 3 bugs + el
 costo de Apify) antes de tocar nada. Los tres arreglos son de UI pura.
@@ -6155,6 +6225,27 @@ limpio. Sigue abierto, aparte: si un **referente** puede cruzar voces — [mapa-
 
 ## Log de avance (más reciente arriba)
 
+**2026-09-10 (cierre 145) — Publicar el arreglo mostró que era dos arreglos, y sólo se publicó uno (Claude, con Mani).**
+
+**Qué se hizo:** las 3 verificaciones de ADR-095 contra prod ejercitando el código real, la `041`
+(revisada antes de escribirla, aplicada y verificada en el catálogo), y el `n8n:push` de los 4 nodos
+del motor al live. Detalle arriba, en §CIERRE 145.
+
+**Lo que hay que saber antes de tocar nada:** el reintento con `generate` es **del motor**; el
+cockpit avisa y no reintenta, así que Majo —que reportó el problema desde la pestaña Transcribir—
+recibe el aviso y el guion cortado. Y el aviso casi no puede dibujarse: 1 de 150 filas de
+`videos_meta` tiene duración, y las otras 149 no se curan solas. Escrito en ADR-095 §Enmienda 2 y
+descompuesto en las **Tareas 8–11** de `plan-transcript-completo.md`.
+
+**Qué sigue:** Tarea 8 (el reintento en el cockpit) es la única que le cambia algo al equipo; la
+Tarea 9 (los 22 ya cortados, `medir-cobertura.mjs --completar`) es la única con vencimiento, porque
+11 de esos 22 ya están en `candidatos` y 12 en `processed_items` y el dedup no los va a traer de
+nuevo. Antes de todo eso: la Tarea 11, que es mirar la primera corrida nueva.
+
+**Skills sugeridos para la próxima sesión:** `/tdd` para la Tarea 8 (el paso 1 ya está escrito como
+test que falla), `/diagnose` para el run 178 que no cerró.
+
+
 **2026-09-09 — La cola de Transcribir la vacía el navegador, no el servidor (Claude, con Mani).**
 
 **Qué se encontró:** Mani preguntó si una tanda de ~100 videos pegados en Transcribir estaba
@@ -7253,6 +7344,7 @@ pendientes quedó vacía; lo que sigue es el flip de `scoped.ts`.**
 
 ### Histórico (una línea por cierre; el detalle vive en git: `git log docs/agents/handoff.md`)
 
+- **cierre 145** (09-10) — Se publicó ADR-095: `041` aplicada + `n8n:push` de los 4 nodos del motor. Las 3 verificaciones contra prod destaparon que **el reintento es del motor y el cockpit sólo avisa**, o sea que a Majo no le llegó el arreglo (ADR-095 §Enmienda 2; Tareas 8–11 del plan). Bug abierto: la exec 178 terminó OK y su `run` quedó `en_curso`.
 - **cierre 39** (07-15) — Prep de reunión con redes + auditoría del scoring del descubrimiento (afinidad = juicio semántico Haiku; similitud solo genera/desempata; 3 debilidades TT flageadas). *(La guía de reunión que creó, `guia-reunion-redes.md`, se borró en cierre 41.)*
 - **cierre 38** (07-15) — Auditoría completa + reconciliación repo↔live + fix de docs (pre-sesión Airtable); working tree = ADR-021 bis + enmienda ADR-010; gaps de UI flageados.
 - **cierre 37** (07-14) — Métricas lista + costos en $ (Supadata/Haiku vivos, Apify implementado) + página *Costos* (borrador) + contadores Apify por actor en los 3 workflows.

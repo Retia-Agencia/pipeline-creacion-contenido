@@ -45,8 +45,16 @@ en §Agent skills; acá solo se ubican.
   las fases 0–4 para que el pipeline de LinkedIn corra. Su hallazgo ordenador: **los dos carriles no
   comparten bloqueos** — el personal está a un pedido (los few-shot) y el copiable necesita los tres.
 
+- [docs/agents/plan-transcript-completo.md](docs/agents/plan-transcript-completo.md) — el plan de
+  **un transcript cortado no puede pasar por completo** (ADR-095): 11 tareas, de las que **1–7 están
+  hechas y publicadas** (migraciones `039`–`041` + `n8n:push` del 10/09) y **8–11 son el pendiente
+  vivo**. Su hallazgo ordenador, y sale de publicarlo: *el reintento con `generate` es del MOTOR; el
+  cockpit avisa y no reintenta*, así que a quien reportó el problema —Majo, que pega links en
+  Transcribir— **no le llegó el arreglo, le llegó el aviso**. Y el aviso casi no puede dibujarse: 1
+  de 150 filas de `app.videos_meta` tiene duración.
+
 **Decisiones**
-- [docs/adr/](docs/adr/) — ADRs 001–094 (94 archivos), una decisión por archivo con su porqué ([índice](docs/adr/README.md)).
+- [docs/adr/](docs/adr/) — ADRs 001–096 (96 archivos), una decisión por archivo con su porqué ([índice](docs/adr/README.md)).
   🧭 **[ADR-089](docs/adr/ADR-089-una-sola-metrica-aprobados-contra-lo-pedido.md) manda sobre las métricas de todos los demás:** el norte es **`aprobados / N pedido`, por proyecto y por corrida** (cobertura × precisión). Un cambio que no lo mueve no es una mejora, por más que suba su propio número.
 
 **Contratos del núcleo (`core/`, solo cambia con ADR)**
