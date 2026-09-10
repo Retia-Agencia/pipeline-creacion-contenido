@@ -134,11 +134,21 @@ export function CasillaSeleccion({ marcado }: { marcado: boolean }) {
 }
 
 /**
- * La barra fija de abajo. Solo aparece con el modo prendido.
+ * La barra de acciones del modo selección. Solo aparece con el modo prendido.
  *
- * 🎨 `sticky` y no `fixed`: la barra pertenece a la lista, no a la ventana. Con `fixed` tapaba el
- * pie de las pantallas que ya tienen uno (el contador de tarjetas del Feed) y quedaba flotando sobre
- * el nav en las que no.
+ * 🎨 **`fixed` al fondo del viewport, no `sticky`, y ese es el arreglo del 2026-09-09.** Con
+ * `sticky bottom-0` la barra vivía al final del bloque de su lista, así que solo entraba en pantalla
+ * cuando ese bloque ya estaba en vista: en una tanda de 100 videos había que scrollear hasta el
+ * fondo para poder agregarlos a una colección. Mani lo reportó como el bug #1. Anclada al viewport,
+ * está siempre visible mientras el modo esté prendido, se scrollee hacia donde se scrollee, y se va
+ * sola al cancelar.
+ *
+ * 🔑 **El costo de `fixed` que motivó el `sticky` original está resuelto, no ignorado:** tapaba el
+ * pie de las pantallas que ya tienen uno (el contador del Feed) y flotaba sobre el nav en las que
+ * no. Por eso va centrada y con ancho acotado (`max-w`), no de borde a borde, y el pie del Feed
+ * reserva su espacio abajo (`pb`) cuando el modo está activo — ver el uso en cada pantalla. Una
+ * barra full-width pegada al fondo era lo que chocaba; una isla flotante centrada no tapa el
+ * contenido de los lados.
  *
  * ⚠️ **Con cero marcados la barra sigue ahí, con las acciones apagadas.** Se probó esconderla hasta
  * el primer clic y era peor: el modo quedaba prendido sin ninguna evidencia en pantalla, y el
@@ -154,7 +164,11 @@ export function BarraSeleccion({
 }) {
   if (!seleccion.activo) return null;
   return (
-    <div className="sticky bottom-0 z-20 -mx-1 mt-4 flex flex-wrap items-center gap-2 rounded-lg border bg-background/95 px-3 py-2 shadow-lg backdrop-blur">
+    <div
+      role="toolbar"
+      aria-label="Acciones sobre lo seleccionado"
+      className="fixed inset-x-0 bottom-4 z-50 mx-auto flex w-fit max-w-[calc(100vw-2rem)] flex-wrap items-center gap-2 rounded-lg border bg-background/95 px-4 py-2 shadow-lg backdrop-blur"
+    >
       <span className="text-sm font-medium">
         {seleccion.cuantos} {seleccion.cuantos === 1 ? "seleccionado" : "seleccionados"}
       </span>

@@ -16,7 +16,14 @@ import { usarCockpit } from "../usar-cockpit";
 // **Pide confirmación porque no se deshace** (plan-cockpit §3.3: lo que no se puede deshacer se
 // pregunta). Se confirma con un segundo clic en el mismo botón en vez de un modal: es la acción
 // menos grave de las irreversibles, y un modal para una fila de una lista es más ruido que aviso.
-export function Abandonar({ id }: { id: string }) {
+//
+// 🎨 **`compacto` para el pie de una tarjeta de grilla, igual que `Grabado`** (bug #3, 2026-09-09).
+// El texto de confirmación largo ("¿Seguro? No se deshace") desbordaba la tarjeta angosta porque
+// los botones son `whitespace-nowrap`. En modo compacto la confirmación se acorta a "¿Seguro?": la
+// pregunta sigue estando, solo que sin la coletilla que no cabe. La advertencia de irreversibilidad
+// ya vive en el copy de la tarjeta de fallidas ("si el video no tiene voz... lo que corresponde es
+// abandonarlo").
+export function Abandonar({ id, compacto = false }: { id: string; compacto?: boolean }) {
   const cockpit = usarCockpit();
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -48,7 +55,13 @@ export function Abandonar({ id }: { id: string }) {
         }}
         onBlur={() => setConfirmando(false)}
       >
-        {enviando ? "Abandonando…" : confirmando ? "¿Seguro? No se deshace" : "Abandonar"}
+        {enviando
+          ? "Abandonando…"
+          : confirmando
+            ? compacto
+              ? "¿Seguro?"
+              : "¿Seguro? No se deshace"
+            : "Abandonar"}
       </Button>
       {error && <span className="text-xs text-destructive">{error}</span>}
     </span>

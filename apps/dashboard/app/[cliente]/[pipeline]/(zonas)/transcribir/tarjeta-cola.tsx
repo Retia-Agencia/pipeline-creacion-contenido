@@ -50,6 +50,12 @@ export function TarjetaCola({
   return (
     <TarjetaVideo
       video={{ titulo: null, referente: null, thumbnail: null }}
+      // 🎨 **Modo `cola`** (opción A, 2026-09-09): en Transcribir ningún video trae título ni
+      // miniatura porque el pegote no le compra metadata a Apify, así que la tarjeta no dibuja los
+      // placeholders "sin título" / "sin miniatura" —que se repetirían idénticos en las 100
+      // tarjetas y se leen como un fallo—: la URL es la identidad y el placeholder de miniatura es
+      // neutro. Ver `Variante` en `components/video/tarjeta.tsx`.
+      variante="cola"
       // El acuse de recibo del botón, en el lugar donde el Feed pone la calificación. Es lo que en
       // la fila era el badge `✓ Grabado`: el estado se muestra fuerte, la acción se ofrece callada.
       badge={grabado ? "✓" : undefined}
@@ -65,11 +71,12 @@ export function TarjetaCola({
             {t.idioma && t.idioma !== "es" && ` · ${t.idioma}`}
           </span>
           {/* Las dos salidas de una fila fallada van juntas (ADR-062 §4): reintentar sirve cuando el
-              fallo fue transitorio, abandonar cuando no puede ganar nunca. */}
+              fallo fue transitorio, abandonar cuando no puede ganar nunca. `compacto` para que el
+              "¿Seguro?" no desborde la tarjeta angosta (bug #3). */}
           {fallada && (
             <>
               <Reintentar id={t.id} />
-              <Abandonar id={t.id} />
+              <Abandonar id={t.id} compacto />
             </>
           )}
           {/* Va SIEMPRE, incluso en una fallada: si el video se grabó igual, la marca sirve lo

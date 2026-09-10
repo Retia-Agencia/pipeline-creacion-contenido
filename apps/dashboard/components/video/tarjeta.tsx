@@ -18,6 +18,17 @@ import { cn } from "@/lib/utils";
 
 export const miles = (n: number) => new Intl.NumberFormat("es-AR").format(n);
 
+/**
+ * Cómo se dibuja una tarjeta cuando le faltan datos.
+ *
+ * - `rica` (default): Feed e Históricos, donde un video PUEDE tener título y miniatura, así que la
+ *   ausencia distingue una tarjeta de otra y se dice ("sin título", "sin miniatura").
+ * - `cola`: Transcribir, donde NINGÚN video tiene esa metadata por diseño (el pegote no le compra
+ *   nada a Apify). Ahí el placeholder es neutro y la URL es la identidad — decir "sin título" 100
+ *   veces no informa, confunde. Ver `Miniatura` y el bloque del título.
+ */
+export type Variante = "rica" | "cola";
+
 /** Lo que la tarjeta dibuja de un video. Subconjunto de `domain/video.ts`, todo opcional. */
 export type VideoEnTarjeta = {
   titulo: string | null;
@@ -35,7 +46,7 @@ export type VideoEnTarjeta = {
  * firmada vence en ~5 días (ver `app/api/miniatura/route.ts`). `<img>` y no `next/image`: el
  * optimizador tampoco puede leer una URL firmada de terceros.
  */
-function Miniatura({ video }: { video: VideoEnTarjeta }) {
+function Miniatura({ video, variante = "rica" }: { video: VideoEnTarjeta; variante?: Variante }) {
   const [rota, setRota] = useState(false);
 
   // 4:5 y no 9:16: el video es vertical, pero una miniatura con la proporción real hace que una
@@ -56,6 +67,22 @@ function Miniatura({ video }: { video: VideoEnTarjeta }) {
     );
   }
 
+  // 🎨 **En modo `cola` el placeholder NO dice "sin miniatura"** (opción A, 2026-09-09). En
+  // Transcribir NINGÚN video tiene miniatura por diseño —el pegote no le compra metadata a Apify—,
+  // así que "sin miniatura" no es información: es el mismo cartel en las 100 tarjetas, y se lee como
+  // que algo falló. Un ícono de reproducción neutro dice "esto es un video en cola" sin prometer un
+  // dato que esta pantalla nunca va a traer. En el Feed/Históricos (variante `rica`) sí se dice,
+  // porque ahí la ausencia de miniatura SÍ distingue una tarjeta de otra.
+  if (variante === "cola") {
+    return (
+      <div className="flex size-full items-center justify-center text-muted-foreground/40">
+        <svg viewBox="0 0 24 24" className="size-8" fill="currentColor" aria-hidden>
+          <path d="M8 5v14l11-7z" />
+        </svg>
+      </div>
+    );
+  }
+
   const inicial = (video.referente ?? video.titulo ?? "").replace(/^@/, "").charAt(0).toUpperCase();
   return (
     <div className="flex size-full flex-col items-center justify-center gap-1 px-2 text-center">
@@ -69,6 +96,7 @@ function Miniatura({ video }: { video: VideoEnTarjeta }) {
 
 export function TarjetaVideo({
   video,
+  variante = "rica",
   badge,
   subtitulo,
   aviso,
@@ -79,6 +107,8 @@ export function TarjetaVideo({
   seleccion,
 }: {
   video: VideoEnTarjeta;
+  /** Cómo degrada cuando faltan datos. Ver `Variante`. `cola` es para Transcribir. */
+  variante?: Variante;
   /** Sobre la miniatura, arriba a la derecha: la calificación, "✓ grabado", el estado. */
   badge?: ReactNode;
   /** Reemplaza la línea de referente + vistas. Sin esto se dibuja la de por defecto. */
@@ -130,7 +160,7 @@ export function TarjetaVideo({
         }`}
       >
         <div className="relative aspect-[4/5] w-full overflow-hidden bg-muted">
-          <Miniatura video={video} />
+          <Miniatura video={video} variante={variante} />
           {seleccion && <CasillaSeleccion marcado={marcado} />}
           {badge && (
             <span className="absolute right-1.5 top-1.5 rounded-md bg-background/90 px-1.5 py-0.5 text-lg shadow-sm">
@@ -143,13 +173,26 @@ export function TarjetaVideo({
           {/* 🔴 Un video sin título dice que no lo tiene. **NUNCA se cae a la URL**: `outputs` lo
               hace hoy en 129 filas y ese disfraz fue lo que produjo el falso positivo de la
               medición del 21/08 (ADR-072 §4). Una pantalla que muestra una url donde dice "título"
-              entrena a la gente a no leer ese campo. */}
+              entrena a la gente a no leer ese campo.
+              🎨 **En `cola` no se dibuja el "sin título" itálico** (opción A, 2026-09-09): en
+              Transcribir NINGÚN video tiene título por diseño, así que el cartel se repetiría en las
+              100 tarjetas sin informar. Ahí la identidad es la URL, que va en `subtitulo` abajo, y
+              se le da el peso de título (no atenuada). */}
           {video.titulo ? (
             <p className="line-clamp-2 text-sm font-medium leading-snug">{video.titulo}</p>
-          ) : (
+          ) : variante === "cola" ? null : (
             <p className="text-sm italic leading-snug text-muted-foreground">sin título</p>
           )}
-          <p className="truncate text-xs text-muted-foreground">
+          <p
+            className={cn(
+              "truncate text-xs",
+              // En `cola` sin título, la URL ES el título: se le da el color de texto principal en
+              // vez del atenuado de un subtítulo secundario.
+              variante === "cola" && !video.titulo
+                ? "font-medium text-foreground"
+                : "text-muted-foreground",
+            )}
+          >
             {subtitulo ?? (
               <>
                 {video.referente ?? "sin referente"}

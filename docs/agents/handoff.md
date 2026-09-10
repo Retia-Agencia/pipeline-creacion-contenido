@@ -51,6 +51,80 @@
 > ⏳ **Lo que sigue sin probarse en vivo:** el rechazo **a mitad de camino** (capa 2) y que
 > `metricas.etapa` sobreviva una corrida completa. Los dos se leen de la próxima corrida real del
 > equipo, sin tocar nada. Ver ADR-094 §Hecho cuando.
+## 🖼️ CIERRE 144 (2026-09-09) — Tres bugs de UI de la pestaña Transcribir, y el "sin título/miniatura" NO era un bug sino una feature no construida
+
+> ⚠️ **En el working tree, sin commitear y sin deployar.** 5 archivos de `apps/dashboard`, cero
+> `core/`, cero migración, cero n8n. Mani pidió cerrar la sesión con todo anotado; queda pendiente
+> **verlo en el navegador contra prod y deployar** (ver abajo).
+
+Mani reportó tres cosas de la pestaña Transcribir. Se leyó el código de las cuatro (los 3 bugs + el
+costo de Apify) antes de tocar nada. Los tres arreglos son de UI pura.
+
+### 1. La barra de "agregar a colección" solo aparecía al final de la tanda
+
+`BarraSeleccion` (`apps/dashboard/components/video/seleccion.tsx`) era `sticky bottom-0` **dentro del
+bloque de la tanda**, así que con 100 videos había que scrollear hasta el fondo para que entrara en
+vista. Pasó a `fixed` anclada al viewport: isla centrada, ancho acotado (`w-fit max-w-[calc(100vw-2rem)]`),
+siempre visible mientras el modo selección está prendido, se va al cancelar. Es el componente
+compartido ⇒ la mejora también toca Feed, Históricos y el detalle de colección.
+🔑 **El costo de `fixed` que motivó el `sticky` original (tapaba pies, flotaba sobre el nav) está
+resuelto por diseño, no ignorado:** isla centrada en vez de barra full-width, y la tanda reserva
+`pb-24` cuando el modo está activo (`tanda.tsx`) para no tapar las últimas tarjetas.
+
+### 2. "sin título / sin miniatura" en toda la tanda — NO es un bug, es una feature no construida
+
+🔑 **El pegote NUNCA compra título ni miniatura.** `pegarEnlaces` solo encola en
+`app.transcripciones`; Supadata devuelve `content`/`lang` y nada más. Y `TarjetaCola` renderiza
+`video={{titulo:null, referente:null, thumbnail:null}}` **hardcodeado**. El sistema sí sabe comprar
+esa metadata a Apify, pero **solo al agregar un video a una Colección** (ADR-072/073) — Transcribir
+se dejó desnudo a propósito para no gastar.
+
+**Mani eligió la opción A: tarjeta de cola honesta, sin gastar Apify.** `TarjetaVideo`
+(`apps/dashboard/components/video/tarjeta.tsx`) gana una `variante` (`rica` default | `cola`). En
+`cola`: el placeholder de miniatura es un ícono de play neutro (no el cartel "sin miniatura", que se
+repetía idéntico en 100 tarjetas y se leía como fallo), y sin título no se dibuja el itálico "sin
+título" — la URL toma el rol de identificador con peso de título. **Se mantiene la regla de ADR-072
+§4: NUNCA se cae a la URL en el campo título de la variante `rica`** (ese disfraz fue el falso
+positivo del 21/08); la URL solo sube de rol en `cola`, que es donde ES la identidad. `TarjetaCola`
+pasa `variante="cola"`.
+
+### 📏 El costo de Apify, medido (para la decisión que Mani ya tomó, y para la sesión de costos)
+
+El actor es `apify~instagram-scraper`, **$0.0023 por resultado** en STARTER
+(`plan-transcript-completo.md:74`), `resultsLimit: 1` ⇒ 1 resultado = 1 video. Una tanda de 100
+("videos Nelly") = **~$0.23 USD**. No es *compound*: la PK de `app.videos_meta` evita re-pagar el
+mismo video **si se persiste** — pero el pegote no persiste hoy, así que traerlo ahí sin guardar
+re-pagaría en cada carga. ⚠️ **Contexto que pesó en descartar B/C:** el cupo de Apify es el cuello
+actual (cerró en 50,02/50 el 09/09, cierre 143), y motor + sesiones de agente comparten una sola
+cuenta con un solo tope. Enriquecer Transcribir competiría por ese saldo. Por eso A: cero Apify, y
+arregla el síntoma volviéndolo honesto en vez de un hueco.
+
+### 3. El texto de "Abandonar" se salía de la tarjeta
+
+`Abandonar` (`apps/dashboard/app/[cliente]/[pipeline]/(zonas)/transcribir/abandonar.tsx`) mostraba
+"¿Seguro? No se deshace" al confirmar, y desbordaba el pie angosto de la tarjeta de grilla porque
+los botones son `whitespace-nowrap`. Gana la prop `compacto` (misma solución que `Grabado` ya tenía):
+en el pie de una tarjeta la confirmación se acorta a "¿Seguro?". La advertencia de irreversibilidad
+ya vive en el copy de la tarjeta de fallidas. `TarjetaCola` usa `<Abandonar compacto />`.
+
+### ✅ Verificado / 🔴 lo que falta
+
+- ✅ `npm run typecheck` limpio · `npm test` **512 pass / 0 fail** · `npm run build` OK.
+- 🔴 **NADIE lo vio en el navegador.** Los tres son cambios visuales y de layout: typecheck y tests
+  no prueban que la barra flote bien ni que la tarjeta de cola se vea. **Es exactamente el patrón que
+  este repo pagó varias veces (el trabajo real aparece en el primer click, no en la suite).** Falta
+  levantar el dev server contra prod y mirarlo — sobre todo la barra `fixed` en una tanda larga y el
+  "¿Seguro?" que no desborde.
+- 🔴 **Sin commitear (working tree) y sin deployar.** Los 5 archivos:
+  `components/video/seleccion.tsx`, `components/video/tarjeta.tsx`, y en `transcribir/`:
+  `abandonar.tsx`, `tanda.tsx`, `tarjeta-cola.tsx`. Están en `main` local sin push.
+- 📌 **Sale de acá una task de producto, no un pendiente de código:** si algún día se quiere título
+  y miniatura reales en Transcribir, es la opción B (comprar a Apify + persistir en `videos_meta`) o
+  la C (bajo demanda), y las dos tocan el cupo compartido de Apify — mirarlo junto con la sesión de
+  costos (§B de arriba, cierre 142).
+
+---
+
 ### Lo de la sesión anterior (post cierre 140) sigue vigente
 
 > ⚠️ **Lo que había acá decía "0 corridas desde los cambios" — era cierto al cerrar 139 y dejó de

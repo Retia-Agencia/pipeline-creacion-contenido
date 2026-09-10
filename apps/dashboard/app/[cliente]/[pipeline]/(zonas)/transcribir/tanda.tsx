@@ -176,7 +176,7 @@ export function Tanda({
           </div>
         </summary>
 
-        <div className="space-y-4 border-t p-4">
+        <div className={`space-y-4 border-t p-4 ${seleccion.activo ? "pb-24" : ""}`}>
           <div className="flex flex-wrap items-center gap-2">
             {editando ? (
               <>
