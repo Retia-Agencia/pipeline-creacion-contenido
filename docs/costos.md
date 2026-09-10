@@ -326,6 +326,232 @@ raíz de que trading no entregue.
 200 días, pero **en sus últimos 11 reels la mediana es 63k y ninguno llega a 500k**. Las vistas se
 acumulan. **Para hablar de "qué tan viral es una cuenta" hay que usar ventana corta.**
 
+### 4.3 El tercer eje: el REPARTO entre referentes
+
+La tabla de §4 mueve **ventana** y **umbral**. Falta el eje que gobierna la otra mitad de la
+fórmula: cómo se reparte el presupuesto entre las cuentas. La pregunta concreta que lo abrió
+(Mani, 10/09): *¿bajar `resultados_referente` a 15-20 y subir mucho la cantidad y la calidad de
+referentes?*
+
+**Todo lo de acá se midió leyendo los datasets de Apify de corridas que ya se pagaron, que es
+gratis** (§8.5). Ninguna medición de esta sección gastó un centavo.
+
+#### 4.3.1 No hay costo fijo por corrida — medido, y cambia la fórmula
+
+El motor abre **una corrida de Apify por cuenta** (`Split IG referentes`), así que la sospecha
+razonable es que cada referente traiga un costo de arranque. **No lo trae.** Las 24 corridas de la
+exec 183, divididas por 0,0023:
+
+| reels devueltos | 1 | 3 | 5 | 13 | 25 |
+|---|---|---|---|---|---|
+| `usageTotalUsd / 0,0023` | **1,000** | **3,000** | **5,000** | **13,000** | **25,000** |
+
+Exacto, sin intercepto. Y el actor declara **un solo evento de cobro** (`result`) en su
+`pricingInfos`. ⇒
+
+```
+costo = 0,0023 × Σ_cuenta  min( resultados_referente , publicaciones_dentro_de_la_ventana )
+```
+
+🔑 **Un referente no cuesta nada por existir: cuesta por cada reel que devuelve.** El término
+constante no existe, y de ahí sale el corolario incómodo:
+
+⛔ **24 referentes × 25 resultados y 40 × 15 cuestan EXACTAMENTE lo mismo** (600 reels, 1,38 USD).
+Redistribuir a presupuesto constante **no ahorra un centavo**. Lo único que cambia es *cuáles*
+reels se compran — y ahí sí hay una diferencia enorme, pero no va en la dirección que uno espera
+(§4.3.2).
+
+🩸 **Una cuenta que devuelve CERO reels igual cobra un `result`** (el stub del perfil). En la 183
+fueron 4 — `tori.trades`, `thetradingchannel`, `lorenzocorradofx`, `kaycapitals` — a 0,0023 cada
+una. Son 0,0092 USD, o sea nada; se anota porque prueba que la unidad de cobro es *el ítem
+devuelto*, no *el reel*. **Y porque son 4, no 3**, que es lo que decía §7.
+
+#### 4.3.2 La profundidad NO es un eje de eficiencia — medido hasta 150
+
+**Dentro de la exec 183** (cap 25, 17 cuentas topeadas), tasa de reels con ≥100k vistas por tramo
+de recencia, 1 = el más nuevo:
+
+| tramo | comprados | ≥100k | tasa | edad mediana |
+|---|---|---|---|---|
+| 1-5 | 75 | 2 | **2,7 %** | 2 días |
+| 6-10 | 75 | 5 | 6,7 % | 6 días |
+| 11-15 | 75 | 8 | 10,7 % | 12 días |
+| 16-20 | 75 | 8 | 10,7 % | 16 días |
+| **21-25** | 73 | 21 | **28,8 %** | 22 días |
+
+**Los últimos 5 reels que se compran de cada cuenta son ~11× más productivos que los primeros 5.**
+No es un artefacto de `braidenshaw` (la mejor cuenta): sacándola, la curva va de **1,4 % a 25,0 %**.
+
+**Y sigue así mucho más abajo.** La exec 182 corrió con cap 150 sobre 30 cuentas, así que la curva
+se puede extender gratis:
+
+| tramo | comprados | ≥100k | tasa | edad mediana |
+|---|---|---|---|---|
+| 1-25 | 569 | 70 | 12,3 % | 12 d |
+| 26-50 | 483 | 72 | 14,9 % | 39 d |
+| 51-75 | 450 | 63 | 14,0 % | 70 d |
+| 76-100 | 431 | 66 | 15,3 % | 85 d |
+| 101-125 | 372 | 64 | 17,2 % | 93 d |
+| 126-150 | 302 | 54 | **17,9 %** | 110 d |
+
+Acumulado, que es lo que decide: **si el cap fuera K, cuánto sale cada reel útil**
+
+| cap | reels | útiles | USD | **USD/útil** |
+|---|---|---|---|---|
+| 25 | 569 | 70 | 1,31 | **0,0187** |
+| 50 | 1.052 | 142 | 2,42 | 0,0170 |
+| 100 | 1.933 | 271 | 4,45 | 0,0164 |
+| **150** | 2.607 | 389 | 6,00 | **0,0154** |
+
+🔑 **`resultados_referente` es un knob de VOLUMEN, no de eficiencia.** Bajarlo baja el gasto y el
+supply casi en la misma proporción — y encima recorta el tramo *más* productivo, así que el costo
+por reel útil **sube** un 21 % al pasar de 150 a 25. Es literalmente lo que hizo la corrida 183:
+**−83 % de costo, −100 % de entrega.** No fue mala suerte: es lo que hace un knob de volumen.
+
+⛔ **Por eso bajar a 15 o 20 es la palanca equivocada para lo que se quiere.** Baja la factura, sí,
+igual que apagar el motor. Lo que no hace es entregar más por dólar.
+
+⚠️ **El mecanismo es la maduración, y eso hace que la curva dependa de la métrica.** Los reels del
+tramo 21-25 tienen 22 días y los del 1-5 tienen 2: no son mejores, tuvieron más tiempo. Con una
+métrica de **velocidad** (vistas/día) el orden se da vuelta exacto — 52,0 % en el tramo 1-5 contra
+17,8 % en el 21-25. Y con una **relativa** (≥2× la mediana de la propia cuenta) se mantiene la
+dirección de las vistas absolutas (12,0 % → 41,1 %), así que no es puro artefacto del umbral.
+**La forma de esta curva la fija la métrica de "útil", y la de hoy (`min_views`, absoluta) premia
+lo viejo por construcción.** Es la versión intra-cuenta del invariante 3.
+
+#### 4.3.3 Dónde SÍ está la eficiencia: el referente
+
+Misma corrida, mismo umbral, mismos 25 reels comprados a casi todos. **El rango va de 60 % a 0 %:**
+
+| cuenta | reels | ≥100k | USD por reel útil |
+|---|---|---|---|
+| `braidenshaw` | 25 | **15** | **0,0038** |
+| `swingtradinglab` | 13 | 8 | 0,0037 |
+| `andreacimi.trading` | 15 | 6 | 0,0058 |
+| `julias.algos` | 25 | 5 | 0,0115 |
+| `krosh.ivan` · `casper_smc` · `joovier_` | 25 c/u | 4 c/u | 0,0144 |
+| … | | | |
+| `nicholascrown` · `abeteddymaruta` | 25 c/u | 1 c/u | 0,0575 |
+| 🔴 `therobinritter` · `eliteoptionstrader2` · `chart__tactix` · `20mintrader` · `worldclassedge` | **109** | **0** | **∞** |
+
+**5 cuentas se llevan el 24 % del gasto de cada corrida (0,251 USD) y devuelven cero.**
+
+| | reels | USD | útiles | USD/útil |
+|---|---|---|---|---|
+| corrida 183 como está | 446 | 1,035 | 66 | **0,0155** |
+| las mismas cuentas menos esas 5 | 337 | 0,775 | **66** | **0,0117** |
+
+**−24 % de costo sin perder un solo reel útil.** Contra el ±5 % que mueve todo el eje de
+profundidad (§4.3.2), **el reparto entre cuentas es el eje que importa, y la variable no es cuántos
+referentes hay sino cuáles.**
+
+🩸 **Y esto corrige la lista de poda de §7, que estaba armada por MEDIANA de vistas.** La mediana
+es el estadístico equivocado para un proceso de cola pesada: mide dónde está el centro, y acá lo
+único que se cobra es la cola.
+
+| cuenta | mediana | útiles ≥100k | veredicto §7 (por mediana) | veredicto medido |
+|---|---|---|---|---|
+| `_abtrades` | **127** | **2** (uno de 1,2 M) | podar | 🟢 **dejar** |
+| `joovier_` | 26.978 | 4 | podar | 🟢 **dejar** |
+| `sakeembradley` | 5.937 | 3 | podar | 🟢 dejar |
+| `chart__tactix` | 19.498 | **0** | *no figuraba* | 🔴 **podar** |
+| `worldclassedge` | 28.014 | **0** | *no figuraba* | 🔴 **podar** |
+
+**La lista vieja mandaba podar dos cuentas que producen y dejaba dos que no.**
+
+#### 4.3.4 Un referente no es una compra: es una suscripción
+
+Un referente topeado cuesta **0,0575 USD por corrida, produzca o no**. A cadencia semanal son
+**2,99 USD/año cada uno**. Eso convierte la pregunta *"¿subimos mucho los referentes?"* en una
+tabla, con el tope de Apify (50 USD/mes) marcado con `!`:
+
+**USD/mes = referentes × resultados × 0,0023 × 4,3 corridas** *(cota superior: supone que todas
+topean; las que publican poco cuestan menos)*
+
+| referentes ↓ / resultados → | 10 | 15 | 25 | 50 | 100 |
+|---|---|---|---|---|---|
+| 24 *(hoy)* | 2,4 | 3,6 | **5,9** | 11,9 | 23,7 |
+| 50 | 4,9 | 7,4 | 12,4 | 24,7 | 49,4 |
+| 100 | 9,9 | 14,8 | 24,7 | 49,4 | 98,9 `!` |
+| 200 | 19,8 | 29,7 | **49,4** | 98,9 `!` | 197,8 `!` |
+| 300 | 29,7 | 44,5 | 74,2 `!` | 148,3 `!` | 296,7 `!` |
+
+🔑 **Subir referentes es viable y la tabla dice cuánto cuesta: 200 referentes a profundidad 25 son
+49,4 USD/mes, o sea el cupo entero, sin margen para una sola exploración con agente** (§1.1). Y la
+celda que parece la salida — 200 × 10 por 19,8 USD — compra **sólo la cabeza de cada cuenta, el
+tramo del 2,7 %** (§4.3.2). *La combinación "muchos referentes, poca profundidad" es la esquina
+barata de la tabla y la peor por dólar entregado.*
+
+#### 4.3.5 El desperdicio de verdad: cada corrida re-compra lo de la anterior
+
+Solape de ids entre corridas consecutivas del 10/09, medido sobre los datasets:
+
+| corrida | reels | ya comprados en la anterior | **plata re-pagada** |
+|---|---|---|---|
+| 16:05 (exec 181) | 2.520 | 1.736 (68,9 %) | 3,99 USD |
+| 17:17 (exec 182) | 2.607 | 2.454 (**94,1 %**) | 5,64 USD |
+| 21:43 (exec 183) | 450 | 441 (**98,0 %**) | 1,01 USD |
+
+**De los ~25 USD que Apify cobró el 10/09, alrededor de 1 USD compró contenido que el sistema no
+tenía.** Con la cadencia semanal y ventana de 50 días la cuenta estructural es la misma: se
+re-compra **~86 %** (43 de 50 días) en cada corrida.
+
+🩸 **Y el dedup no lo ve.** De los 446 reels de la 183, sólo **22 (4,9 %)** estaban en
+`processed_items`, porque ahí se escribe **después** de `min_views`: el repo **no sabe que ya pagó
+por lo que descartó**. Es §8.5 dicho por el otro lado — la lista negra no es un registro de compras.
+
+⛔ **Y no se arregla con el actor de hoy.** Verificado en el input schema del build
+`ELq02zbb8PB5NDZkO`: sus 8 campos son `resultsType · directUrls · resultsLimit ·
+onlyPostsNewerThan · search · searchType · searchLimit · addParentData`. **No existe
+`onlyPostsOlderThan`.** `onlyPostsNewerThan` corta por abajo y `resultsLimit` por arriba, así que
+**la franja "de 37 a 30 días atrás" no se puede comprar sin comprar todo lo más nuevo también.**
+La ventana siempre está anclada a hoy.
+
+Las dos salidas que quedan:
+- **(a) `dias_recencia` ≈ intervalo entre corridas.** Con cadencia semanal, ventana de 7-10 días:
+  el solape se va a ~0 y el costo cae a ~219 reels/corrida (0,50 USD) medido sobre el ritmo real de
+  publicación de las 24 cuentas. **Precio:** compra reels de 2-7 días, que es el tramo del 2,7 %.
+- **(b) Guardar el pool y re-medir selectivo.** Un reel puntual se re-mide por URL a 0,0023
+  (`resultsType: posts`, `resultsLimit: 1`) — el motor **ya hace exactamente eso** para
+  `videos_meta`. Re-medir 100 borderline sale 0,23 USD contra 1,04 de re-comprar la ventana entera.
+
+⚠️ **`dias_recencia = 50` hoy no hace casi nada, además.** 14 de las 24 cuentas topean en 25 antes
+de llegar al día 50, así que para ellas la ventana es un no-op. Y **29 reels (6,5 %) volvieron
+igual siendo más viejos que la ventana**, hasta de 989 días: aparecen en las posiciones 1-8 del
+dataset y nunca más de 3 por cuenta ⇒ **son los posts FIJADOS de Instagram, que se saltean el
+filtro de fecha.** (`apify/instagram-reel-scraper` tiene `skipPinnedPosts`, §6.2.)
+
+#### 4.3.6 Lo que hoy no se puede contestar, y cuesta 0,12 USD contestarlo
+
+**El repo nunca midió el mismo reel dos veces.** Se buscó el par: pool del 31/08-01/09 (1.185 reels,
+60 cuentas) contra el del 07-09/09 (6.537 reels, 183 cuentas) ⇒ **0 reels en común**, porque el
+roster cambia entero entre corridas de clientes distintos. Todo lo de §4.3.2 es **transversal**
+(reels distintos de edades distintas), nunca **longitudinal**.
+
+**El experimento que lo cierra:** re-medir por URL 50 reels frescos de la corrida 183 dentro de 30
+días. **50 × 0,0023 = 0,115 USD.** Contesta la única pregunta que decide entre la salida (a) y la
+(b): *¿un reel de 2 días que hoy tiene 20k llega a 100k, y en cuánto tiempo?* Si llega, comprar
+fresco y esperar es gratis comparado con re-comprar la ventana. Si no llega, el pool viejo es el
+producto y la ventana larga se justifica.
+
+#### 4.3.7 Qué hacer, en orden de retorno medido
+
+1. 🟢 **Podar las 5 cuentas de rendimiento cero** (§4.3.3). −24 % del gasto, cero útiles perdidos,
+   cuesta borrar links. **Y usar el criterio nuevo: útiles sobre el umbral, no mediana.**
+2. 🔴 **No bajar `resultados_referente`.** Si hay que bajar el gasto, se baja **cadencia** o
+   **ventana**, que es donde está el 86-98 % de re-compra. La profundidad es lo único que hoy
+   compra el tramo productivo.
+3. 🟡 **Sumar referentes: sí, con precio en la mano** (§4.3.4) y con la regla de que **un referente
+   se audita a las 2 corridas** contra su tasa de útiles. Sin eso, cada cuenta mala entra como una
+   suscripción de 3 USD/año que nadie cancela — hoy hay 5 corriendo.
+4. ⬜ **El ledger por cuenta**: reels comprados · pasaron `min_views` · candidatos · aprobados, por
+   corrida. Es lo que convierte el paso 3 en automático y hoy no existe en ninguna tabla.
+5. ⬜ **El experimento de maduración** (§4.3.6), 0,12 USD, antes de rediseñar la ventana.
+
+**Reproducir todo esto:** los ids de corrida salen de `GET /v2/actor-runs?limit=500&desc=1`, los
+items de `GET /v2/datasets/<id>/items?fields=id,ownerUsername,videoPlayCount,timestamp`, y ninguna
+de las dos cuesta (§9).
+
 ---
 
 ## 5. Palancas de optimización
@@ -333,12 +559,13 @@ acumulan. **Para hablar de "qué tan viral es una cuenta" hay que usar ventana c
 | # | palanca | ahorro | costo de hacerlo | estado |
 |---|---|---|---|---|
 | 0 | `dias_recencia` 200→50 · `resultados_referente` 150→25 | **83 % medido** (6,00 → 1,04) | 2 knobs, cero código | ✅ **10/09** |
-| 1 | **Ventana por referente**: `onlyPostsNewerThan` = días desde que se scrapeó ESA cuenta | ~60 % de lo que quede | ~10 líneas | ⬜ |
-| 2 | **Fórmula proporcional** (§5.1) | evita que sumar referentes multiplique el costo | ~15 líneas | ⬜ |
+| 1 | **Ventana por referente**: `onlyPostsNewerThan` = días desde que se scrapeó ESA cuenta | ⬆️ **86-98 % es re-compra, medido** (§4.3.5) — antes acá decía *~60 %* sin medición | ~10 líneas | ⬜ |
+| 2 | **Fórmula proporcional** (§5.1) | reparte, no ahorra — y ⚠️ **repartir a presupuesto constante no ahorra NADA** (§4.3.1): no hay costo fijo por referente | ~15 líneas | ⬜ |
 | 3 | **Actor más barato** (§6) | ×0,29 sobre todo lo anterior | bake-off + `n8n:push` | 🔧 1ª prueba hecha |
 | 4 | `min_views` **por proyecto** | no ahorra: **arregla el supply** | migración + ADR | ⬜ |
 | 5 | Separar cuenta/token de Apify | no ahorra: **evita que una exploración deje sin cupo al motor** | decisión + plata | ⬜ |
-| 6 | Podar las 4 cuentas que nunca aportan | ~17 % de los handles | borrar links | ⬜ |
+| 6 | **Podar por RENDIMIENTO las 5 cuentas de 0 útiles** (§4.3.3) | **−24 % del gasto, 0 útiles perdidos** (medido) | borrar links | ⬜ |
+| 8 | **Auditar cada referente a las 2 corridas** contra su tasa de útiles (§4.3.4) | evita que una cuenta mala quede como suscripción de 3 USD/año | el ledger de §4.3.7 | ⬜ |
 | 7 | Borrar el proyecto duplicado por la tilde | evita pagar dos veces el mismo criterio | limpieza de datos | ⬜ |
 
 ### 5.1 La fórmula proporcional
@@ -400,9 +627,16 @@ barato.*
 **Higiene de datos que cuesta plata**
 - [ ] Borrar el proyecto duplicado por la tilde: `Comunicación para lideres` (N=15) vs
       `Comunicación para líderes` (N=20), los dos activos.
-- [ ] Revisar las 3 de 24 cuentas de trading que no devolvieron nada (¿mal escritas? ¿privadas?).
-- [ ] Podar `therobinritter` (mediana 1.695), `eliteoptionstrader2` (3.072), `joovier_` (3.167),
-      `sakeembradley` (5.877).
+- [ ] Revisar las **4** de 24 cuentas de trading que no devolvieron nada — `tori.trades`,
+      `thetradingchannel`, `lorenzocorradofx`, `kaycapitals` (¿mal escritas? ¿privadas?).
+      *Este renglón decía 3; son 4, y **cada una cobra igual un `result`** por el stub del perfil (§4.3.1).*
+- [ ] 🩸 **Podar por RENDIMIENTO, no por mediana** (§4.3.3): `therobinritter`,
+      `eliteoptionstrader2`, `chart__tactix`, `20mintrader`, `worldclassedge` — **109 reels,
+      0,251 USD por corrida, CERO reels ≥100k medidos.**
+      ⚠️ **La lista vieja de este renglón estaba armada por mediana de vistas y mandaba podar dos
+      cuentas que SÍ producen** (`joovier_`, 4 útiles; `sakeembradley`, 3) **y no nombraba dos que
+      no producen nada** (`chart__tactix`, `worldclassedge`). *La mediana mide dónde está el centro;
+      acá sólo se cobra la cola.*
 - [ ] **13 de 15 proyectos con `activo = true` no corren porque su voz está apagada.** La pantalla
       dice una cosa y el motor hace otra.
 
@@ -465,6 +699,18 @@ barato.*
    error de 5,7× que hizo ver a Supadata como el segundo frente de costo cuando es el tercero.
 8. **Un pool que se llena de varias corridas se deduplica antes de contarlo.** Sin eso cada corrida
    extra parece supply nuevo. Pasó acá, con 59 % de inflación.
+
+9. **No hay costo fijo por corrida ni por referente: la unidad de cobro es el ítem devuelto.**
+   Medido (§4.3.1): `usageTotalUsd / 0,0023` da exactamente el número de reels, sin intercepto.
+   ⇒ **redistribuir el mismo presupuesto entre más referentes con menos profundidad no ahorra un
+   centavo.** Lo único que cambia es *cuáles* reels se compran.
+10. **`resultados_referente` es un knob de VOLUMEN; el roster de referentes es el de EFICIENCIA.**
+   La profundidad mueve el USD/útil un ±20 % y en la dirección contraria a la intuición (más
+   profundo = más barato por útil, §4.3.2). El referente lo mueve entre 0,0038 y ∞. **Bajar la
+   profundidad baja el gasto y la entrega juntos: es apagar el motor un poco.**
+11. **La ventana está anclada a hoy y no se puede desanclar con este actor.** No existe
+   `onlyPostsOlderThan`, así que toda corrida re-compra lo que la anterior ya pagó: **94-98 %
+   medido** (§4.3.5). El costo de una corrida no es lo que colecta, es lo que colecta **de nuevo**.
 
 ---
 

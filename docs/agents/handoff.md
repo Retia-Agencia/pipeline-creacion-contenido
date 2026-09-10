@@ -37,6 +37,19 @@
 > `Días de recencia` 200 → **50**, `Resultados por cuenta de referente` 150 → **25**. Cero código,
 > cero `n8n:push`. ⚠️ Se hizo por SQL, así que **no dejó fila en `app.eventos`**.
 >
+> 🆕 **Y hay un tercer eje medido, escrito el 10/09 en [costos.md §4.3](../costos.md): el REPARTO
+> entre referentes.** Tres cosas que cierran preguntas abiertas, todas medidas gratis sobre datasets
+> ya pagados: **(1) no hay costo fijo por corrida ni por referente** (`usageTotalUsd / 0,0023` = el
+> número exacto de reels), así que *repartir el mismo presupuesto entre más referentes con menos
+> profundidad no ahorra un centavo*; **(2) bajar `resultados_referente` es la palanca equivocada** —
+> la cola de cada cuenta es su tramo productivo (2,7 % de útiles en los 5 reels más nuevos contra
+> 28,8 % en los 5 más viejos), así que la profundidad es un knob de VOLUMEN y por eso la 183 bajó
+> 83 % el costo y 100 % la entrega; **(3) el eje que sí manda es CUÁLES referentes** — 5 cuentas se
+> llevan el 24 % del gasto y devuelven CERO útiles, y podarlas baja el USD/útil de 0,0155 a 0,0117
+> sin perder nada. ⚠️ **La lista de poda de §7 estaba armada por mediana y mandaba podar dos cuentas
+> que sí producen.** Y el desperdicio grande no es la profundidad: **94-98 % de cada corrida
+> re-compra lo que la anterior ya pagó**, y el actor no tiene `onlyPostsOlderThan` para evitarlo.
+
 > 🔴 **LA DECISIÓN QUE ABRE LA PRÓXIMA SESIÓN, y es de un solo knob: bajar `Mínimo de vistas`.**
 > Está en **500.000** y es **global** (`app.ajustes` no tiene `proyecto_id`). Medido: el pool de
 > trading de Vieira tiene mediana **22.394** contra **256.556** del resto — 11,5× de diferencia — y
