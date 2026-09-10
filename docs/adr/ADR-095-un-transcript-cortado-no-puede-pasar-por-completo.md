@@ -58,6 +58,69 @@ llamada nueva ni campo nuevo: hay que cablearlo.
 queda en 1.3 créditos/video contra 2.0 si se pasara todo a `generate`: auto-primero es **35% más
 barato** *y* mejor, porque `generate` a veces cubre menos.
 
+### 📏 El histograma (Tarea 3, 09/09) — el umbral ya no está sin número
+
+`medir-cobertura.mjs --medir --apply` corrió sobre las 584 filas de `app.transcripciones` con
+`origen = 'motor'` y `estado = 'listo'`. Escribió `cobertura_seg`/`duracion_seg`/`modo`: las tres
+pasaron de 0 a **583** (1 fila quedó sin duración). Supadata contestó las 584 (0 sin cobertura).
+
+**Histograma de `cobertura/duración` (n=583): mediana 0.996, p10 0.958.**
+
+```
+  0.0–0.1   1        bajo 0.7:  10  (1.72%)
+  0.1–0.2   0        bajo 0.8:  12  (2.06%)
+  0.2–0.3   3        bajo 0.9:  22  (3.77%)
+  0.3–0.4   0        bajo 0.95: 46  (7.89%)
+  0.4–0.5   2
+  0.5–0.6   1
+  0.6–0.7   3
+  0.7–0.8   2
+  0.8–0.9  10
+  0.9–1.0  561
+```
+
+**Cobertura por duración de video** (no se degrada con la duración, salvo el único largo):
+
+```
+  0-30s    n=80   mediana 0.991   bajo 0.8: 5 (6.3%)
+  30-60s   n=278  mediana 0.995   bajo 0.8: 3 (1.1%)
+  60-120s  n=204  mediana 0.997   bajo 0.8: 2 (1.0%)
+  120-300s n=20   mediana 0.994   bajo 0.8: 1 (5.0%)
+  300s+    n=1    mediana 0.457   bajo 0.8: 1 (100%)
+```
+
+**El umbral elegido es `0.9`.** El dato NO distingue 0.8 de 0.9: 561 de 583 filas están arriba de
+0.9, sólo 10 caen en la banda intermedia (0.8–0.9), y 12 ya están abajo de 0.8. Se elige por
+**recall** y no porque el histograma marque un quiebre ahí — un falso positivo (marcar "parcial" un
+video sano) es **inofensivo por construcción**: `mejor()` sólo escribe si el candidato cubre más
+segundos que el guardado, así que reintentar un video sano cuesta 2 créditos y no puede pisar nada
+bueno. La diferencia entre 0.8 y 0.9 como umbral son ~20 créditos por corrida (las 10 filas de la
+banda intermedia, a `generate` = 2 créditos).
+
+**Qué recupera el reintento con `generate`, medido sobre los 12 cortados** (4 recuperan entero, 7 no
+mejoran, 1 no se pudo medir):
+
+```
+DcNGcHKR_qk   25.9s   0.04 -> 0.99   RECUPERA (tenía UN carácter para 25.9s)
+Db9Y_EGulGk  150.4s   0.28 -> 1.00   RECUPERA
+Da3LY_Sx-zm   44.3s   0.43 -> 0.99   RECUPERA
+DWESazbDU4g   76.5s   0.73 -> 1.00   RECUPERA
+DYTvNduEW5X   24.0s   0.68 -> 0.15   generate PEOR que auto
+DbHEVZkP5uJ  550.6s   0.46 ->  -     HTTP 202 {"jobId":"..."}, no medible sincrónicamente
+(los otros 6: no mejoran)
+```
+
+🔑 **`DYTvNduEW5X` confirma medido lo que §3.3 ya tenía como decisión de diseño**: se elige por
+cobertura, no por largo. Si el criterio hubiera sido "cuál trae más texto", este video se habría
+pisado con una respuesta que cubre *menos* (0.15 contra 0.68).
+
+💡 **Hipótesis a re-medir, explícitamente NO implementada.** Entre los 12 cortados, los 4 que
+recuperan con `generate` tienen huecos absolutos (`duracion − cobertura`) de 20.7s a 108.9s, y los 7
+que no mejoran, de 2.3s a 22.4s — un corte por "hueco mayor a ~20s" los separaría casi perfecto. Con
+**n=12 eso es sobreajuste**: no se implementa un segundo criterio de reintento sobre 12 casos. La
+columna `cobertura_seg` (y `duracion_seg`) es justamente lo que permite re-medir esta hipótesis
+cuando haya más datos, sin volver a pagar nada.
+
 ## Decisión
 
 **`cobertura_seg` se guarda siempre, el veredicto no se guarda nunca.** Viene gratis en la misma
@@ -105,8 +168,11 @@ segundos**, no la que trae más caracteres. Medido: en `DaTf9Wqxt8p` `generate` 
 
 Con n=3 tanto "80% de cobertura" como "faltan más de 5 s" separan bien los casos, pero los reels
 terminan con música y logo sin voz: un umbral inventado quema videos sanos. Las 584 filas del
-caché —que se pagan igual— dan el histograma completo de `cobertura/duración`. **El umbral queda
-explícitamente sin número: sale del histograma de la Tarea 3.**
+caché —que se pagan igual— dan el histograma completo de `cobertura/duración`.
+
+✅ **Medido (Tarea 3, 09/09): el umbral es `0.9`.** Ver §📏 arriba — el histograma no marca un
+quiebre entre 0.8 y 0.9 (561/583 arriba de 0.9, 10 en el medio, 12 abajo de 0.8); se eligió 0.9 por
+recall, porque un falso positivo es inofensivo por construcción (§📏).
 
 ### §3.5 · Fail-open, igual que el resto del nodo
 
@@ -165,8 +231,9 @@ Sin duración no hay veredicto y el transcript pasa como hoy; si el reintento fa
 
 1. La migración `039` aplicada y verificada por su efecto (los tres ceros + el `200` de PostgREST +
    la RPC devolviendo las columnas nuevas) — pasos 3 y 4 del brief, gate humano.
-2. El histograma de `cobertura_seg / duracion_seg` sobre las filas ya existentes en
-   `app.transcripciones` produce un número de umbral defendible (Tarea 3).
+2. ✅ El histograma de `cobertura_seg / duracion_seg` sobre las filas ya existentes en
+   `app.transcripciones` produce un número de umbral defendible (Tarea 3, 09/09): **umbral = 0.9**,
+   ver §📏.
 3. `Transcribir (Supadata)` reintenta con `generate` cuando la cobertura de `auto` no alcanza el
    umbral, y **no** reintenta cuando sí alcanza — medido con `llamadas.supadata` contra los videos
    que dispararon el reintento.

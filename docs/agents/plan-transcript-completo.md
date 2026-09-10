@@ -228,7 +228,22 @@ a escribir **antes** de mirarlos:
 
 - **Tasa real de cortados en el caché** (Fase 1). Predicción: entre 6% y 20%. Si da <3%, el arreglo
   no valía la fase 3 y hay que decirlo.
+  ⚠️ **Medido (09/09, n=583): dio 2.06% (12 filas bajo 0.8) — la predicción estaba mal.** Dicho sin
+  suavizarlo: el número real cae *debajo* del piso de "no valía la pena" que este mismo párrafo
+  fijó antes de mirar.
+  🔑 **Y aun así se sigue, porque la regla de parada medía la cosa equivocada.** Se escribió
+  asumiendo que el costo del arreglo escala con el **volumen** (si son pocos cortados sobre muchas
+  filas, no vale la pena tocar el motor) — pero el costo real escala con la **cantidad de
+  cortados**, que son 12, o sea **24 créditos por corrida** (2 créditos de `generate` × 12). Eso es
+  barato sea la tasa 2% o 20%: el gasto no crece con el denominador. Decidido por Mani: se sigue,
+  y con eso **cambia el valor declarado de las Tareas 4 y 5**: no es el reintento en sí (que
+  recupera 4 de 12 videos, un número chico) sino **la medición continua** — gratis, y deja el
+  número re-medible con más datos en vez de re-descubrible desde cero cada vez que alguien audita el
+  caché a mano.
 - **Cuántos recupera el reintento** (Fase 2). Predicción: ~2 de cada 3, por la muestra de tres.
+  ⚠️ **Medido (09/09, n=12): 4 recuperan entero, 7 no mejoran, 1 no se pudo medir** (devolvió un
+  `202` asíncrono de Supadata — ver [ADR-096](../adr/ADR-096-un-202-de-supadata-no-es-un-error-ni-un-transcript.md)).
+  De los 11 medibles, recuperó **4 de 11 (36%)**, bien por debajo del ~67% previsto con n=3.
 - 🐤 **Canario, nace en cero y sin contaminar:**
   `select count(*) from app.transcripciones where modo = 'generate'`. La primera fila la escribe el
   motor, no una verificación — **no se insertan filas de prueba en esta tabla.** Si hace falta
