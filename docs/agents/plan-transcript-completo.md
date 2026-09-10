@@ -834,7 +834,7 @@ git commit -am "Majo ve cuando un guion viene cortado, en vez de descubrirlo ley
 
 ---
 
-### Tarea 8 · El cockpit reintenta, igual que el motor — ✅ HECHA (10/09), sin deployar
+### Tarea 8 · El cockpit reintenta, igual que el motor — ✅ HECHA y DEPLOYADA (10/09)
 
 **El porqué en una línea:** el reintento con `generate` vive sólo en el nodo, y Majo trabaja del otro
 lado. Hoy recibe el aviso y el guion cortado (ADR-095 §Enmienda 2 §A).
@@ -874,15 +874,19 @@ lado. Hoy recibe el aviso y el guion cortado (ADR-095 §Enmienda 2 §A).
 - [x] **Paso 4: correr y ver pasar.** ✅ 544 tests, typecheck y build en verde; además
       `test-nodos.mjs` (**313 checks**), `auditar-workflows.mjs` sin hallazgos y `npm run validate`
       (2740 checks). Run: `cd apps/dashboard && npm test && npm run typecheck && npm run build`
-- [ ] **Paso 5: verificar en la pantalla** con `https://www.instagram.com/p/DXplmHiCKcg/` (en `auto`
-      cubre 17.5 s de ~44 s) y confirmar en la base que esa fila queda con **`modo = 'generate'`** y
-      más cobertura que antes.
-      ⚠️ **Este video necesita su `duracion_seg` en `app.videos_meta` para que el reintento
-      dispare.** Si no la tiene, el veredicto es `desconocido` y la verificación va a dar un falso
-      negativo que se lee como "el arreglo no anda". Mirar eso ANTES de apretar.
-- [ ] **Paso 6: `n8n:push` del nodo `Transcribir (Supadata)`** — el cambio del candado es de los
-      dos lados, y el motor es el que más re-paga. Va con su `n8n:diff` antes y después.
-- [ ] **Paso 7: commit + deploy**, y recién ahí decirle a Majo que está.
+- [ ] **Paso 5: verificar en la pantalla** con `https://www.instagram.com/p/DXplmHiCKcg/` y
+      confirmar en la base que esa fila queda con **`modo = 'generate'`** y más cobertura que antes.
+      ✅ **La precondición está chequeada (10/09): ese video TIENE su duración** —
+      `app.videos_meta.duracion_seg = 69,0 s` para `3884801500731975456`— así que el veredicto no va
+      a salir `desconocido` y el reintento puede disparar.
+      ⚠️ **Su fila ya está en `listo` con `cobertura_seg` y `modo` en `null`**, o sea que hay que
+      **rehacerla** para que pase por el camino nuevo; pegarla de nuevo no alcanza si dedupea.
+      🖐️ Es de las que ningún agente puede cerrar: va a
+      [verificaciones-humanas.md](../verificaciones-humanas.md).
+- [x] **Paso 6: `n8n:push` del nodo `Transcribir (Supadata)`** ✅ aplicado al live el 10/09
+      (snapshot `motor-2026-09-10T19-43-03-945Z.json`), `n8n:diff` verde en los 5 antes y después.
+- [x] **Paso 7: deploy** ✅ `main` empujado el 10/09 (producción es `main` en Vercel).
+      ⚠️ **Falta decirle a Majo**, y falta el Paso 5, que es el que prueba que le sirve.
 
 ---
 
