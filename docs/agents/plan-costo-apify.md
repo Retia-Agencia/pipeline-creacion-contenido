@@ -79,17 +79,29 @@ Tres causas, ninguna es Apify:
 **no** `proyecto_id`. El mismo número gobierna a `@the.holistic.psychologist` y a las cuentas de
 trading de Vieira.
 
-Medido sobre los 6.341 reels que se pagaron el 10/09 (leídos gratis de los datasets de Apify):
+Medido sobre los reels que se pagaron el 10/09 (leídos gratis de los datasets de Apify),
+**deduplicados por `(cuenta, timestamp)`**:
 
-| pool | reels | mediana de vistas | % que llega a 500k |
+| pool | reels únicos | mediana de vistas | % que llega a 500k |
 |---|---|---|---|
-| **cuentas de trading (las de Vieira)** | 5.808 | **19.306** | **1,8 %** |
-| resto (psicología, comunicación, descubrimiento) | 533 | **243.134** | 32,1 % |
+| **cuentas de trading (las de Vieira)** | 2.400 | **22.394** | **2,4 %** |
+| resto (psicología, comunicación, descubrimiento) | 481 | **256.556** | 33,5 % |
 
-**La mediana del pool de trading es 12,6× más baja que la del resto.** Las cuentas no son malas: sí
-producen virales (`casper_smc` tiene un reel de 6,3 M con mediana de 22 k), pero el 1-2 % de las
+**La mediana del pool de trading es 11,5× más baja que la del resto.** Las cuentas no son malas: sí
+producen virales (`casper_smc` tiene un reel de 6,3 M con mediana de 22 k), pero el 2 % de las
 veces. Trading en Instagram es un nicho de menor alcance que autoayuda, y 500k es un umbral de
 audiencia masiva.
+
+🩸 **La primera versión de este bloque decía 5.808 reels y 1,8 %, y estaba mal: contaba el MISMO
+reel una vez por cada una de las 4 corridas del día.** Inflaba el pool un 59 %. El error no cambió
+la conclusión (la relación entre medianas se movió de 12,6× a 11,5×) pero sí habría envenenado
+cualquier cuenta de costo por video, que es justo para lo que se iba a usar. *Un pool que se llena
+de varias corridas se deduplica antes de contarlo, o cada corrida extra parece supply nuevo.*
+
+Las 4 cuentas que no van a aportar nunca con ningún umbral razonable (mediana deduplicada):
+`therobinritter` **1.695**, `eliteoptionstrader2` **3.072**, `joovier_` **3.167**, `sakeembradley`
+**5.877**. Las tres más fuertes: `braidenshaw` **162.184**, `nicholascrown` **58.982**,
+`andreacimi.trading` **57.773**.
 
 **(b) El video fuera de tema no es un bug del gate: es el escalón 5 haciendo su trabajo.**
 `bajo_umbral_entregados` fue **11 de 13** entregados. `razon_faltante` fue `"supply"` en los dos
@@ -137,16 +149,39 @@ algún canario se lee por eventos, este cambio es invisible para él.
 ## 3. 🔴 Los dos knobs se pelean, y esto se escribió ANTES de correr
 
 **Bajar `dias_recencia` hace MÁS difícil pasar `min_views`, no más fácil**, porque un reel necesita
-semanas para acumular vistas. Medido sobre el pool real de trading:
+semanas para acumular vistas.
 
-| ventana | reels | mediana | **pasan 500k** | pasan 250k | pasan 100k | pasan 50k |
+### 3.0 La tabla de decisión: cada celda con su costo
+
+Pedido de Mani, y es la herramienta para decidir antes de correr. Sobre el pool deduplicado de las
+21 cuentas de trading, con `resultados_referente = 25` y el actor actual a 0,0023 USD/reel.
+**Cada celda = cuántos videos sobreviven el umbral, y cuánto sale cada uno de esos.**
+
+| ventana | reels pagados | **USD/corrida** | ≥500k | ≥250k | ≥100k | ≥50k |
 |---|---|---|---|---|---|---|
-| 14d | 1.233 | 13.408 | **4** | 19 | 65 | 183 |
-| 30d | 2.166 | 18.367 | **13** | 52 | 156 | 402 |
-| **50d (config actual)** | 2.917 | 18.742 | **18** | 65 | **237** | 590 |
-| 200d (config vieja) | 5.745 | 19.092 | 83 | 206 | 648 | 1.250 |
+| 7d | 226 | **0,52** | 1 · $0,52/vid | 3 · $0,17 | 8 · $0,06 | 31 · $0,02 |
+| 14d | 311 | **0,72** | 2 · $0,36/vid | 7 · $0,10 | 18 · $0,04 | 47 · $0,02 |
+| 30d | 404 | **0,93** | 4 · $0,23/vid | 15 · $0,06 | 39 · $0,02 | 82 · $0,01 |
+| **50d ← config actual** | 442 | **1,02** | **5 · $0,20/vid** | 16 · $0,06 | **45 · $0,02** | 99 · $0,01 |
+| 100d | 495 | **1,14** | 5 · $0,23/vid | 16 · $0,07 | 59 · $0,02 | 117 · $0,01 |
+| 200d | 515 | **1,18** | 10 · $0,12/vid | 28 · $0,04 | 73 · $0,02 | 139 · $0,01 |
 
-**Con la config de este momento, el pool entero para llenar N=70 es de 18 videos**, antes de que el
+Con `resultados_referente = 150` (la config vieja) la fila de 200d cuesta **5,45 USD** y da 49
+videos sobre 500k. **El modelo se valida contra la realidad: la exec 182 costó 6,00 USD.**
+
+🔑 **Tres cosas que la tabla hace obvias y que en prosa no se veían:**
+
+1. **El costo NO depende de la columna.** `min_views` no cambia ni un centavo de la factura, porque
+   filtra después de pagar. Sólo cambia cuántos sobreviven. **Elegir umbral es gratis; elegir
+   ventana es lo que se paga.**
+2. **El umbral de 500k cuesta entre 10× y 30× más por video usable** que el de 100k, en cualquier
+   fila. En 50d son $0,20 contra $0,02.
+3. 🙃 **Contra la intuición: si insistís en 500k, la ventana LARGA es más barata por video, no más
+   cara** ($0,12 en 200d contra $0,20 en 50d, y contra $0,52 en 7d). Porque los reels viejos ya
+   acumularon vistas. **La peor celda de toda la tabla es ventana corta + umbral alto, y es
+   exactamente la config que quedó puesta hoy.**
+
+**Con la config de este momento, el pool entero para llenar N=70 es de 5 videos**, antes de que el
 gate mire uno solo. Y el gate mata ~90 %.
 
 📏 **La cifra honesta para hablar con Dani sobre sus cuentas es la de ventana corta, no la larga.**
@@ -173,6 +208,13 @@ Config bajo la que corre: `dias_recencia = 50`, `resultados_referente = 25`, `mi
 malo:** es que el costo y la entrega estaban atados por el lugar equivocado, y que `min_views` tiene
 que bajar. **Si el costo NO baja, la fórmula de §1.3 está mal y hay que rehacerla.** Las dos son
 falsables y la corrida decide.
+
+> 📌 **Enmienda 21:50 UTC, con la corrida 183 EN VUELO y `metricas` todavía en `{etapa: abierta}`.**
+> La deduplicación de §1.4 llegó después de commitear estas predicciones y las afina: el modelo de
+> §3.0 dice **442 reels y 1,02 USD**, no 500-750 y 1,20-2,00, y el pool sobre 500k es **5**, no 18.
+> **Las predicciones originales quedan escritas como estaban** — corregirlas hacia el modelo nuevo
+> antes de ver el resultado sería hacer trampa con el registro. Si la corrida cae dentro del rango
+> viejo pero fuera del nuevo, el que falló es el modelo deduplicado y hay que decirlo.
 
 ---
 
@@ -257,3 +299,9 @@ actor 3,4× más barato que trae un tercio de lo pedido no es más barato.
    [ADR-089](../adr/ADR-089-una-sola-metrica-aprobados-contra-lo-pedido.md).
 5. **El cupo no es un estado, es un saldo.** Se re-mide con `/v2/users/me/limits`. No se cita de un
    doc.
+6. **Elegir umbral es gratis; elegir ventana es lo que se paga.** `min_views` no mueve la factura ni
+   un centavo — sólo decide cuántos de los que ya pagaste sobreviven. Cualquier discusión sobre
+   costo que empiece por el umbral está mirando la columna equivocada de §3.0.
+7. **Un pool que se llena de varias corridas se deduplica antes de contarlo.** Sin eso, cada corrida
+   extra parece supply nuevo y el costo por video sale dividido por un número inflado. Pasó acá
+   mismo, con un 59 % de inflación (§1.4).
