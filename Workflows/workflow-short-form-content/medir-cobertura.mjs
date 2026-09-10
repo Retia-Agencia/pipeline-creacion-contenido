@@ -66,6 +66,40 @@ const UMBRAL = Number(valor('umbral', 0.9));
 
 // ═══════════════════ Las tres piezas del brief, verbatim (no se re-deciden) ═══════════════════
 
+// ═══════════════════════════════ la cola de Supadata (ADR-096 §Enmienda 4) ═══════════════════════
+// Cuando el ASR va a tardar, Supadata no contesta: encola y devuelve `202 {jobId}`. El transcript se
+// recoge preguntando por el job hasta que dice `completed`.
+//
+// 🔑 **Por qué el polling vive ACÁ y no en el motor ni en el cockpit**, que es la pregunta que
+// ADR-096 dejó abierta. Medido el 10/09 sobre `3947142661160278921` (550,6 s), que se encola aun
+// pedido de a uno: el `202` **tarda 93 s en llegar** y el job **termina a los 326 s**. Eso no entra
+// en una ruta con `maxDuration = 60` ni en un slot del pool del motor sin comerse su presupuesto —
+// pero entra sin problema en una herramienta de barrido que se corre a mano y no tiene techo.
+// Los polls **no se cobran** (`x-billable-requests: 0`); lo que se paga son los 2 créditos del POST,
+// que ya se pagaron cuando Supadata encoló.
+const ESPERA_COLA_MS = 600_000; // 10 min. El caso real terminó en 326 s; el doble deja aire.
+const POLL_MS = 5_000;
+
+/** `null` = el job no terminó a tiempo o falló. Fail-open: quien llama lo trata como "todavía no". */
+async function esperarJob(jobId) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < ESPERA_COLA_MS) {
+    await new Promise((res) => setTimeout(res, POLL_MS));
+    let b, status;
+    try {
+      const r = await fetch(`https://api.supadata.ai/v1/transcript/${encodeURIComponent(jobId)}`,
+        { headers: { 'x-api-key': process.env.SUPADATA_API_KEY }, signal: AbortSignal.timeout(30_000) });
+      status = r.status;
+      b = await r.json().catch(() => ({}));
+    } catch (e) {
+      continue; // un poll que se cae no mata la espera: el job sigue del otro lado.
+    }
+    if (status >= 400 || b.status === 'failed') return null;
+    if (b.status === 'completed') return b;
+  }
+  return null;
+}
+
 /** Una respuesta de Supadata, ya normalizada. `cobertura: null` = no se pudo medir. */
 async function pedir(url, modo) {
   // 🩸 `generate` no es `auto` con otro nombre: `auto` devuelve subtítulos que ya existen y
@@ -78,7 +112,14 @@ async function pedir(url, modo) {
     `https://api.supadata.ai/v1/transcript?url=${encodeURIComponent(url)}&mode=${modo}`,
     { headers: { 'x-api-key': process.env.SUPADATA_API_KEY }, signal: AbortSignal.timeout(timeoutMs) },
   );
-  const b = await r.json().catch(() => ({}));
+  let b = await r.json().catch(() => ({}));
+  // Encolado: se espera al job en vez de contarlo como "no contestó". Los 2 créditos del POST ya
+  // están gastados — abandonar acá es pagarlos y tirar el resultado a la basura.
+  if (esTranscriptEncolado(b, r.status)) {
+    console.log(`   ⏳ Supadata encoló (${b.jobId}): esperando el job, hasta ${ESPERA_COLA_MS / 60_000} min (los polls no se cobran)`);
+    const completo = await esperarJob(b.jobId);
+    if (completo) b = completo;
+  }
   const segs = Array.isArray(b.content) ? b.content : [];
   return { texto: textoDeSegmentos(segs).trim().slice(0, 6000), cobertura: coberturaDeSegmentos(segs),
            lang: String(b.lang || '').toLowerCase().slice(0, 2), status: r.status,

@@ -196,11 +196,33 @@ más de 25 s bajo carga, ese número lo estaría abortando.
 
 ### 4 · Lo que sigue SIN hacerse, y ahora con su alcance medido
 
-**El polling del `jobId`.** Ninguna concurrencia salva al video de 550,6 s: se encola aun estando
-solo. Al 10/09 queda **1 fila de 604** (`3947142661160278921`) que no se puede completar sin él,
-y sigue **correctamente sin candado**, o sea que la va a agarrar quien lo implemente. El
-razonamiento de por qué no es una línea suelta (bucle propio en el nodo, cola detrás de
-`maxDuration = 60` en el cockpit) **no cambió** y sigue vigente en §Decisión.
+**Hecho en la herramienta de barrido, y NO en el motor ni en el cockpit.** Medido el 10/09 sobre
+`3947142661160278921` (550,6 s), haciendo el ciclo completo a mano:
+
+| paso | medido |
+|---|---|
+| `POST …&mode=generate` → `202 {jobId}` | **93 s**, y cuesta **2 créditos** |
+| `GET /v1/transcript/{jobId}` | `{status: "active"}` … hasta `{status: "completed", content: […]}` |
+| los polls | **gratis** (`x-billable-requests: 0`) |
+| el job entero | **326 s** |
+| lo que devolvió | **550,4 s de 550,6 = 1.00** (estaba en 0,46) |
+
+🔑 **Ese 326 s ES la decisión de dónde vive el polling**, y contesta la pregunta que §Decisión dejó
+abierta sin diseñar nada a ciegas: no entra en una ruta con `maxDuration = 60` ni en un slot del
+pool del motor sin comerse su presupuesto, y entra sin problema en una herramienta que se corre a
+mano y no tiene techo. Así que `medir-cobertura.mjs` espera el job y **el nodo y el cockpit siguen
+sin polling, a propósito**: ya no mienten (no marcan candado, lo dicen en el log) y lo que se les
+escapa lo levanta el barrido. El razonamiento de §Decisión sobre por qué ahí no es una línea suelta
+sigue vigente, y ahora tiene el número que lo respalda.
+
+Con eso el video se recuperó: **251,4 s → 550,4 s**, y los 23 cortados de la Tarea 9 quedaron
+cerrados.
+
+⚠️ **Lo que NO está verificado: `esperarJob` contra un `202` real.** La corrida que escribió esa
+fila contestó en 19 s **sin encolar**, porque Supadata cachea el resultado del ASR y mi sonda ya lo
+había disparado. O sea que el ciclo está medido en la API pero la implementación no se ejercitó.
+Se verifica la próxima vez que un video largo entre en `--completar`: la señal es la línea
+`⏳ Supadata encoló (…)` en la salida.
 
 Lo que sí cambió es que ya no es mudo: las tres copias lo dicen en el log, y el que lo sufre no
 queda marcado.
