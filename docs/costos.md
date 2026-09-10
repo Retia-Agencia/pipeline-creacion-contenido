@@ -20,17 +20,17 @@ El norte del producto está en [ROADMAP §1](../ROADMAP.md) y la métrica única
 | proveedor | qué compra | precio | modelo de cobro | tope | ¿se puede consultar el saldo? |
 |---|---|---|---|---|---|
 | **Apify** | reels de Instagram y TikTok | 0,0023 USD / reel | pay-per-event, **lineal** | **50 USD/mes** | ✅ `GET /v2/users/me/limits` |
-| **Supadata** | transcripción de audio a texto | 0,009 USD / video | por video | ⚠️ desconocido | ❌ **no hay endpoint** (probados `/v1/account`, `/v1/usage`, `/v1/limits` → 404) |
-| **Anthropic** (`claude-haiku-4-5`) | juicio de relevancia y traducción | 0,004 / lote · 0,005 / traducción | por llamada | pago por uso | ⚠️ no consultado desde el repo |
+| **Supadata** (plan **Mega**) | transcripción de audio a texto | **0,001567 USD / crédito** | por crédito, según operación | **47 USD/mes = 30.000 créditos** | ❌ **no hay endpoint** (probados `/v1/account`, `/v1/usage`, `/v1/limits` → 404) |
+| **Anthropic** (`claude-haiku-4-5`) | juicio de relevancia y traducción | 0,004 / lote · 0,005 / traducción | por llamada | pago por uso, **sin tope** | ⚠️ no consultado desde el repo |
 
 Las tarifas viven en **`app.tarifas`** y las consume la vista `app.v_costos_semana` (ADR-052).
 
-⚠️ **`app.tarifas` no se actualiza desde el 2026-07-20 — 52 días.** Es un modelo, no la factura.
+⚠️ **`app.tarifas` no se actualiza desde el 2026-07-20 — 52 días — y una de sus 8 filas está mal por
+5,7×** (§1.2). Es un modelo, no la factura.
 
-✅ **Pero el modelo está bien calibrado, al menos para Apify, y se verificó cruzado:** la exec 182
-reporta `apify_ig = 2610`, que × 0,0023 da **6,008 USD**, y la factura real de Apify en esa misma
-ventana fue **6,00 USD**. *Esa es la única tarifa verificada contra el proveedor. Las de Supadata y
-Haiku están sin cruzar.*
+✅ **La de Apify sí está calibrada y se verificó cruzada:** la exec 182 reporta `apify_ig = 2610`,
+que × 0,0023 da **6,008 USD**, y la factura real de Apify en esa misma ventana fue **6,00 USD**.
+*Es la única tarifa verificada contra el proveedor.*
 
 ### 1.1 Apify — el 96 % del costo de una corrida
 
@@ -45,18 +45,47 @@ Haiku están sin cruzar.*
   colectar y frena la corrida si no alcanza. **Fail-open a propósito**: si la API no contesta, no
   frena.
 
-### 1.2 Supadata — el 29 % del histórico y el punto ciego
+### 1.2 Supadata — NO es un problema de costo, y la tarifa del repo miente 5,7×
 
-- 3.589 videos transcritos, **32,30 USD** acumulados.
+**Plan Mega: 30.000 créditos por 47 USD/mes** (rate limit 50 req/s). El cobro es **por crédito, y
+el número de créditos depende de la operación**:
+
+| operación | créditos | USD | ¿la usamos? |
+|---|---|---|---|
+| `mode=auto` — leer el transcript que ya existe | **1** | **0,001567** | ✅ el camino normal |
+| `mode=generate` — transcribir con IA | **2 por MINUTO de video** | ~0,0031–0,0047 por reel de 40-90 s | ✅ sólo como reintento (ADR-095) |
+| traducción de transcript | **30 por minuto** | ~0,047 / min | ❌ **y que siga así** |
+
+🩸 **`app.tarifas` dice `supadata = 0,009 USD por video transcrito`, y eso es 5,7× el precio real de
+un `auto` y ~2× el de un `generate`.** No corresponde a ningún tramo del pricing actual. Por eso
+todo lo que la vista `v_costos_semana` reporta de Supadata está inflado, y con él su participación
+en el total (§3.1).
+
+**Lo que las cifras reales dicen:** 3.589 videos transcritos en **toda la historia del proyecto** ≈
+3.589 créditos ≈ **5,63 USD**. Contra un cupo de **30.000 créditos POR MES**, o sea que el proyecto
+entero lleva consumido el **12 % de un solo mes**. **Supadata no es una restricción hoy y no está
+cerca de serlo.**
+
+⚠️ **La que sí hay que vigilar es `generate`, porque cobra por MINUTO y no por video.** Un reel de
+90 s cuesta 3 créditos; una corrida que dispare `generate` sobre 300 videos largos gasta ~900. Sigue
+siendo barato, pero es la única línea de Supadata que escala con el largo del contenido.
+
+⛔ **Y la regla que sale de la tabla: la traducción NUNCA se mueve a Supadata.** A 30 créditos por
+minuto sale ~30× un `auto`. Hoy traduce Haiku y así se queda.
+
 - ❌ **No hay forma programática de saber cuánto queda.** No se le puede poner el pre-flight que
   tiene Apify. Si se agota, el fallo llega como rechazo por video, no como aviso de saldo.
+  **Mitigación disponible sin API:** el repo puede contar sus propios créditos, porque conoce el
+  modo de cada transcripción (`app.transcripciones.modo`) y desde la `039` también la duración
+  (`duracion_seg`). `count(auto) + 2 × ceil(duracion_seg/60) para generate` es el consumo estimado
+  del mes, y no necesita que Supadata lo exponga.
 - ✅ Tiene **caché** (`app.cache_transcripts`, ADR-087): un video ya transcrito no se vuelve a
   pagar. Es la única defensa de costo real que existe aguas abajo de Apify.
 - ⚠️ El caché tiene un agujero conocido y ya arreglado a medias: un `generate` que **pierde** no
   dejaba marca, así que el video se re-pagaba en cada corrida para siempre. Lo cierra la migración
   `042` con el valor `auto_tras_generate` (ADR-095 §Enmienda 3).
 
-### 1.3 Anthropic (Haiku) — el 14 %, repartido en cuatro nodos
+### 1.3 Anthropic (Haiku) — el 18,8 % corregido, repartido en cuatro nodos, y el único sin tope
 
 | nodo | qué hace | tarifa | ¿activo hoy? |
 |---|---|---|---|
@@ -67,6 +96,12 @@ Haiku están sin cruzar.*
 
 **El cuarto está dormido pero no apagado.** Si el supply sube, se despierta y suma costo sin que
 nadie lo haya prendido. Es fail-open duro por diseño (invariante #1 de PLAN §2.5).
+
+🩸 **Es el único proveedor de los tres SIN tope**, así que es el único que no se frena solo: Apify
+tiene cupo y pre-flight, Supadata tiene cupo (aunque no consultable), y Anthropic simplemente
+sigue cobrando. **Y con la corrección de §3.1 pasó a ser el segundo del ranking (18,8 %), por
+delante de Supadata** — un lugar que nadie le había mirado porque la tarifa inflada de Supadata lo
+tapaba.
 
 ---
 
@@ -91,7 +126,7 @@ flowchart TD
     K --> L["🆓 Leer procesados / feed vivo<br/>DEDUP"]
     L --> M["🆓 Heat-score v1<br/>min_views · min_likes · corte top-N"]
     M --> N["🆓 Leer caché de transcripts<br/>evita re-pagar Supadata"]
-    N --> O["💸 Transcribir (Supadata)<br/>0,009 USD por video"]
+    N --> O["💸 Transcribir (Supadata)<br/>1 credito = 0,00157 USD<br/>generate = 2 cred/minuto"]
     O --> P["💸 Traducir (Haiku)"]
     P --> Q["💸 Gate de relevancia<br/>Haiku, por lote"]
     Q --> R["💸 Armar candidato<br/>relleno, 💤 dormido hoy"]
@@ -131,21 +166,29 @@ Apify y por lo tanto el único que evita el cobro en vez de descartarlo después
 
 ### 3.1 Histórico por servicio (`app.v_costos_semana`, toda la historia)
 
-| servicio | unidades | USD | % |
-|---|---|---|---|
-| **apify_ig** | 26.663 | **61,32** | **55,9 %** |
-| supadata | 3.589 | 32,30 | 29,4 % |
-| haiku_traduccion | 2.507 | 12,55 | 11,4 % |
-| haiku_lote | 764 | 3,08 | 2,8 % |
-| apify_tt | 36 | 0,20 | 0,2 % |
-| detalle_sugeridos (descubrimiento) | 80 | 0,19 | 0,2 % |
-| perfiles_semilla (descubrimiento) | 29 | 0,07 | 0,1 % |
-| **TOTAL** | | **109,71** | |
+| servicio | unidades | USD según la vista | **USD corregido** | **% corregido** | tarifa |
+|---|---|---|---|---|---|
+| **apify_ig** | 26.663 | 61,32 | **61,32** | **73,9 %** | ✅ verificada |
+| haiku_traduccion | 2.507 | 12,55 | 12,55 | 15,1 % | ⚠️ sin cruzar |
+| **supadata** | 3.589 | ~~32,30~~ | **5,62** | **6,8 %** | 🩸 **inflada 5,7×** |
+| haiku_lote | 764 | 3,08 | 3,08 | 3,7 % | ⚠️ sin cruzar |
+| apify_tt | 36 | 0,20 | 0,20 | 0,2 % | |
+| detalle_sugeridos (descubrimiento) | 80 | 0,19 | 0,19 | 0,2 % | |
+| perfiles_semilla (descubrimiento) | 29 | 0,07 | 0,07 | 0,1 % | |
+| **TOTAL** | | ~~109,71~~ | **83,03** | | |
 
-⚠️ **Esta vista es una ESTIMACIÓN, no la factura.** Se construye de `runs.metricas × app.tarifas`,
-así que **no ve** las corridas cuyas métricas nunca se escribieron: la exec 178 murió en el gate,
-gastó 4,09 USD reales y aporta **cero** acá. La factura de verdad es
-`GET /v2/users/me/limits` para Apify, y no existe para los otros dos.
+🩸 **La columna "según la vista" es la que devuelve `v_costos_semana` hoy, y sobreestima el total en
+27 USD** por la tarifa de Supadata (§1.2). **La corrección empuja a Apify de 55,9 % a 73,9 %:
+concentra el problema, no lo diluye.** *La cifra equivocada hacía ver a Supadata como el segundo
+frente de costo cuando es el tercero y está a 12 % de un solo mes de su cupo.*
+
+⚠️ **Además, la vista entera es una ESTIMACIÓN, no la factura**, por dos motivos independientes:
+1. Se construye de `runs.metricas × app.tarifas`, así que **no ve** las corridas cuyas métricas
+   nunca se escribieron: la exec 178 murió en el gate, gastó 4,09 USD reales y aporta **cero**; la
+   exec 183 terminó bien, gastó 1,04 y también aporta cero (§7).
+2. Sólo una de las cuatro tarifas está verificada contra el proveedor.
+
+**La factura de verdad es `GET /v2/users/me/limits` para Apify, y no existe para los otros dos.**
 
 ### 3.2 La escalada semanal
 
@@ -364,8 +407,18 @@ barato.*
       dice una cosa y el motor hace otra.
 
 **Instrumentación**
-- [ ] Actualizar `app.tarifas` (52 días sin tocar) y **cruzar Supadata y Haiku contra su factura**;
-      hoy sólo Apify está verificado.
+- [ ] 🩸 **Corregir `app.tarifas` para Supadata: dice `0,009 USD/video` y el real es `0,001567
+      USD/crédito`** (plan Mega, 30.000 créditos por 47 USD/mes). Y el modelo de una sola tarifa
+      plana **no alcanza**, porque `auto` cuesta 1 crédito por video y `generate` cuesta **2 por
+      minuto**: la unidad correcta es el crédito, no el video. Mientras no se arregle,
+      `v_costos_semana` sobreestima el total en ~27 USD (§3.1).
+- [ ] **Cruzar Haiku contra su factura.** Es el **15,1 %** corregido —el segundo del ranking— y está
+      sin verificar. El nodo ya recibe `usage` en la respuesta de la API de Anthropic y lo tira;
+      loguearlo a `runs.metricas` convierte la estimación en medición sin llamadas extra.
+- [ ] **Contador propio de créditos de Supadata**, ya que no hay endpoint: el repo tiene
+      `app.transcripciones.modo` y (desde la `039`) `duracion_seg`, así que
+      `count(auto) + 2 × ceil(duracion_seg/60)` sobre `generate` da el consumo del mes sin depender
+      del proveedor. **Es lo más cerca de un pre-flight que se puede tener ahí.**
 - [ ] `v_costos_semana` no ve las corridas que mueren (la 178 gastó 4,09 y aporta 0). Cerrar ese
       agujero o marcarlo en la vista.
 - [ ] `metricas.etapa` no sirve para saber en qué va una corrida viva: `Etapa: colecta` cuelga del
@@ -398,7 +451,13 @@ barato.*
 5. **El canario del costo no es el gasto del día: es USD por video entregado.** 25,62 USD suena
    distinto de 1,97 USD/video, y el segundo es el que se compara contra ADR-089.
 6. **El cupo no es un estado, es un saldo.** Se re-mide, no se cita.
-7. **Un pool que se llena de varias corridas se deduplica antes de contarlo.** Sin eso cada corrida
+   **Y cada proveedor tiene el suyo:** Apify 50 USD/mes (consultable), Supadata 47 USD/mes = 30.000
+   créditos (NO consultable), Anthropic **sin tope** — que es su propio riesgo: es el único que no
+   se frena solo.
+7. **La unidad de cobro del proveedor manda sobre la unidad que nos resulta cómoda.** Supadata no
+   cobra por video: cobra por crédito, y `generate` cobra por MINUTO. Modelarlo "por video" metió un
+   error de 5,7× que hizo ver a Supadata como el segundo frente de costo cuando es el tercero.
+8. **Un pool que se llena de varias corridas se deduplica antes de contarlo.** Sin eso cada corrida
    extra parece supply nuevo. Pasó acá, con 59 % de inflación.
 
 ---
