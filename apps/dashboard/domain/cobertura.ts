@@ -41,6 +41,7 @@ export const CASOS_COBERTURA = [
   { nombre: "sin cobertura", cobertura: null, duracion: 45.8, umbral: 0.8, espera: "desconocido" },
   { nombre: "duración cero no divide", cobertura: 10, duracion: 0, umbral: 0.8, espera: "desconocido" },
   { nombre: "cobertura pasada de largo", cobertura: 46.2, duracion: 45.8, umbral: 0.8, espera: "completo" },
+  { nombre: "borde exacto: >= incluye la igualdad", cobertura: 40, duracion: 50, umbral: 0.8, espera: "completo" },
 ] as const satisfies readonly {
   nombre: string; cobertura: number | null; duracion: number | null; umbral: number; espera: Veredicto;
 }[];

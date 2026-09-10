@@ -38,6 +38,9 @@ describe("veredictoCobertura", () => {
   it("cobertura mayor que la duración no rompe: es completo", () => {
     assert.equal(veredictoCobertura(46.2, 45.8, 0.8), "completo");
   });
+  it("en el borde exacto (cobertura === duracion * umbral), >= incluye la igualdad", () => {
+    assert.equal(veredictoCobertura(40, 50, 0.8), "completo");
+  });
 });
 
 describe("CASOS_COBERTURA", () => {
