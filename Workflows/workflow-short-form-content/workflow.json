@@ -1195,7 +1195,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { metricas: { etapa: 'colecta', etapa_en: $now.toISO() } } }}",
+        "jsonBody": "={{ (function(){ var p = $json; var a = p.ajustes || {}; var g = ''; try { g = $('Leer plan (fachada)').first().json.generado_en || ''; } catch (e) {} return { metricas: { etapa: 'colecta', etapa_en: $now.toISO() }, params: { workflow: 'motor', execution_id: $execution.id, plan_generado_en: g, referentes: (p.ig_urls || []).length + (p.tt_profiles || []).length, ajustes: { resultados_referente: p.resultados_referente, dias_recencia: p.dias_recencia, cap_top_n: p.cap_top_n, top_n: p.top_n, min_views: a.min_views, min_likes: a.min_likes, min_relevancia: a.min_relevancia } } }; })() }}",
         "options": {
           "timeout": 10000
         }
