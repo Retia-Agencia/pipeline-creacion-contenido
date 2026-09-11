@@ -266,6 +266,59 @@ entregaron igual para llenar N.
 
 ---
 
+### 3.5 El solapamiento, medido id por id (11/09)
+
+§4.3 estimaba *"94-98 % de cada corrida re-compra lo que la anterior ya pagó"*. Se midió exacto
+comparando los datasets que Apify ya tiene guardados, que **leer no cuesta nada**:
+
+| tanda (UTC) | pagados | nuevos | repetidos | USD | USD tirados |
+|---|---|---|---|---|---|
+| 13:06 | 1.742 | 1.742 | 0 | 4,01 | 0,00 |
+| 13:58 | 1.741 | **0** | 1.741 | 4,01 | 4,00 |
+| 14:46 (exec 178, falló) | 1.741 | **0** | 1.741 | 4,01 | 4,00 |
+| 16:05 | 2.520 | 784 | 1.736 | 5,80 | 3,99 |
+| 17:17 | 2.607 | 153 | 2.454 | 6,00 | 5,64 |
+
+**10.351 reels pagados, 2.679 distintos. 17,63 de 23,83 USD (74 %) en videos ya pagados ese mismo
+día.** Las dos tandas de la mañana solaparon **100,0 %**: cero videos nuevos en 52 minutos.
+
+⚠️ **El 10/09 costó 23,83 USD, no 19,82.** La diferencia son los **4,01 de la exec 178**, que falló
+y no dejó métrica, así que ninguna consulta sobre `runs.metricas` la cuenta. *Una corrida que muere
+paga igual.* El número verdadero se saca de Apify:
+
+```bash
+curl -s -H "Authorization: Bearer $APIFY_TOKEN" \
+  "https://api.apify.com/v2/actor-runs?desc=1&limit=400" |
+  python3 -c "import json,sys,collections; rs=json.load(sys.stdin)['data']['items']; \
+d=collections.defaultdict(float); [d.__setitem__(r['startedAt'][:10], d[r['startedAt'][:10]]+(r.get('usageTotalUsd') or 0)) for r in rs]; \
+[print(k, round(v,2)) for k in sorted(d)]"
+```
+
+### 3.6 Las views se congelan a las 48 horas
+
+Como las mismas 1.741 filas se pagaron dos veces con 52 minutos de diferencia, se pudo medir el
+crecimiento gratis:
+
+| edad al colectar | n | crecimiento en 52 min |
+|---|---|---|
+| < 24 h | 19 | **2,29 %** |
+| 1-2 d | 16 | 0,38 % |
+| 2-3 d | 21 | 0,19 % |
+| 3-5 d | 36 | 0,12 % |
+| 5-7 d | 45 | 0,06 % |
+| > 7 d | 1.603 | **0,00 %** |
+
+**Cierra la idea de "colectar de viejo a nuevo para que las views estén consolidadas".** El efecto
+existe pero afecta **35 de 1.740 reels (2 %)**, y en Instagram **no se puede pedir**: el actor sólo
+tiene piso de fecha, ni techo (`onlyPostsOlderThan`) ni ordenamiento, así que traer el rango entero
+y tirar los nuevos **cuesta más, no menos**. En TikTok sí se puede (`newestPostDate`,
+`profileSorting: 'oldest'`) y TikTok son 0,20 USD en toda la historia.
+
+📏 Del mismo pool: **97 % está por debajo del piso de 500.000** (mediana **21.881** views) y **92 %
+tiene más de 7 días** (mediana 59 d, máximo **768**), que es la ventana de 200 días en acción.
+
+---
+
 ## 4. La tabla de decisión — cada celda con su costo
 
 Pool deduplicado de las 21 cuentas de trading de Vieira, `resultados_referente = 25`, actor actual.
@@ -607,6 +660,31 @@ bloquea el aviso de "guion incompleto" de ADR-095.
 últimos 11 días**. La semántica de `recent` no es la que dice el nombre. **Falta una segunda prueba
 con 2-3 cuentas y fecha ISO.** *Un actor 3,4× más barato que trae un tercio de lo pedido no es más
 barato.*
+
+### 6.1.1 `apify/instagram-post-scraper` — evaluado por esquema y ⛔ descartado (11/09)
+
+0,0015 USD por post (35 % más barato que el actual) y `dataDetailLevel: basicData` baja a 0,0008.
+**No sirve como reemplazo**, y las dos pérdidas fallan **mudas**:
+
+| | actual (`apify/instagram-scraper`) | `instagram-post-scraper` |
+|---|---|---|
+| `resultsType: 'reels'` | ✅ medido: **120 de 120** items son `type: Video`, `productType: clips` | ❌ no existe: devuelve fotos y carruseles, y se pagan |
+| `addParentData` | ✅ es de donde llega `metaData` | ❌ no existe |
+| `seguidores` | `metaData.followersCount`, **120 de 120** | ❓ sin equivalente documentado |
+| entrada | 1 corrida por cuenta | array → 1 sola corrida |
+
+🔑 **`metaData.followersCount` es la ÚNICA fuente de `seguidores`.** Medido sobre un dataset ya
+pagado: `followersCount` y `ownerFollowersCount` **no existen** en el nivel de arriba. Sin ese campo,
+`engagement_rate` queda en `'0'` para todo, `viral_por_tamano` en `false` siempre, y el componente
+`peso_eng` del heat-score se vuelve ruido. La corrida sale **en verde**.
+
+🔑 **Y `videoViewCount` viene `null` en el 100 %**: las reproducciones salen de `videoPlayCount`, o
+sea del segundo eslabón del fallback de `Normalizar IG`. Si un actor nuevo nombra ese campo
+distinto, `reproducciones` da 0 y **todo muere contra el piso de views**, también en verde.
+
+📐 **El break-even del actor barato es `0,0015 / 0,0023 = 65 %`:** sólo conviene si más del 65 % de
+lo que publica el referente son reels. Ese número no se puede sacar de los datos que ya tenemos;
+pedirlo cuesta ~0,03 USD (1 referente, 20 posts) y **no se disparó**.
 
 ### 6.2 Sin evaluar
 

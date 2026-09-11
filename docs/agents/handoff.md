@@ -20,9 +20,23 @@
 
 **Estados:** ⬜ libre · 🔧 en curso · ✅ hecho · ⛔ bloqueado
 
-## 🚦 ARRANCÁ POR ACÁ — sesión del 2026-09-10 23:00 en adelante (post cierre 148)
+## 🚦 ARRANCÁ POR ACÁ — sesión del 2026-09-11 en adelante (post cierre 149)
 
-> 💰 **LO PRIMERO: el costo de Apify YA SE ARREGLÓ y está medido — 6,00 → 1,04 USD por corrida,
+> 🔴 **LO PRIMERO, y es un bug con causa raíz y tarea abierta: el run no cierra cuando la corrida
+> no entrega nada.** 11 de 63 corridas del motor terminaron bien en n8n y quedaron marcadas
+> `fallo` por el barredor, así que **de 19 filas en `fallo`, 11 son mentira** y el norte de ADR-089
+> (`aprobados / N pedido`) se calcula sobre un universo sucio. `Cerrar run en el registro` cuelga
+> del final de una cadena lineal de 30 nodos, y `Gate de relevancia` / `Armar candidato` devuelven
+> `[]` cuando no sobrevive nada: con 0 items n8n corta la cadena. Diagnóstico completo y arreglo
+> propuesto en el **cierre 149 §1**. *Estaba anotado sin diagnosticar desde el cierre 145.*
+
+> 📏 **Y el solapamiento ya no es una estimación: es 100,0 % medido id por id.** El 10/09 se
+> pagaron **10.351 reels para 2.679 distintos: 17,63 de 23,83 USD (74 %) en re-comprar lo mismo**.
+> Dos tandas separadas por 52 minutos trajeron **cero videos nuevos**. La ventana por referente
+> tiene tarea propia y sesión propia; no la decidas de paso (cierre 149 §2 y §6).
+
+
+> 💰 **El costo de Apify YA SE ARREGLÓ y está medido — 6,00 → 1,04 USD por corrida,
 > 83 % menos.** Lo que quedó abierto es lo contrario: **la corrida de control entregó CERO videos.**
 > El costo y la entrega estaban atados por el lugar equivocado y ahora se ven por separado.
 >
@@ -165,6 +179,149 @@
 > ⏳ **Lo que sigue sin probarse en vivo:** el rechazo **a mitad de camino** (capa 2) y que
 > `metricas.etapa` sobreviva una corrida completa. Los dos se leen de la próxima corrida real —o
 > sea, **después** de que se levante el ⛔ de Apify.
+
+## 🔒 CIERRE 149 (2026-09-11) — El run que no cierra tiene causa, y el 74 % del gasto de un día se fue en re-comprar lo mismo
+
+> **Commiteado y empujado al live** (1 nodo, `Etapa: colecta`). Cuatro tareas nuevas en Notion.
+> La corrida 183 se cerró a mano. Cero migraciones, cero `core/`.
+
+### 0 · Dos cosas que este handoff YA DECÍA y esta sesión re-derivó desde cero
+
+🩸 **Se quemó media sesión averiguando por qué las 5 tandas del 10/09 le pidieron a Apify
+`resultsLimit: 150` y `onlyPostsNewerThan: 200 days` cuando `app.ajustes` dice 25 y 50.** Se
+revisó `n8n:diff` (verde), el `Config` del live, la fachada, el caché de Next, las instancias y el
+`actualizado_en` de cada fila. La respuesta estaba escrita **en el bloque ARRANCÁ POR ACÁ de este
+mismo archivo**: *"`Días de recencia` 200 → 50, `Resultados por cuenta de referente` 150 → 25 … se
+hizo por SQL, así que no dejó fila en `app.eventos`"*. Los knobs se bajaron **esa noche**, después
+de las cinco tandas caras. No hubo bug.
+
+🩸 **Y el bug del run que no cierra estaba anotado hace seis días**, en el cierre 145: *"🔴 Bug
+encontrado de paso, sin diagnosticar: una corrida que terminó OK y no se cerró"*, sobre la exec
+178. Volvió a pasar con la 183 y hubo que diagnosticarlo igual. *Es exactamente el patrón que
+CLAUDE.md nombra: un diagnóstico a medias en un doc se ve idéntico a uno que nadie empezó.* Ahora
+tiene causa raíz y tarea.
+
+### 1 · El run no cierra cuando la corrida no entrega nada — CAUSA RAÍZ
+
+**De 63 corridas del motor, 11 terminaron bien en n8n y nunca cerraron su fila.** El barredor las
+marcó `fallo` dos horas después. **De 19 filas en `fallo`, 11 son mentira**; los 8 reales son tope
+de Apify (×4), credencial de la fachada, timeout de Supadata y un `Bad request` en POST Candidatos.
+
+Prueba: la ejecución 183 es `status: success`, `finished: true`, parada 21:54:44, y su fila seguía
+`en_curso` con `fin = null`.
+
+**`Cerrar run en el registro` cuelga del final de una cadena lineal de 30 nodos:**
+
+```
+Gate de relevancia → Armar candidato → Preparar procesados
+  → POST processed_items → Resumen del run → Cerrar run en el registro
+```
+
+Los dos primeros hacen `const out = []` + `push` + `return out`. Si no sobrevive nada devuelven
+`[]`, y **con 0 items n8n no ejecuta ningún nodo más**. El cierre no corre y la ejecución termina
+en verde. Las dos corridas colgadas con rastro de etapa dicen las dos `etapa: gate`: llegaron al
+gate y nunca escribieron `Etapa: entrega`, que cuelga de `Armar candidato`. **Cero entregas = run
+sin cerrar.**
+
+Es la familia de ADR-094 capa 2, que arregló esta misma trampa en la rama de Apify. El comentario
+de `Normalizar IG` ya la nombra con todas las letras; quedó viva dos ramas más abajo.
+
+**El arreglo propuesto (NO aplicado):** precedente propio, `Preparar procesados` devuelve siempre
+`[{json:{batch}}]` y por eso nunca corta. Emitir un centinela `{_vacio:true, _entregado:false}` en
+`Gate de relevancia` y `Armar candidato`, y que `Preparar candidatos` lo ignore antes del POST.
+⚠️ El guard de `Preparar procesados` aborta duro si **ningún** item trae la clave `_entregado`: el
+centinela tiene que traerla en `false`, no ausente. Test primero en `test-nodos.mjs`.
+
+### 2 · El solapamiento, medido id por id y gratis
+
+El handoff estimaba *"94-98 % de cada corrida re-compra lo que la anterior ya pagó"*. Se midió
+exacto, comparando los datasets que Apify ya tiene guardados (leerlos no cuesta nada):
+
+| tanda (UTC) | pagados | nuevos | repetidos | USD | USD tirados |
+|---|---|---|---|---|---|
+| 13:06 | 1.742 | 1.742 | 0 | 4,01 | 0,00 |
+| 13:58 | 1.741 | **0** | 1.741 | 4,01 | 4,00 |
+| 14:46 (falló) | 1.741 | **0** | 1.741 | 4,01 | 4,00 |
+| 16:05 | 2.520 | 784 | 1.736 | 5,80 | 3,99 |
+| 17:17 | 2.607 | 153 | 2.454 | 6,00 | 5,64 |
+
+**10.351 reels pagados, 2.679 distintos. 17,63 de 23,83 USD (74 %) en videos ya pagados ese mismo
+día.** Las dos de la mañana solaparon **100,0 %**: cero videos nuevos en 52 minutos.
+
+⚠️ **El día costó 23,83 USD y la base decía 19,82.** La diferencia son los **4,01 USD de la exec
+178**, que falló y no dejó métrica. *Una corrida que muere paga igual y no se cuenta.*
+
+### 3 · Las views se congelan a las 48 horas
+
+Como las mismas 1.741 filas se pagaron dos veces con 52 minutos de diferencia, se pudo medir el
+crecimiento sin gastar nada:
+
+| edad al colectar | n | crecimiento en 52 min |
+|---|---|---|
+| < 24 h | 19 | **2,29 %** |
+| 1-2 d | 16 | 0,38 % |
+| 2-3 d | 21 | 0,19 % |
+| > 7 d | 1.603 | **0,00 %** |
+
+**Cierra la idea de "colectar de viejo a nuevo para que las views estén consolidadas":** el efecto
+es real pero afecta **35 de 1.740 reels (2 %)**, y en Instagram **no se puede pedir** — el actor
+sólo tiene piso de fecha, ni techo (`onlyPostsOlderThan`) ni ordenamiento. Traer el rango entero y
+tirar los nuevos **cuesta más, no menos**. En TikTok sí se puede (`newestPostDate`,
+`profileSorting: 'oldest'`), y TikTok son 0,20 USD en toda la historia.
+
+📏 Dos números más del mismo pool: **97 % está por debajo del piso de 500.000** (mediana **21.881**
+views) y **92 % tiene más de 7 días** (mediana 59 d, máximo **768**), que es la ventana de 200 días
+en acción.
+
+### 4 · Lo aplicado: el run guarda con qué ajustes corrió
+
+`Etapa: colecta` ahora escribe también `params`. Va en ese nodo y no en otro porque es el único
+punto donde se cumplen las tres condiciones: ya conoce los ajustes (cuelga de `Armar plan de
+corrida`), ya hace un PATCH a la fila del run, y **corre antes de que Apify cobre**, así que una
+corrida que después se cuelga igual deja escrito con qué corrió.
+
+```
+params: { workflow, execution_id, plan_generado_en, referentes,
+          ajustes: { resultados_referente, dias_recencia, cap_top_n, top_n,
+                     min_views, min_likes, min_relevancia } }
+```
+
+🔑 Reconstruye `workflow` y `execution_id` a mano porque **un PATCH sobre `params` reemplaza el
+jsonb entero**, y de esos dos dependen `Barrer runs zombie` (filtra por `params->>workflow`) y
+`workflow-registro-fallos` (busca por `params.execution_id`). `plan_generado_en` va porque es el
+campo que habría contestado en un segundo la pregunta del §0.
+
+Verificado por dos vías: `n8n:diff` verde en los 5 y el nodo leído de la instancia trae el cuerpo
+nuevo. Snapshot: `.n8n-snapshots/motor-2026-09-11T01-05-30-747Z.json`.
+⏳ **Falta la prueba real:** la próxima corrida tiene que traer los siete knobs en
+`runs.params.ajustes` y conservar `params.workflow = 'motor'`.
+
+### 5 · Sobre pasarle el piso de views a Apify (la pregunta que abrió la sesión)
+
+**No existe**, y la asimetría es cruel: Instagram (96 % del gasto) no tiene ningún filtro de
+popularidad; TikTok tiene `leastDiggs`, que filtra por **corazones y no por views**, no combina con
+el filtro de fecha, y es la plataforma que no gastamos.
+
+Sí se confirmó la física que lo haría valer la pena: los dos actors son `PAY_PER_EVENT` sobre
+*"each result written to the dataset"*, o sea que **filtrar arriba sí ahorra**. La fórmula:
+conviene cuando `supervivencia < p / (p + a)`; en TikTok `0,002 / 0,003` = **67 %**.
+
+⛔ **Y un actor propio que envuelva a `apify/instagram-scraper` no ahorra un centavo**, porque el de
+adentro cobra igual. Sólo sirve si el scraping es nuestro, y ahí el costo se muda a proxies
+residenciales y a aguantar que Meta rompa los endpoints. Por eso el research quedó apuntado a
+**otros proveedores**, no a otro actor. Criterio de comparación: **dónde está la frontera del
+cobro**.
+
+### 6 · Lo que sigue, en orden
+
+1. 🔴 **Arreglar el cierre de runs con cero entregas** (test primero). Tarea en Notion, prioridad 1.
+2. **Research de proveedores de scraping alternativos**, por frontera de cobro.
+3. **La ventana por referente**, en sesión propia: la llave va por referente y no por corrida, y la
+   marca avanza al más nuevo **aceptado**, no al más nuevo **visto**. Bloqueo real: desde ADR-087
+   `processed_items` sólo recuerda lo entregado, así que el 97 % de lo que se paga no deja rastro de
+   su fecha y no hay dónde guardar la marca.
+4. **Decidir si los ajustes necesitan bitácora propia**, ahora que se sabe que tienen dos puertas
+   (cockpit, que deja marca, y SQL, que no).
 
 ## 🔒 CIERRE 148 (2026-09-10) — El costo bajó 83 % y la entrega cayó a cero, que es la misma noticia
 
