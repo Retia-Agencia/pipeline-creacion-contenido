@@ -20,6 +20,164 @@
 
 **Estados:** ⬜ libre · 🔧 en curso · ✅ hecho · ⛔ bloqueado
 
+## 🚦 ARRANCÁ POR ACÁ — sesión del 2026-09-11 (brainstorm del refactor, sin código todavía)
+
+> 🧠 **Esta sesión NO tocó código ni datos: fue brainstorm puro sobre el refactor del motor**,
+> disparado por Mani: *"el north star debe sumar accuracy (videos alineados) y cost efficiency
+> (recursos sin bajar calidad), y el workflow merece un refactor completo — bajo acoplamiento,
+> pasos por contrato"*. Todo lo de acá es diagnóstico medido contra prod (candidatos, Apify,
+> `v_salud_referentes`), **cero cambios aplicados**. Retomar clasificándolo como arquitectural
+> (skill `brainstorming`) y seguir por las preguntas que quedaron abiertas al final.
+
+### 1 · Se leyeron los cierres 148 y 149 antes de arrancar — no re-derivar esto
+
+El cierre 149 (11/09, commit `2f7c427`) ya midió tres cosas que esta sesión dio por sentadas:
+- **74 % del gasto de un día (17,63 de 23,83 USD) se fue en reels re-comprados el mismo día**
+  (`docs/costos.md §3.5`, `plan-costo-apify.md`). Dos tandas de la mañana solaparon 100,0 %.
+- **Las views se congelan a los ~7 días** (`§3.6`): `<24h` crecen 2,29 %, `>7d` crecen **0,00 %**.
+  Medido gratis (mismas 1.741 filas pagadas dos veces con 52 min de diferencia). Esto es la base
+  física de "comprar fresco y no esperar 30 días para juzgar".
+- **Hay un techo estructural que nadie había nombrado:** `cap_top_n` corta la transcripción en
+  **250** y los 15 proyectos activos piden **N=320**. Aunque sobre supply, no entra.
+- El run que no cierra (exec 178, 183) YA TIENE causa raíz escrita en el cierre 149 §1: cadena
+  lineal de 30 nodos que corta con `[]` cuando no hay entregas. Arreglo propuesto, NO aplicado.
+
+### 2 · Lo que esta sesión midió de nuevo (todo gratis, contra prod)
+
+**a) El ledger por cuenta YA EXISTE, a medias: `app.v_salud_referentes` (schema `009`).**
+Devuelve 59 filas hoy (`handle, videos_evaluados, tasa_gate, tasa_aprobacion, seguidores`), se
+alimenta de `runs.metricas.por_referente` que el nodo `Resumen del run` ya escribe. **Lo que le
+falta es la mitad de arriba del embudo**: `evaluados` arranca DESPUÉS de `min_views` y de
+transcribir, así que una cuenta que se compró y dio 0 útiles (ej. `therobinritter`, 25 reels /
+0,0575 USD por corrida) **es invisible en la vista que existe para juzgar cuentas**. El arreglo
+son dos contadores más (`comprados`, `paso_min_views`) en un nodo que ya existe — no hay que
+inventar tabla nueva.
+
+**b) Ningún actor de Apify permite pedir "los más viejos".** Verificado el input schema de los 3
+actores oficiales (`instagram-scraper`, `instagram-reel-scraper`, `instagram-post-scraper`): los
+3 tienen SOLO `onlyPostsNewerThan` (cota inferior), nunca `onlyPostsOlderThan`. El cursor siempre
+arranca por lo más nuevo y `resultsLimit` corta desde ahí. **No se puede pedir "de 30 a 37 días
+atrás" sin comprar también todo lo más nuevo.** Quedan 2 caminos, y el experimento de la Tarea 5
+decide cuál: (i) comprar fresco+barato y esperar, guardando todo el pool; (ii) seguir comprando
+maduro aceptando el re-compra medido en cierre 149.
+- 🎁 Lateral: `instagram-reel-scraper` tiene `skipPinnedPosts` (mata la fuga de posts fijados,
+  6,5 % medido) y `includeTranscript` como **add-on pago** — si el transcript viene con el reel,
+  Supadata sale entero del pipeline (se va el caché, la cobertura parcial, `generate`, el bug de
+  ADR-095). Falta precio del add-on (Apify no lo expone por API). ⚠️ Pero ese actor cobra
+  `actor-start` (SÍ tiene costo fijo), así que con el diseño de "1 corrida por cuenta" convertiría
+  "cantidad de referentes" en costo real — se resuelve pasando el array completo en una sola
+  corrida, pero deja de ser gratis equivocarse en el diseño.
+
+**c) `min_views` global (500.000) compara reels de edades muy distintas con la misma vara —
+y ESO, no la calidad de la cuenta, es lo que mi curva de "rank por profundidad" estaba midiendo.**
+Cruzando el hallazgo (a) del cierre 149 (views se congelan a los 7 días) con mi curva de
+profundidad (tramo 21-25 pasa el umbral 28,8 % de las veces contra 2,7 % en el tramo 1-5): la
+diferencia de edad entre esos tramos es 22 días vs 2 días. **No es que los reels viejos sean
+mejores: es que a un reel de 2 días nunca se le dio tiempo de acumular vistas antes de juzgarlo
+contra un umbral pensado para reels maduros.** Esto es la CAUSA RAÍZ COMPARTIDA de costo e
+inaccuracy: el mismo umbral mal calibrado (a) hace que comprar fresco parezca "peor calidad" y
+dispare el escalón de relleno con material fuera de tema, Y (b) fuerza a comprar profundo/viejo
+para poder pasar el corte, lo cual es justo lo que causa el 74-98% de re-compra.
+- **Arreglo propuesto (NO implementado, necesita el experimento de maduración primero):**
+  normalizar por edad en vez de comparar contra un piso fijo:
+  `pasa ⟺ vistas / madurez(edad) ≥ min_views`, con `madurez(edad)` subiendo de ~0,15 en el día 1
+  a 1,0 en el día 7 y quedándose ahí (consistente con el §3.6 del cierre 149). Aritmética pura,
+  cero costo, cero llamadas nuevas. La forma exacta de `madurez()` sale de re-medir la cohorte
+  congelada (Tarea 5 de abajo).
+
+**d) La función de asignación que había que optimizar (pedido explícito de Mani: "resultados por
+referente no debería ser libre, debería depender de la cantidad de referentes Y de la calidad de
+la cuenta") se simplifica una vez que la ventana deja de solapar:** si `dias_recencia` se iguala
+al intervalo entre corridas, la profundidad deja de ser una decisión de calibrar — es
+"todo lo nuevo de una cuenta buena, nada de una mala". Propuesta (sin pesos que calibrar, porque
+medí que `p_a` = tasa_aprobacion es ~plana en profundidad):
+
+```
+B = presupuesto_reels por corrida (el único knob de plata)
+cuentas ordenadas por p_a = tasa_aprobacion (con mínimo de muestra, NO viralidad —
+  usar viralidad reproduce el problema de Marú)
+para cada cuenta, de mejor a peor:
+    r_a = min(cap, ceil(ritmo_publicación_a × días_desde_última_compra × 1,3))
+    si entra en B → comprar; si no → cortar acá
+reservar ~20% de B para cuentas sin histórico (exploración, sin esto el ranking se congela)
+```
+
+⚠️ **Esta función queda BLOQUEADA por la Tarea 6 (abajo): con 137 calificaciones totales en todo
+el sistema, no hay evidencia estadística de que ninguna cuenta sea mejor que otra** (chi²=15,9
+sobre 11 grados de libertad ⇒ p≈0,15, indistinguible de ruido). No calibrar contra esto todavía.
+
+**e) `processed_items` no guarda lo que se paga, solo lo que se entrega** — el cierre 149 §6.3 ya
+lo decía. Esta sesión lo conecta con 4 consecuencias, no solo la ventana por referente: sin una
+tabla de "pool crudo comprado" (cuenta, fecha publicación, vistas al comprar, corrida — barato,
+~450 filas/corrida) no hay (i) marca de agua por referente, (ii) mitad de arriba del ledger de (a),
+(iii) `ritmo_publicación_a` para la función de (d), (iv) dónde guardar la cohorte de maduración.
+🔴 **Tiene plazo: Apify (plan STARTER) borra datasets a los 31 días** (medido en `/v2/users/me`).
+Todo lo que no se copie antes del **2026-10-11** se pierde para siempre.
+
+### 3 · El experimento de maduración YA ESTÁ CONGELADO — falta correr la medición 2
+
+**`docs/experimentos/2026-09-10-cohorte-maduracion.json`** (commit `465b4af`, ANTES de esta
+sesión): 446 reels de la exec 183 con vistas/likes/comentarios y edad exacta en t0=10/09 21:43.
+Distribución: 85 de 0-3d, 105 de 3-7d, 94 de 7-14d, 103 de 14-30d, 59 de >30d. 380 de los 446 están
+bajo 100k (pueden cruzar). **PENDIENTE, Mani dijo "hagamos el experimento" y quedó sin ejecutar
+esta sesión:** re-medir por URL una muestra estratificada de ~150 de esos 446 (0,35 USD,
+`resultsType: posts, resultsLimit: 1` por shortcode — el motor ya usa este patrón para
+`videos_meta`) para construir la curva `madurez(edad)` de (c). Con el §3.6 del cierre 149 ya se
+sabe que 7 días alcanza (no hace falta esperar a los 31 días de retención de Apify).
+
+### 4 · Decisión de Mani, tomada en esta sesión — el relleno se QUEDA como piso duro
+
+Pregunta hecha con `AskUserQuestion`: *"¿el N que pide el equipo es piso duro u objetivo?"*
+Respuesta de Mani: **"Mejor como piso duro y que el equipo descarte; esto entrena la
+herramienta."** Medido para chequear esa intuición, contra prod:
+
+- **El relleno (`relevancia_score < 0,4`) NO se aprueba menos que lo que pasó el gate.** Mismo mes
+  (septiembre, para controlar por tiempo): gate 36,1 % de aprobación (13/36), relleno **41,2 %**
+  (28/68). *`plan-costo-apify.md §1.4` decía "a Marú le llegó relleno = video que era nada" como si
+  fuera obviamente peor — no lo es, medido.* La decisión de Mani queda respaldada por datos, no
+  solo por preferencia.
+- 🔴 **PERO el canal por el que "entrena" está roto, y esto es más grave que el relleno:**
+  correlación `relevancia_score ↔ aprobado` = **+0,041**; `heat_score ↔ aprobado` = **+0,044**
+  (n=136 calificados con score). Ninguno de los dos números que el motor calcula para decidir qué
+  entregar predice lo que el equipo aprueba. Esto reubica el problema de accuracy: no es el
+  relleno ni el umbral del gate — **es que el gate optimiza algo que nadie comparó nunca contra
+  la calificación humana.**
+- 🔴 **Y el problema de fondo para CUALQUIER cambio al gate/score/ranking: solo hay 137
+  calificaciones en toda la historia del sistema, de 386 candidatos (249 = 65% nunca tocados).**
+  Con eso no se puede validar ni el criterio viejo ni uno nuevo. Detectar una mejora de 10 puntos
+  contra una base de ~40% de aprobación necesita del orden de 300-400 calificaciones.
+  ⇒ **El relleno es hoy la única fuente de contra-ejemplos del sistema** (si solo se entrega lo
+  que el gate aprueba, el gate nunca ve lo que descartó y no puede aprender que se equivoca) —
+  coherente con la decisión de Mani y con que el relleno se califica MÁS que el resto (68,7 %
+  contra 42,3 %).
+
+### 5 · Cómo queda partido el refactor, y por dónde seguir
+
+**Costo: accionable YA, todo medido, sin dependencia de más datos.**
+1. Podar por rendimiento (no por mediana) las cuentas de 0 útiles — medido en la sesión anterior
+   (§4.3.3 de costos.md), −24% de gasto sin perder útiles.
+2. Igualar `dias_recencia` al intervalo entre corridas (mata el 74-98% de re-compra).
+3. Tabla de pool crudo comprado (2.e arriba) — antes del 2026-10-11.
+4. Normalizar `min_views` por edad, una vez esté la curva de madurez (Tarea 3 arriba).
+5. Arreglar el cierre de runs con cero entregas (cierre 149 §1, ya diagnosticado, falta aplicar).
+
+**Accuracy: bloqueada por falta de termómetro — no calibrar nada todavía.**
+1. Marcar el relleno EXPLÍCITAMENTE en la fila del candidato (hoy se deduce del
+   `relevancia_score`, frágil) — prepara la separación ejemplo/contra-ejemplo para cuando haya
+   volumen.
+2. Atacar el 65% sin calificar — es el cuello de botella real, más que cualquier ajuste al gate.
+3. Solo después: comparar `relevancia_score`/`heat_score` contra calificación real con volumen
+   suficiente, y recién ahí tocar el gate o el ranking de referentes.
+
+**Próximo paso concreto al retomar (en orden):** (1) correr el experimento de maduración —
+Mani ya dijo "hagamos el experimento" y quedó pendiente; (2) con la curva en mano, diseñar
+`madurez(edad)` y la normalización de `min_views`; (3) recién ahí, clasificar el refactor completo
+como arquitectural con la skill `brainstorming` y seguir con preguntas una por vez — quedó
+cortado ahí, sin haber propuesto todavía los 2-3 enfoques de arquitectura para bajo acoplamiento
+y pasos por contrato que pidió Mani explícitamente.
+
+---
+
 ## 🚦 ARRANCÁ POR ACÁ — sesión del 2026-09-11 en adelante (post cierre 149)
 
 > 🔴 **LO PRIMERO, y es un bug con causa raíz y tarea abierta: el run no cierra cuando la corrida
@@ -142,12 +300,12 @@
 > de que está costando es la línea `Supadata encoló el generate (202)` en el log del nodo, que
 > existe desde hoy.
 
-> 🐛 **Bug abierto y SIN diagnosticar (viene del cierre 145):** la corrida de exec 178 terminó
-> `success` en n8n a las 15:07 y su fila en `runs` quedó `en_curso`. **No la cerró ella: la cerró la
-> corrida siguiente**, como `fallo`, a las 16:05:50 — el segundo exacto en que arrancó exec 181.
-> Consecuencia: **perdió sus métricas** (quedó sólo `metricas.etapa`), o sea que no hay
-> `aprobados / N pedido` para esa corrida, que es el norte de ADR-089. Es la familia de ADR-094 al
-> revés: aquella cierra las que **mueren**, ésta terminó **bien** y no se cerró sola.
+> ✅ **CERRADO en el repo (cierre 149, 11/09) el bug que venía del 145:** la corrida que termina
+> bien, entrega cero y no se cierra. Es la familia de ADR-094 al revés — aquella cierra las que
+> **mueren**, ésta terminaba **bien** y no se cerraba sola, perdiendo todo el embudo (o sea
+> `aprobados / N pedido`, el norte de ADR-089). Arreglado con un **centinela** en `Gate de
+> relevancia` y `Armar candidato` ([ADR-094 §Enmienda](../adr/ADR-094-una-corrida-que-muere-tiene-que-cerrarse-sola.md)).
+> ⚠️ **Falta el `n8n:push` y la corrida que lo mida.**
 
 > 🟡 **El cupo de Apify: 25,74 de 50 USD, ciclo arrancado el 10/09 a las 00:00 UTC** (medido el
 > 10/09 19:00 con `/v2/users/me/limits`). **La mitad del mes en 19 horas**, y el ciclo anterior
@@ -179,6 +337,101 @@
 > ⏳ **Lo que sigue sin probarse en vivo:** el rechazo **a mitad de camino** (capa 2) y que
 > `metricas.etapa` sobreviva una corrida completa. Los dos se leen de la próxima corrida real —o
 > sea, **después** de que se levante el ⛔ de Apify.
+
+## 🔒 CIERRE 150 (2026-09-11) — El centinela, y una columna que mentía en verde
+
+> **Todo en el repo, NADA en producción todavía.** Dos pendientes de gate humano: el
+> **`n8n:push` del motor** (4 nodos) y la **migración `043`** en el SQL Editor.
+
+Dos pedidos de Mani: arreglar el cierre de las corridas sin entregas, y averiguar por qué
+`ajustes.actualizado_en` no reflejaba el cambio del día anterior.
+
+### 1 · El centinela (ADR-094 §Enmienda) — 4 nodos, cero topología, cero migración
+
+El diagnóstico ya estaba escrito abajo (§1 del cierre 149, acá abajo) y se confirmó nodo por nodo: **en
+n8n un nodo que saca 0 items apaga todo lo que cuelga de él, y de `Armar candidato` cuelga la única
+cadena que cierra la corrida.**
+
+**Medido: sólo DOS nodos de esa cadena pueden sacar 0 items.** `Preparar procesados` y `Resumen del
+run` devuelven siempre 1 item, y `POST processed_items` tiene `alwaysOutputData` + `onError:
+continue`. De los dos que pueden, **`Armar candidato` es el que pasó** y `Gate de relevancia` es el
+defensivo: hoy no puede quedar en cero porque `min_relevancia` está en **0** y `cap_descartes` en
+**10**, y se abre el día que suba `Relevancia mínima`.
+
+🔬 **La autopsia de la exec 183**, que es lo que convirtió la hipótesis en un hecho: 3
+transcripciones escritas, **0 descartes, 0 candidatos**. Como `Etapa: gate` disparó, `Traducir` emitió
+items y el gate corrió; el gate emitió sus 3 descartes `sin_guion` —por eso `app.descartes` quedó en
+0, `Preparar descartes` filtra justo ese motivo— y `Armar candidato` se quedó con 0.
+
+**Los 4 nodos tocados** (`Gate de relevancia`, `Armar candidato`, `Preparar candidatos`, `Resumen del
+run`) y el detalle de qué hace cada consumidor con el centinela están en la tabla de la
+[§Enmienda de ADR-094](../adr/ADR-094-una-corrida-que-muere-tiene-que-cerrarse-sola.md). El que más
+fácil se escapa: en `Armar candidato` un item **sin `external_id` cae en `_keep` FAIL-OPEN**
+(ADR-017), así que un centinela sin filtrar se volvería **candidato fantasma en el Feed**.
+
+#### 🔑 Cómo se verificó, y por qué 18 tests verdes no alcanzaban
+
+**Un test verde que pasaría igual sin el arreglo no prueba nada.** Se revirtió **cada uno de los 4
+nodos por separado** contra el fix y se contó qué se ponía en rojo:
+
+| nodo revertido | tests en rojo |
+|---|---|
+| `Gate de relevancia` | 1 |
+| `Armar candidato` | 2 |
+| `Preparar candidatos` | 1 |
+| `Resumen del run` | 5 |
+
+Los cuatro parches son load-bearing, medido. Más `auditar-workflows.mjs` sin hallazgos, `npm run
+validate` en verde (2.803 checks) y `n8n:diff` marcando **exactamente esos 4 `[drift]`** y nada más.
+
+#### 🩸 El número que circulaba no existía
+
+Se pidió arreglar "**12 de 64** corridas afectadas". **64 es la cantidad de corridas del
+`transcriptor`**, otro workflow; el motor tiene **63**. Y el 11 del diagnóstico previo es correcto
+pero es un **superset**: son las barridas por el zombie, de las que 2 son el tope de Apify que
+ADR-094 ya explica. La firma buena —independiente de lo que n8n haya podado— es
+`runs.error like 'run de motor sin cerrar%'`, y el reparto de las 11 está en §1 más abajo.
+
+### 2 · `ajustes.actualizado_en` — no está roto, la columna significa otra cosa ([ADR-097](../adr/ADR-097-actualizado-en-lo-sella-la-base-no-el-que-escribe.md))
+
+`actualizado_en` es `timestamptz not null default now()`, y un **`default` sólo dispara en INSERT**.
+Lo único que la mantenía viva era el cockpit, que la escribe a mano en `lib/ajustes.ts`. El cierre
+148 movió los knobs **por SQL** ⇒ `valor` se movió y la fecha no.
+
+**Dos señales independientes:** el catálogo (`pg_trigger` da **cero** triggers no-internos sobre
+`app.ajustes`) y el efecto (`Días de recencia` = 50 con fecha del **31/08**, `Resultados por cuenta
+de referente` = 25 con fecha del **01/09**).
+
+🔑 **La columna no significa lo que su nombre dice**: significa *"la última vez que alguien la tocó
+desde el cockpit"*, y nadie la lee así. Arreglo: trigger `before update` que sella `now()` siempre,
+con `set search_path` desde el día uno (la lección de la `035`), más el re-sellado de las dos filas
+**al DÍA y no a la hora** — la hora no existe y no se inventa.
+
+📏 **Dato que baja la urgencia y por eso va escrito:** hoy la columna **no se renderiza en ninguna
+pantalla**. `leerAjustes` la parsea con zod y ahí muere. Su único consumidor es un humano con SQL.
+
+⚠️ **No arregla el *quién***: `app.eventos` sigue sin fila, porque un SQL no tiene `usuario_id`.
+
+### Lo que queda, en orden
+
+1. ⏳ **`npm run n8n:push -- motor --nodos "Gate de relevancia,Armar candidato,Preparar candidatos,Resumen del run"`**
+   (dry-run primero, después `--apply`). Sólo `parameters`, sin topología.
+2. ⏳ **Correr la [`043`](../../core/schema/043_ajustes_actualizado_en.sql)** en el SQL Editor. Su
+   verificación #2 es la que importa: un trigger creado y no disparando se ve idéntico a uno que anda.
+3. ⏳ **La corrida que mide el centinela.** Una corrida con cero entregas tiene que cerrar sola en
+   `ok`, con `metricas.sin_entregas: true` y el embudo completo. *Construido y verde no es medido.*
+   ⚠️ Cuesta plata (Apify), así que va junto con la decisión de `min_views` que abre el bloque de arriba.
+
+### 🩸 El error propio de esta sesión
+
+Se escribió en la ADR y en la migración que el nodo `Etapa: colecta` (commit `2f7c427`, el que guarda
+`runs.params.ajustes`) **estaba en el repo y no en el live**, deducido de que las 6 corridas del
+10/09 tienen `params->'ajustes'` en null. Es falso: **está en el live desde el 11/09 01:05 UTC**, lo
+que pasa es que **no hubo ninguna corrida después**. Lo cazó `n8n:diff`, que marcó 4 drifts y no 5.
+*Un `null` en los datos no dice dónde está el código: dice que nadie lo ejecutó.* Corregido en los 3
+archivos.
+
+---
 
 ## 🔒 CIERRE 149 (2026-09-11) — El run que no cierra tiene causa, y el 74 % del gasto de un día se fue en re-comprar lo mismo
 
@@ -226,11 +479,22 @@ sin cerrar.**
 Es la familia de ADR-094 capa 2, que arregló esta misma trampa en la rama de Apify. El comentario
 de `Normalizar IG` ya la nombra con todas las letras; quedó viva dos ramas más abajo.
 
-**El arreglo propuesto (NO aplicado):** precedente propio, `Preparar procesados` devuelve siempre
-`[{json:{batch}}]` y por eso nunca corta. Emitir un centinela `{_vacio:true, _entregado:false}` en
-`Gate de relevancia` y `Armar candidato`, y que `Preparar candidatos` lo ignore antes del POST.
-⚠️ El guard de `Preparar procesados` aborta duro si **ningún** item trae la clave `_entregado`: el
-centinela tiene que traerla en `false`, no ausente. Test primero en `test-nodos.mjs`.
+✅ **APLICADO el 2026-09-11 (cierre 149), con el nombre `_centinela` y no `_vacio`.** Ver el bloque
+del cierre 149 arriba: 4 nodos, cero topología, 18 tests, y cada parche verificado por reversión
+individual. ⚠️ Falta el `n8n:push` y la corrida que lo mida.
+
+📏 **Y el reparto de las 11 quedó medido, que es distinto de "11 son mentira".** La firma buena no es
+el join contra n8n (que pierde las ejecuciones podadas) sino **`runs.error like 'run de motor sin
+cerrar%'`**, que lo escribe el propio barredor y no caduca: **11 de 63**. De esas 11:
+
+| cuántas | cuáles | qué son |
+|---|---|---|
+| **2** | execs **178** y **183** | **este bug**, con firma exacta (`metricas.etapa` en `gate`, n8n `success`) |
+| 2 | execs **169**, **170** | **tope de Apify** — sí fallaron, y ADR-094 ya les puso el pre-flight. `fallo` no es mentira ahí; lo que faltaba era la causa |
+| 1 | exec **155** (31/08, 191,9 min) | compatible, sin miga: es anterior a `metricas.etapa`. Es la que el cierre 130 atribuyó a `Heat-score v1` en 0, ya arreglada con `alwaysOutputData` |
+| 6 | jul–ago, **sin `execution_id`** | indecidibles: el campo no existía y n8n las podó |
+
+*La 183 no aparece en las 11 porque alguien la pasó a `ok` a mano después del barrido.*
 
 ### 2 · El solapamiento, medido id por id y gratis
 
@@ -386,8 +650,9 @@ equivocado. La corrida anterior entregaba 1 video por 6 USD.
 
 - 🔴 **Bajar `min_views`** (recomendado: 100.000). Un knob, gratis, y es lo único que separa a
   Vieira de recibir videos.
-- 🔴 **El bug de la corrida que termina bien y no se cierra**: exec 183 `success` en n8n,
-  `en_curso` en `runs`, métricas perdidas. **2 de las últimas 6.**
+- ✅ **El bug de la corrida que termina bien y no se cierra: ARREGLADO en el repo** (cierre 149,
+  11/09). Centinela en `Gate de relevancia` + `Armar candidato`, ADR-094 §Enmienda.
+  ⚠️ **Falta el `n8n:push`**: el arreglo existe en el repo y no en producción.
 - ⛔ **Bake-off del actor barato SIN aprobar**: 3,4× más barato medido (0,00067 vs 0,0023 USD/reel)
   y trae `video_duration` —que falta en 149 de 150 filas de `videos_meta`— **pero devolvió 11 de
   los 25 pedidos**. Falta 2ª prueba con fecha ISO.
