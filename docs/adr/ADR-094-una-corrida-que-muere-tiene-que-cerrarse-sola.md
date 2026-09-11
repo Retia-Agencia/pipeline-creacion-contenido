@@ -176,3 +176,97 @@ antes del primer nodo que gasta):
 que ese día gastó ~1,68. Eso es lo que reventó el tope y dejó al equipo sin corridas. El pre-flight
 ahora lo **avisa**; no lo **separa**. La separación real (token o cuenta propia para el motor) queda
 como decisión aparte de Mani.
+
+---
+
+## §Enmienda (2026-09-10) — La que termina BIEN y no entrega nada tampoco se cerraba
+
+Esta ADR cubrió la corrida que **muere**. Falta su hermana, que es el caso contrario y se ve peor
+porque no tiene ningún síntoma: la corrida que **termina bien, entrega cero y no se cierra**.
+
+### Lo medido
+
+Contra prod el 2026-09-10: **18 de las 63 corridas del motor nunca se cerraron solas** (sin métricas
+completas). De las **27 ejecuciones que n8n todavía retiene**, **6** dicen `success` en n8n con la
+fila del run sin cerrar — execs **155, 169, 170, 171, 178, 183** — y **2 traen la firma exacta de
+esto**: `metricas.etapa` congelado en `gate` (execs **178** y **183**). Las otras 12 sin cerrar son
+anteriores a la retención de n8n: **no se puede decidir** si se cayeron o si es esto.
+
+*El número que circulaba era "12 de 64". **64 es la cantidad de corridas del `transcriptor`**, otro
+workflow. El motor tiene 63.*
+
+La autopsia de la exec 183 (21:43): **3 transcripciones escritas, 0 descartes, 0 candidatos**, n8n
+en `success`. Como `Etapa: gate` sí disparó, `Traducir` emitió items y el gate corrió. El gate emitió
+sus 3 descartes `sin_guion` — por eso `app.descartes` quedó en 0, `Preparar descartes` filtra justo
+ese motivo — y **`Armar candidato` se quedó con 0**.
+
+### 🔑 El hallazgo ordenador
+
+**En n8n un nodo que saca 0 items apaga todo lo que cuelga de él, y de `Armar candidato` cuelga la
+única cadena que cierra la corrida:**
+
+```
+Gate → Armar candidato → Preparar procesados → POST processed_items → Resumen del run → Cerrar run
+```
+
+O sea que **la máquina de cierre es la misma que la de entrega**. Es la capa 1 de esta ADR dicha al
+revés: allá el cierre colgaba del carril de datos y por eso una corrida muerta no cerraba; acá
+cuelga del mismo carril y por eso **una corrida sana que no entrega nada tampoco cierra**. Queda
+`en_curso` hasta que el barredor de la corrida siguiente la marca `fallo`, y con eso **pierde todo
+el embudo**, que es justamente `aprobados / N pedido` ([ADR-089](./ADR-089-una-sola-metrica-aprobados-contra-lo-pedido.md)).
+
+Medido en la cadena: **sólo dos nodos pueden sacar 0 items**. `Preparar procesados` y `Resumen del
+run` devuelven siempre 1 item, y `POST processed_items` tiene `alwaysOutputData` + `onError:
+continue`.
+
+| nodo | ¿puede sacar 0? | cuándo |
+|---|---|---|
+| `Gate de relevancia` | sí, pero **hoy no** | sólo con `Relevancia mínima` > 0 **y** `cap_descartes` = 0. Medido: están en **0** y **10** |
+| `Armar candidato` | **sí, y es el que pasó** | cuando el gate sólo produjo `_descarte` |
+
+El del gate es defensivo a propósito: se abre el día que suba `Relevancia mínima`, que es la válvula
+de escape que [ADR-088](./ADR-088-el-gate-ordena-no-veta.md) dejó puesta.
+
+### La decisión: un CENTINELA, no una rama nueva
+
+Los dos nodos que pueden quedar en cero emiten **un item centinela** (`{_centinela: true}`) cuando
+no tienen nada que emitir. La cadena sigue viva, `Cerrar run en el registro` corre, y el run cierra
+en `ok` **con el embudo entero adentro**.
+
+Los cuatro consumidores de aguas abajo lo ignoran, cada uno por su motivo:
+
+| nodo | qué hace con el centinela | qué pasaría sin el filtro |
+|---|---|---|
+| `Armar candidato` | lo filtra explícito | un item **sin `external_id` cae en `_keep` fail-open** (ADR-017) ⇒ candidato fantasma en el Feed |
+| `Preparar procesados` | ya lo salta (`_entregado !== true`) | nada, pero el centinela **tiene que traer la clave `_entregado` presente**: el guard duro de [ADR-087](./ADR-087-la-memoria-recuerda-lo-que-se-entrego-no-lo-que-se-evaluo.md) mira la presencia, no el valor |
+| `Preparar candidatos` | lo filtra y devuelve `[]` | fila basura en `app.candidatos`, y `POST Candidatos` corriendo de gusto (es fail-closed) |
+| `Preparar descartes` | ya lo salta (pide `_descarte`) | fila vacía en `app.descartes` |
+| `Resumen del run` | lo filtra en el origen de `outputs` **y de `gateAll`** | `outputs: 1` y `gate: 1` en una corrida que entregó 0 ⇒ **el norte de ADR-089 mintiendo** |
+
+Y `Resumen del run` marca `metricas.sin_entregas: true` con su aviso, para poder encontrarlas después
+sin re-derivarlas.
+
+### Por qué no se reusó `Cerrar run (sin novedades)`
+
+Ese nodo escribe **ceros en todo el embudo** (`colectados` aparte). Una corrida que colectó 6.875
+reels y entregó 0 **no es una corrida sin novedades**, y la diferencia entre las dos es exactamente
+lo que hay que poder leer para saber si el problema es el supply, el gate o el corte por N.
+
+### Cómo se verificó
+
+**No alcanza con que los tests pasen: un test verde que pasaría igual sin el arreglo no prueba
+nada.** Se revirtió **cada uno de los 4 nodos por separado** contra el fix y se contó qué se ponía
+en rojo:
+
+| nodo revertido | tests en rojo |
+|---|---|
+| `Gate de relevancia` | 1 |
+| `Armar candidato` | 2 |
+| `Preparar candidatos` | 1 |
+| `Resumen del run` | 5 |
+
+Los cuatro parches son load-bearing, medido y no asumido. Más `node
+Workflows/auditar-workflows.mjs` sin hallazgos y `npm run validate` en verde.
+
+⏳ **Lo que falta y no lo puede cerrar un test:** la primera corrida real con cero entregas tiene que
+cerrar sola en `ok` con `sin_entregas: true` y el embudo completo. Se lee de `runs.metricas`.

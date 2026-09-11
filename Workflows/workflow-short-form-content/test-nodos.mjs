@@ -2236,5 +2236,120 @@ seccion('Normalizar TT — el carril secundario no mata la corrida');
   check('...y el engagement_rate se sigue calculando igual', bueno[0].json.engagement_rate === '20.00', JSON.stringify(bueno[0].json.engagement_rate));
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// El CENTINELA de la corrida sin entregas (ADR-094 §Enmienda)
+// ════════════════════════════════════════════════════════════════════════════
+// En n8n un nodo que saca 0 items apaga todo lo que cuelga de él, y de `Armar candidato` cuelga la
+// ÚNICA cadena que cierra la corrida:
+//   Gate → Armar candidato → Preparar procesados → POST processed_items → Resumen → Cerrar run
+// Sin item, el run queda `en_curso` hasta que el barredor de la corrida siguiente lo marca `fallo`,
+// y pierde TODO el embudo — o sea `aprobados / N pedido`, el norte de ADR-089.
+//
+// 📏 Medido el 2026-09-10 contra prod: 18 de 63 corridas del motor nunca se cerraron solas. De las
+// 27 ejecuciones que n8n todavía retiene, 6 dicen `success` con el run sin cerrar (155, 169, 170,
+// 171, 178, 183), y 2 traen la firma exacta de esto (`metricas.etapa` congelado en `gate`).
+//
+// El modo de falla que estos tests cubren es el CARO: el centinela existe para que la corrida
+// cierre, así que si alguno de los 4 consumidores deja de filtrarlo, la corrida cierra IGUAL pero
+// con un candidato fantasma en el Feed o con el embudo mintiendo. Verde y mal, que es lo peor.
+seccion('Centinela — el gate emite uno cuando se queda sin nada que emitir');
+{
+  const vacio = await runGate({ items: [], projects: {} });
+  check('gate con 0 items de entrada emite 1 centinela, no 0', vacio.out.length === 1 && vacio.out[0]._centinela === true, JSON.stringify(vacio.out));
+  // Sin esto el centinela se subiría a `app.descartes` como una fila vacía.
+  check('el centinela del gate NO lleva _descarte (Preparar descartes lo ignora)', vacio.out[0]._descarte === undefined, JSON.stringify(vacio.out[0]));
+
+  const lleno = await runGate({ items: [gvid('a'), gvid('b')], projects: { P1: { nombre: 'P1', criterios: 'tema' } } });
+  check('con items reales el gate NO emite centinela', lleno.out.every((o) => o._centinela !== true) && lleno.out.length >= 2, JSON.stringify(lleno.out.map((o) => o.external_id)));
+}
+
+seccion('Centinela — Armar candidato lo filtra y emite el suyo');
+{
+  const plan = { projects: { P1: { nombre: 'P1', n: 5 } }, top_n: 5 };
+  // 🩸 El caso que se puede escapar: más abajo, un item SIN `external_id` cae en `_sinId` y entra a
+  // `_keep` FAIL-OPEN (ADR-017, para no perder un video con id roto). Un centinela sin id se volvería
+  // un candidato fantasma en el Feed, y nadie lo vería hasta que alguien abra la tarjeta.
+  const solo = await runCorte([{ _centinela: true }], plan);
+  check('el centinela del gate NO se vuelve candidato (fail-open de _sinId)', solo.out.length === 1 && solo.out[0]._centinela === true && solo.out[0].titulo === undefined, JSON.stringify(solo.out));
+
+  // El caso MEDIDO en producción (exec 183): el gate emitió solo descartes `sin_guion` y este nodo
+  // se quedó con 0. Ahí murió la máquina de cierre entera.
+  const soloDescartes = await runCorte([
+    Object.assign(vid('a', 'P1', 0.9), { _descarte: true, descarte_razon: 'sin_guion' }),
+    Object.assign(vid('b', 'P1', 0.8), { _descarte: true, descarte_razon: 'sin_guion' }),
+  ], plan);
+  check('con solo _descarte de entrada, Armar candidato emite centinela', soloDescartes.out.length === 1 && soloDescartes.out[0]._centinela === true, JSON.stringify(soloDescartes.out));
+  // 🔑 La CLAVE tiene que estar presente, no el valor: el guard duro de `Preparar procesados`
+  // (ADR-087) mira `'_entregado' in json` y tira error si ningún item la trae — no puede distinguir
+  // "me cablearon mal" de "esta corrida no entregó nada", y la segunda es legítima.
+  check('...y trae la clave _entregado presente en false (guard de ADR-087)', '_entregado' in soloDescartes.out[0] && soloDescartes.out[0]._entregado === false, JSON.stringify(soloDescartes.out[0]));
+
+  const conEntregas = await runCorte([vid('a', 'P1', 0.9)], plan);
+  check('con candidatos reales NO emite centinela', conEntregas.out.length === 1 && conEntregas.out[0]._centinela === undefined, JSON.stringify(conEntregas.out));
+}
+
+seccion('Centinela — los consumidores de aguas abajo lo ignoran');
+{
+  // `Preparar procesados`: el guard tiene que PASAR (la clave viaja) y el batch quedar vacío.
+  let batch = null, exploto = null;
+  try { batch = runPreparar({ videos: [{ _centinela: true, _entregado: false }], runId: 'run-9' }); } catch (e) { exploto = e.message; }
+  check('Preparar procesados no explota con el centinela (guard de ADR-087)', exploto === null, String(exploto));
+  check('...y no quema nada en la memoria del dedup', Array.isArray(batch) && batch.length === 0, JSON.stringify(batch));
+
+  // `Preparar candidatos`: tiene que devolver 0 ITEMS, no `[{filas: []}]`. La diferencia es si
+  // `POST Candidatos` corre o no — y ese nodo es fail-closed (sin `onError: continue`).
+  const $ = (n) => {
+    if (n === 'Config') return { first: () => ({ json: { instance_id: IID } }) };
+    if (n === 'Abrir run en el registro') return { first: () => ({ json: { id: RUN_ID } }) };
+    if (n === 'Armar candidato') return { all: () => [{ json: { _centinela: true, _entregado: false } }] };
+    throw new Error('nodo no mockeado: ' + n);
+  };
+  const out = new Function('$', '$input', 'console', jsCode('Preparar candidatos'))($, { all: () => [] }, { log: () => {} });
+  check('Preparar candidatos devuelve 0 items con solo el centinela (POST Candidatos no corre)', out.length === 0, JSON.stringify(out));
+}
+
+// `Resumen del run` es el que convierte la corrida en número. Si cuenta el centinela, la corrida
+// cierra diciendo que entregó 1 video que no existe, y `aprobados / N pedido` (ADR-089) miente.
+const runResumen = ({ candidatos = [], gate = [], traducidos = [], transcritos = [], plan = {}, procesados = [{}] } = {}) => {
+  const wrap = (a) => ({ all: () => a.map((j) => ({ json: j })), first: () => ({ json: a[0] || {} }) });
+  const $ = (n) => {
+    if (n === 'Armar candidato') return wrap(candidatos);
+    if (n === 'Gate de relevancia') return wrap(gate);
+    if (n === 'Traducir (Claude Haiku)') return wrap(traducidos);
+    if (n === 'Transcribir (Supadata)') return wrap(transcritos);
+    if (n === 'Asignar proyecto+voz' || n === 'Pre-trim relevancia' || n === 'Heat-score v1' || n === 'Merge scrapes') return wrap(traducidos);
+    if (n === 'POST processed_items') return wrap(procesados);
+    if (n === 'Armar plan de corrida') return { first: () => ({ json: plan }) };
+    if (n === 'Config') return { first: () => ({ json: {} }) };
+    throw new Error('nodo no mockeado: ' + n);
+  };
+  const out = new Function('$', 'console', jsCode('Resumen del run'))($, { log: () => {} });
+  return out[0].json.metricas;
+};
+
+seccion('Centinela — Resumen del run cierra con el embudo, no con una entrega fantasma');
+{
+  const CENT_GATE = { _centinela: true };
+  const CENT_CAND = { _centinela: true, _entregado: false };
+  const evaluado = { external_id: 'a', proyecto_id: 'P1', username: 'ref', script: '', transcripcion: '' };
+  const m = runResumen({
+    candidatos: [CENT_CAND], gate: [CENT_GATE], traducidos: [evaluado], transcritos: [evaluado],
+    plan: { projects: { P1: { nombre: 'P1', n: 5 } } },
+  });
+  check('outputs = 0 y no 1 (el centinela no es una entrega)', m.outputs === 0, String(m.outputs));
+  // El centinela del gate no lleva `_descarte`, así que sin filtrarlo en el origen caería en
+  // `gateKept` y `metricas.gate` diría 1 en una corrida donde el gate no dejó pasar nada.
+  check('gate = 0 y no 1 (el centinela del gate tampoco cuenta)', m.gate === 0, String(m.gate));
+  check('sin_entregas queda marcado', m.sin_entregas === true, String(m.sin_entregas));
+  check('...y deja un aviso que dice qué pasó', m.avisos.some((a) => a.includes('no entrego ningun video')), JSON.stringify(m.avisos));
+  check('el embudo SOBREVIVE (que es todo el punto: sin esto queda en null)', m.pretrim === 1 && m.por_proyecto.P1 && m.por_proyecto.P1.n_objetivo === 5, JSON.stringify(m.por_proyecto));
+
+  const ok = runResumen({
+    candidatos: [{ external_id: 'a', proyecto_id: 'P1' }], gate: [evaluado],
+    traducidos: [evaluado], transcritos: [evaluado], plan: { projects: { P1: { nombre: 'P1', n: 5 } } },
+  });
+  check('una corrida que SÍ entrega no queda marcada sin_entregas', ok.sin_entregas === false && ok.outputs === 1, JSON.stringify({ s: ok.sin_entregas, o: ok.outputs }));
+}
+
 console.log(fail ? `\n${fail} test(s) en rojo` : '\nTodo en verde');
 process.exit(fail ? 1 : 0);

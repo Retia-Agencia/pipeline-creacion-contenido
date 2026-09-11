@@ -68,7 +68,7 @@ en §Agent skills; acá solo se ubican.
   de 150 filas de `app.videos_meta` tiene duración.
 
 **Decisiones**
-- [docs/adr/](docs/adr/) — ADRs 001–096 (96 archivos), una decisión por archivo con su porqué ([índice](docs/adr/README.md)).
+- [docs/adr/](docs/adr/) — ADRs 001–097 (97 archivos), una decisión por archivo con su porqué ([índice](docs/adr/README.md)).
   🧭 **[ADR-089](docs/adr/ADR-089-una-sola-metrica-aprobados-contra-lo-pedido.md) manda sobre las métricas de todos los demás:** el norte es **`aprobados / N pedido`, por proyecto y por corrida** (cobertura × precisión). Un cambio que no lo mueve no es una mejora, por más que suba su propio número.
 
 **Contratos del núcleo (`core/`, solo cambia con ADR)**
@@ -263,6 +263,18 @@ en §Agent skills; acá solo se ubican.
   🔑 **Es la segunda de la serie que NO se puede verificar por su efecto desde afuera** (como la
   `041`): PostgREST responde idéntico antes y después. Se verifica en el catálogo con
   `col_description`, y tiene que nombrar los tres valores.
+  ⏳ **La [`043`](core/schema/043_ajustes_actualizado_en.sql) (ADR-097) está ESCRITA y PENDIENTE de
+  correr** (11/09). Le pone a `app.ajustes` el trigger `before update` que sella `actualizado_en`, y
+  re-sella las dos filas que quedaron mintiendo. 🩸 **Existe por una columna que miente en verde:**
+  `actualizado_en` es `default now()`, que **sólo dispara en INSERT**, y no hay ningún trigger
+  (medido: `pg_trigger` da **cero** no-internos sobre la tabla). El único que la escribía era el
+  cockpit, a mano, en `lib/ajustes.ts` — así que un `update` por SQL mueve `valor` y deja la fecha.
+  Medido el 10/09: `Días de recencia` = **50** con fecha del **31/08** y `Resultados por cuenta de
+  referente` = **25** con fecha del **01/09**, las dos movidas ese día por el cierre 148.
+  🔑 **La columna no significa lo que su nombre dice**: significa *"la última vez que alguien la tocó
+  desde el cockpit"*, y nadie la lee así. ⚠️ **No arregla el *quién***: `app.eventos` sigue sin fila,
+  porque un SQL no tiene `usuario_id`. 📏 Dato que baja la urgencia y por eso va escrito: **hoy la
+  columna no se renderiza en ninguna pantalla** — `leerAjustes` la parsea y ahí muere.
   ✅ **La [`041`](core/schema/041_revoke_public_cache_transcripts.sql) está APLICADA** (Mani,
   10/09) — `revoke execute … from public` sobre esa misma RPC. 🔬 **No tapa ningún agujero de hoy, y
   el archivo lo dice con el número**: medido contra prod, `anon` rebota con `42501 permission denied
@@ -366,7 +378,7 @@ Este repo está preparado para ingeniería con agentes. Leé esto antes de traba
 - **Dev-doc** ([docs/agents/dev-doc.md](docs/agents/dev-doc.md)) — referencia técnica nodo-por-nodo de
   los tres workflows (orden de ejecución, qué tabla de Postgres lee/escribe cada nodo, esquema Supabase y
   trazabilidad de campos). Leela antes de tocar un `workflow.json`; la fuente de verdad sigue siendo el JSON.
-- **ADRs** ([docs/adr/](docs/adr/)) — decisiones de arquitectura con su porqué (ADR-001..094). *El número sale de `ls docs/adr`, no de acá: este renglón dijo 083 con 84 archivos en disco.*
+- **ADRs** ([docs/adr/](docs/adr/)) — decisiones de arquitectura con su porqué (ADR-001..097). *El número sale de `ls docs/adr`, no de acá: este renglón dijo 083 con 84 archivos en disco, y 094 con 97.*
   Leé los relevantes antes de cambiar un área ya decidida; no las re-litigues.
 
 El **qué/por qué** del producto y el diseño viven en [ROADMAP.md](ROADMAP.md) (norte + checklist del
