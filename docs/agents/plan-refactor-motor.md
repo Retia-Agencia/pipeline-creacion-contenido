@@ -71,6 +71,14 @@ No lo es: es una directiva de negocio.** Y eso cambia tres cosas:
    que califica son **5 videos**. En psicología/comunicación la mediana es **256.556** y pasa el
    **33,5 %**. *Es el mismo umbral haciendo dos cosas opuestas según el nicho.*
 
+⭐ **Y hay un argumento a favor que estaba escrito en el propio ROADMAP desde el principio, sin que
+nadie lo conectara.** `ROADMAP.md §1` registra el visto bueno del jefe así: *"flag viral confirmado
+como concepto (~700K marca **high-end**, **no excluye**)"*. O sea que **su posición registrada sobre
+viralidad es exactamente D3: marca, no excluye.**
+⚠️ **Con una precisión que hay que hacer para no exagerarlo:** ese ~700K es `umbral_viral`, que mide
+**seguidores**, no `min_views`, que mide **vistas**. **Son dos perillas distintas.** Lo que se
+transfiere es el principio, no el número.
+
 ⚠️ **Queda ABIERTO y no lo decide un dev:** quién y cómo tiene esa conversación con Daniel. No se
 asume que se dará, ni que saldrá bien. **Mientras no se dé, la medida relativa puede convivir con el
 piso de 500k como orden y no como filtro, pero el pedido de negocio no cambia solo.**
@@ -218,6 +226,20 @@ por día, y el 11/10 no queda nada.**
 📏 *Nota de método: el conteo de "reels distintos por día" es una muestra (se leyeron hasta 14
 datasets por día), no un censo. Los porcentajes de crecimiento sí son exactos: se calculan reel por
 reel sobre los que aparecen en ambas fechas.*
+
+### 🔁 Reproducible, y el dato está guardado
+
+**El script:** [`docs/experimentos/crecimiento-historico-apify.mjs`](../experimentos/crecimiento-historico-apify.mjs)
+— node pelado, solo lee, cuesta 0. `set -a && source .env && set +a && node docs/experimentos/crecimiento-historico-apify.mjs`
+
+**El dato crudo:** [`docs/experimentos/2026-09-12-crecimiento-historico.json`](../experimentos/2026-09-12-crecimiento-historico.json)
+— **434 runs conservados, del 2026-08-17 al 2026-09-11, 15 pares de fechas, 5.706 reels comparados,
+de los cuales subieron 5.468 = 95,8 %.**
+
+🩸 **Esto casi no se guarda.** La medición se hizo, se citó en prosa, y el script y la salida
+quedaban en un scratchpad que se borra — **con datos que Apify elimina el 11/10**. Lo cazó Mani
+preguntando *"¿el reporte del histórico de Apify lo incluiste?"*. *Un número medido y no guardado es
+un número que hay que volver a medir, y acá volver a medirlo va a ser imposible.*
 
 **Lo que se cae:** el concepto de *"vistas finales"*. Sin un techo, `vistas / madurez(edad)` no se
 puede calcular, porque no hay a qué normalizar.

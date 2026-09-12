@@ -72,6 +72,12 @@ Si tienen 30 segundos y solo leen esto, ya pueden trabajar. El resto del manual 
 
 ---
 
+> ⛔ **AVISO — 2026-09-12: el botón ▶ «Correr ahora» está DESACTIVADO a propósito.** Dice
+> *«🚧 Bajo construcción por dev»*. No es una falla: se está reconstruyendo la parte que decide qué
+> videos les llegan. Todo lo demás del cockpit funciona igual (calificar, Históricos, Colecciones,
+> Transcribir, Referentes). Mani avisa cuando vuelva. *Mientras tanto, §3.1 y §5 describen un botón
+> que hoy no se puede apretar.*
+
 ## 1. Qué es esto y para qué sirve
 
 Hay una máquina que trabaja para ustedes. Cada semana sale a Instagram y TikTok, encuentra videos de
@@ -397,6 +403,10 @@ calidad** (cuentas que ustedes eligieron a mano).
 > sin trabajo igual. Medido el 29/08: `@jefferson_fisher` (49% de aprobación) y `@howtoconvince`
 > (62%), **las dos mejores del sistema**, estaban las dos dormidas.
 
+> **🔴 TikTok hoy NO trae NADA, y ya no es "casi": medido contra la base el 2026-09-12, los **59
+> Referentes activos son los 59 de Instagram**. Cero de TikTok. El eje corre vacío en cada corrida.
+> *Este aviso decía "casi todos son de Instagram" y el número lo volvió exacto.*
+>
 > **🟠 Falta sembrar TikTok.** Hoy casi todos los Referentes cargados son de Instagram. Para que la máquina
 > traiga videos de TikTok hacen falta **dos cosas**: cargar cuentas de TikTok acá **y** que el toggle
 > **"Buscar por referentes en TikTok"** esté prendido (§5.5). Sin cuentas de TikTok cargadas, ese eje corre

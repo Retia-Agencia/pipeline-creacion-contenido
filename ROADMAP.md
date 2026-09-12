@@ -31,6 +31,21 @@ un **histórico exportable a Excel**.
 > [ADR-024](./docs/adr/ADR-024-enmienda-adr016-n-por-proyecto.md)). El on-demand se **suma**; no retira
 > al cron. Es el único punto del norte que este refactor mueve, y va con ADR.
 
+> 🧭 **Nota del 2026-09-12, y hay que leerla con precisión porque es fácil sacarle más de lo que
+> dice.** El renglón de abajo registra que el jefe confirmó el flag viral **como marca y no como
+> exclusión** (*"~700K marca high-end, **no excluye**"*). Eso es `umbral_viral`, que mide
+> **seguidores** — **no** es `min_views`, que mide **vistas** y sí excluye, hoy en 500.000.
+> **Son dos perillas distintas y no hay que confundirlas.**
+>
+> Lo que sí vale señalar es que **el principio registrado acá —la viralidad marca, no excluye— es
+> exactamente la decisión D3 del refactor** (la métrica ordena, no filtra), y que `min_views` la
+> implementa al revés. Y que hoy conviven **dos definiciones de accuracy en tensión**: la del jefe
+> (vistas absolutas altas, pedido explícito de mínimo 500k al equipo de redes) y la de
+> [ADR-089](./docs/adr/ADR-089-una-sola-metrica-aprobados-contra-lo-pedido.md) (`aprobados / N
+> pedido`). **Un video de 500k que el equipo no aprueba sube una y baja la otra.** Esa conversación
+> está ABIERTA y no la decide un dev — ver
+> [plan-refactor-motor §0](./docs/agents/plan-refactor-motor.md).
+
 ✅ Visto bueno dado · ✅ flag viral confirmado como concepto (~700K marca "high-end", no excluye)
 · ✅ división por proyectos/voces confirmada · ⬜ voz/proyecto inicial: aún no la dan — **y no
 bloquea**: las voces las crea y edita el equipo en el cockpit a gusto; el motor las

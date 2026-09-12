@@ -1,4 +1,19 @@
-# Plan — el costo de Apify no es sostenible
+# Plan — ~~el costo de Apify no es sostenible~~
+
+> 🩸 **EL TÍTULO QUEDÓ DESMENTIDO el 2026-09-12, y por dos mediciones distintas.** Apify **sí** es
+> sostenible: bien usado cuesta **0,84-2,41 USD/mes**, y el cupo de 50 aguanta **580-2.149
+> referentes** ([evaluacion-proveedores-scraping.md](./evaluacion-proveedores-scraping.md)). Más
+> todavía: la exec 183 **con la config de entonces y SIN marca de agua**, a cadencia semanal, cuesta
+> **4,45 USD/mes — el 9 % del cupo.**
+>
+> **Los 23,83 USD del 10/09 no los causó el actor, ni la ventana, ni la falta de
+> `onlyPostsOlderThan`: los causó disparar 5 tandas en un día.** El 74 % de re-compra es re-compra
+> **intradía**. *El proveedor nunca fue el problema; la cadencia sí, y arreglarla es gratis.*
+>
+> **El diagnóstico de este doc sigue siendo correcto en su mecánica** (dónde se paga, qué filtro
+> corre después del pago, por qué la profundidad es un knob de volumen). Lo que caducó es su
+> conclusión de urgencia. **El estado vivo del tema es
+> [plan-refactor-motor.md](./plan-refactor-motor.md).**
 
 > **Estado al 2026-09-10 21:42 UTC.** Nace del reporte de Marú sobre las corridas de Juan Pablo
 > Vieira (2 proyectos, muchos referentes, ~32 videos por proyecto y al menos uno fuera de tema) y de

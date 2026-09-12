@@ -285,6 +285,11 @@ bloqueado. **Las dos mitades se arreglaron; falta el ojo.**
 
 Dos ventanas en `/retia/reels/operar` (una en incógnito), y mirar **dos cosas**:
 
+> ⛔ **BLOQUEADA desde el 2026-09-12: el botón ▶ está desactivado a propósito** mientras dura el
+> refactor del motor (`MOTOR_BLOQUEADO` en `apps/dashboard/…/operar/bloqueo.ts`, commit `e4c1133`).
+> Esta verificación **no se puede correr** hasta que se desbloquee. No la marques fallida: está
+> pausada.
+
 1. **Disparar ▶ en la ventana A.** La ventana B, sin tocarla, tiene que enterarse sola **en ≤30 s**
    (esa es la cadencia ociosa; con corrida viva pasa a 5 s).
 2. **Apretar ▶ en la ventana B mientras la corrida sigue.** Tiene que decir

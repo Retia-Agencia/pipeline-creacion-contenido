@@ -222,6 +222,12 @@ El texto original está en [handoff-archivo-2026-06_09.md](./handoff-archivo-202
 > que sí producen.** Y el desperdicio grande no es la profundidad: **94-98 % de cada corrida
 > re-compra lo que la anterior ya pagó**, y el actor no tiene `onlyPostsOlderThan` para evitarlo.
 
+> 🩸 **SUPERADO el 2026-09-12 — no lo ejecutes como está escrito.** Sigue siendo cierto que 500.000
+> ahoga a trading, pero la salida ya no es mover el knob a 100.000: es **sacar el umbral absoluto
+> del camino** y reemplazarlo por una medida relativa a la propia cuenta
+> ([plan-refactor-motor §3.2](./plan-refactor-motor.md)). Y hay un dato que este bloque no tenía:
+> **el 500.000 es una instrucción explícita del jefe**, así que bajarlo no es una decisión de dev.
+>
 > 🔴 **LA DECISIÓN QUE ABRE LA PRÓXIMA SESIÓN, y es de un solo knob: bajar `Mínimo de vistas`.**
 > Está en **500.000** y es **global** (`app.ajustes` no tiene `proyecto_id`). Medido: el pool de
 > trading de Vieira tiene mediana **22.394** contra **256.556** del resto — 11,5× de diferencia — y
@@ -515,7 +521,12 @@ día.** Las dos de la mañana solaparon **100,0 %**: cero videos nuevos en 52 mi
 ⚠️ **El día costó 23,83 USD y la base decía 19,82.** La diferencia son los **4,01 USD de la exec
 178**, que falló y no dejó métrica. *Una corrida que muere paga igual y no se cuenta.*
 
-### 3 · Las views se congelan a las 48 horas
+### 3 · ~~Las views se congelan a las 48 horas~~ 🩸 DESMENTIDO el 12/09
+
+> ⛔ **Esta conclusión es falsa y se deja tal cual por ser registro de cierre.** La medición era de
+> 52 minutos y no tenía resolución para ver crecimiento lento. Medido de verdad y gratis el 12/09:
+> **las vistas no dejan de crecer nunca** ([plan-refactor-motor §1.3](./plan-refactor-motor.md)).
+> Lo que sí vale de la tabla: la velocidad se desploma con la edad.
 
 Como las mismas 1.741 filas se pagaron dos veces con 52 minutos de diferencia, se pudo medir el
 crecimiento sin gastar nada:

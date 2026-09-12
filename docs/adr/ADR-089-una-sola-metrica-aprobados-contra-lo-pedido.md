@@ -5,6 +5,21 @@
   [plan de la cascada](../agents/plan-cascada-de-entrega.md) §4. **No toca `core/`, sin migración,
   sin código.** Es la definición contra la que se juzga todo lo demás.
 
+## ⚠️ Tensión abierta (2026-09-12) — no es una enmienda, es un aviso
+
+Esta ADR dice ser *"la definición contra la que se juzga todo lo demás"*. **El 12/09 apareció una
+segunda definición, que no está escrita en ningún ADR y que gobierna el trabajo real:** el jefe le
+pide al equipo de redes **videos de mínimo 500k vistas, explícitamente**, y para él eso *es*
+accuracy (reportado por Mani).
+
+**Las dos no son compatibles en el margen: un video de 500k que el equipo NO aprueba sube la métrica
+del jefe y baja la de esta ADR.** Y en la dirección contraria, el pool de trading tiene mediana de
+22.394 vistas, así que optimizar la métrica del jefe ahí significa entregar casi nada.
+
+**No se resuelve acá.** Queda registrado para que nadie lea esta ADR creyendo que la organización
+tiene una sola métrica. Contexto medido y el estado de la conversación en
+[plan-refactor-motor §0](../agents/plan-refactor-motor.md).
+
 ## Contexto
 
 Cada cambio del motor venía con su propia métrica: `+232 entregados` (ADR-088), `bajo_umbral`,

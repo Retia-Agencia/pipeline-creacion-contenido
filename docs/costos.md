@@ -1,5 +1,21 @@
 # Costos — la herramienta vista desde la plata
 
+> 🧭 **ACTUALIZACIÓN 2026-09-12 — leé esto antes que el resto del doc.** Tres cosas de acá quedaron
+> desmentidas o superadas, y están marcadas en su lugar:
+>
+> 1. **§3.6 "las views se congelan" es FALSO.** Medido de verdad y gratis: no dejan de crecer nunca.
+> 2. **Apify no es insostenible.** 0,84-2,41 USD/mes bien usado, y el cupo aguanta 580-2.149
+>    referentes. Lo caro fue la **cadencia** (5 tandas en un día), no el proveedor.
+> 3. 🩸 **La tabla de decisión de §4 y la recomendación de bajar `min_views` a 100.000 quedan
+>    SUPERADAS, no corregidas.** El diseño nuevo saca el umbral absoluto del camino y lo reemplaza
+>    por una medida **relativa a la propia cuenta**. Y hay un dato que este doc no tenía: **el
+>    500.000 es una instrucción explícita del jefe, no un default** — así que cambiarlo no es un
+>    knob, es una conversación.
+>
+> El estado vivo es [agents/plan-refactor-motor.md](./agents/plan-refactor-motor.md).
+> **Lo que NO caducó de este doc: el mapa de dónde se paga, el invariante de que todos los filtros
+> corren DESPUÉS de que Apify cobró, y el histórico por servicio.**
+
 > **Qué es esto.** El único lugar donde se mira el pipeline como gasto: dónde se paga, a quién,
 > cuánto, y qué palanca mueve cada número. Nace el **2026-09-10**, el día que Apify se comió la
 > mitad del cupo mensual en 21 horas.
@@ -294,7 +310,21 @@ d=collections.defaultdict(float); [d.__setitem__(r['startedAt'][:10], d[r['start
 [print(k, round(v,2)) for k in sorted(d)]"
 ```
 
-### 3.6 Las views se congelan a las 48 horas
+### 3.6 ~~Las views se congelan a las 48 horas~~ 🩸 DESMENTIDO el 2026-09-12
+
+> ⛔ **ESTE TÍTULO ES FALSO Y LA TABLA DE ABAJO NO LO PRUEBA.** La medición se hizo con **52 minutos**
+> de diferencia, y el `0,00 %` del bucket `>7d` está **redondeado a dos decimales**: es compatible
+> con hasta ~4,2 %/mes. Además esos 1.603 reels tienen mediana de 21.881 vistas, o sea que creciendo
+> 0,139 %/día ganarían **del orden de UNA vista** en 52 minutos. **La medición no tiene resolución
+> para ver crecimiento lento.**
+>
+> **Medido de verdad el 12/09, gratis, con 26 días de historia de datasets ya pagados**
+> ([plan-refactor-motor §1.3](./agents/plan-refactor-motor.md)): en cada ventana de varias semanas
+> creció **prácticamente el 100 %** de los reels (122/122, 120/120, 316/317), a ~1-3 %/mes. **Los
+> videos no dejan de crecer nunca.**
+>
+> **Lo que la tabla SÍ prueba y sigue siendo válido:** la velocidad se desploma con la edad (se
+> divide por ~38 entre el día 0 y el día 6). El error fue leer "velocidad baja" como "velocidad cero".
 
 Como las mismas 1.741 filas se pagaron dos veces con 52 minutos de diferencia, se pudo medir el
 crecimiento gratis:
@@ -472,6 +502,13 @@ dirección de las vistas absolutas (12,0 % → 41,1 %), así que no es puro arte
 **La forma de esta curva la fija la métrica de "útil", y la de hoy (`min_views`, absoluta) premia
 lo viejo por construcción.** Es la versión intra-cuenta del invariante 3.
 
+> ⭐ **Este párrafo es la evidencia MÁS FUERTE a favor del rediseño de
+> [plan-refactor-motor §3.2](./agents/plan-refactor-motor.md), y estaba escrita acá desde antes sin
+> que nadie la citara.** Ya probó una métrica **relativa** (`≥ 2× la mediana de la propia cuenta`) y
+> midió que **mantiene la dirección de las vistas absolutas (12,0 % → 41,1 %)**, o sea que no es un
+> artefacto del umbral. Y ya nombró la causa raíz que el plan llama §0: *la métrica absoluta premia
+> lo viejo por construcción.* **Un hallazgo escrito y no conectado se vuelve a descubrir.**
+
 #### 4.3.3 Dónde SÍ está la eficiencia: el referente
 
 Misma corrida, mismo umbral, mismos 25 reels comprados a casi todos. **El rango va de 60 % a 0 %:**
@@ -599,7 +636,12 @@ producto y la ventana larga se justifica.
    suscripción de 3 USD/año que nadie cancela — hoy hay 5 corriendo.
 4. ⬜ **El ledger por cuenta**: reels comprados · pasaron `min_views` · candidatos · aprobados, por
    corrida. Es lo que convierte el paso 3 en automático y hoy no existe en ninguna tabla.
-5. ⬜ **El experimento de maduración** (§4.3.6), 0,12 USD, antes de rediseñar la ventana.
+5. ~~⬜ El experimento de maduración (§4.3.6), 0,12 USD~~ ✅ **YA NO HACE FALTA PAGARLO** (12/09).
+   Se hizo **gratis**: la re-compra dejó el mismo reel medido en varias fechas dentro de datasets ya
+   pagados, y Apify los conserva 31 días. Resultado en
+   [plan-refactor-motor §1.3](./agents/plan-refactor-motor.md). **Lo que falta es el tramo del reel
+   JOVEN** (día 0→7), que sale de los mismos datos filtrando por `timestamp` de publicación, cuesta
+   0, y **vence el 2026-10-11**.
 
 **Reproducir todo esto:** los ids de corrida salen de `GET /v2/actor-runs?limit=500&desc=1`, los
 items de `GET /v2/datasets/<id>/items?fields=id,ownerUsername,videoPlayCount,timestamp`, y ninguna
