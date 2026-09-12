@@ -29,9 +29,9 @@ tercio del medio eran cierres viejos anidados uno dentro de otro bajo un encabez
 
 | buscás | está en |
 |---|---|
-| **el estado de hoy** | el §ARRANCÁ POR ACÁ de acá abajo (cierre 152) |
+| **el estado de hoy** | el §ARRANCÁ POR ACÁ de acá abajo (cierre 153) |
 | **el refactor del motor** | 🧭 [plan-refactor-motor.md](./plan-refactor-motor.md) — el punto de partida único |
-| **los cierres 145 a 152** | acá abajo, completos |
+| **los cierres 145 a 153** | acá abajo, completos |
 | **los cierres 70 a 144** | [handoff-archivo-2026-06_09.md](./handoff-archivo-2026-06_09.md) |
 | **el refactor Voces→Proyectos** | 🗄️ terminado y archivado el 2026-09-12: [docs/archivo/refactor-voces-proyectos.md](../archivo/refactor-voces-proyectos.md) |
 
@@ -39,7 +39,71 @@ tercio del medio eran cierres viejos anidados uno dentro de otro bajo un encabez
 N`), **nunca anidado dentro del anterior**. Así fue como nacieron las 5.736 líneas de blockquotes
 dentro de blockquotes que se acaban de archivar.
 
-## 🚦 ARRANCÁ POR ACÁ — CIERRE 152 (2026-09-12): brainstorm del refactor del motor, y cuatro conclusiones propias que se cayeron
+## 🚦 ARRANCÁ POR ACÁ — CIERRE 153 (2026-09-12): la consolidación de `docs/`, y re-medir antes de mover encontró dos docs que mentían sobre sí mismos
+
+> 🗂️ **Sesión dedicada y desechable, solo documentación. Cero motor, cero cockpit, cero migraciones,
+> cero n8n.** Ejecuta §12 de [plan-refactor-motor.md](./plan-refactor-motor.md). **Cero borrados:**
+> todo lo que salió de `docs/agents/` está en [`docs/archivo/`](../archivo/).
+
+**Resultado:** `docs/agents/` pasó de **13 a 9 archivos** y de **15.718 a 14.058 líneas** (−1.660,
+contra las ≈1.600 estimadas). Nació **[ADR-098](../adr/ADR-098-el-proveedor-no-es-el-problema-la-cadencia-si.md)**
+(98 ADRs) y el chequeador de links quedó enganchado a `npm run validate`.
+
+### 🩸 Lo primero que se hizo fue re-medir, y pagó: dos docs mentían sobre su propio estado
+
+El plan pedía verificar el diagnóstico antes de limpiar. Salió que **la sesión de simplificar el
+motor nunca corrió** (nada después de `1d2a1e5`), así que el diagnóstico seguía vigente — pero **dos
+de sus cinco renglones estaban mal**, y los dos en la misma dirección: *un doc que no actualiza su
+encabezado se lee como pendiente para siempre.*
+
+| lo que decía §12 | lo que estaba medido |
+|---|---|
+| `plan-modo-seleccion` está *"acordado sin construir"* desde el 21/08 | **Construido**: fases 0, 1, 2, 3, 4 y 6 ✅. Sólo su encabezado seguía diciendo lo otro |
+| mergear `plan-costo-apify` (350 líneas) en `costos.md` | **16 de sus 19 hallazgos ya estaban allá**, y los otros 3 también con otras palabras. El merge real fueron **4 líneas** |
+
+### Lo que se hizo, en orden
+
+| # | qué | hallazgo |
+|---|---|---|
+| 0 | **Los 6 links rotos previos**, en commit aparte | 🩸 4 de los 6 los causó **un solo commit llamado `useless`** que borró `docs/transcripciones/`, la transcripción donde se decidió que el guion se transcribe literal. La citan README, ROADMAP, one-pager y ADR-009. **Restaurada de git** |
+| 1 | **El chequeador de links** (`core/scripts/check-links.mjs`) | 35 líneas, ESM plano. **Sólo links rotos**: los otros dos chequeos que se proponían exigían inventar una convención de *"doc vivo"*, y Mani eligió no pagar esa pieza. Verificado en las dos direcciones (verde sobre 169 archivos, y `exit 1` con un roto a propósito) |
+| 2 | **`refactor-voces-proyectos` → archivo** | Su pregunta central (§3 ⭐ *¿Airtable o dashboard propio?*) la cerró **ADR-025 hace dos meses**. De sus 6 checkboxes abiertos, 4 están construidos y **2 están muertos, no pendientes** (racionalizan campos de Airtable, purgada el 03/08) |
+| 3 | **`plan-costo-apify` → `costos.md` + archivo** | *"Cuánto cuesta"* queda con **una sola puerta**. Lo único sin dueño era la advertencia de que la palanca 0 se aplicó por SQL y no dejó fila en `app.eventos` |
+| 4 | **`evaluacion-proveedores-scraping` → ADR-098 + `costos.md` + archivo** | El ADR es **más chico que el doc a propósito**: decide sólo que Apify se queda |
+| 5 | **`plan-modo-seleccion` → `verificaciones-humanas` + archivo** | Lo abierto se mudó a su dueño: §18 el `.docx` en Word, §19 el modo selección en celular, §20 los cinco canarios |
+| 6 | **`PLAN.md §12 §3.1`** | No era *"duplicado literal"*: eran las 9 fundacionales, con una nota que ya decía *"van 43"* con **98 ADRs en disco** |
+| 7 | **El mapa de `CLAUDE.md`, chequeado a mano** | Ver abajo |
+
+### ⚠️ Tres cosas que esta sesión decidió NO hacer, y el porqué
+
+1. **El ADR-098 NO adopta lo que la evaluación recomendaba además:** bajar `min_views` a 100.000 y
+   crecer el roster de 26 a ~300 **quedan abiertos**. El 500.000 es una instrucción explícita del
+   jefe, no un default de dev, y el roster grande necesita un ledger por cuenta que no existe (con
+   137 calificaciones, chi² = 15,9 con p ≈ 0,15 ⇒ **no se distingue una cuenta buena de una mala**).
+   *Un dev no cierra eso.*
+   📌 Y va anotado que el doc decía *"no se escribe como ADR todavía (pedido explícito de Mani)"*: el
+   pedido de hoy es posterior y lo pide, por eso se escribe **y por eso se acota**.
+2. **El script NO chequea si un doc vivo está en el mapa.** Se propuso con su costo y Mani eligió
+   sólo links. El chequeo se corrió **a mano una vez**, y encontró 4 huecos.
+3. **Los canarios no se corrieron.** Se mudaron con sus consultas; hay que apretar el botón.
+
+### 🩸 El hueco más caro del mapa era previo, y es grande
+
+`plan-multi-tenant.md` — **1.638 líneas, el doc VIVO más grande del repo** — **no estaba en el mapa
+de `CLAUDE.md`**. Para un agente nuevo, no existía. También faltaban `docs/prompts/limpieza-guion.md`
+(el prompt que Majo pega a mano) y la transcripción recién restaurada. *El mapa no avisa de lo que
+le falta: avisa de lo que tiene.* Los 4 ya están.
+
+### Lo que queda para la próxima
+
+- ⏰ **Los 5 canarios de adopción, vencidos el 04/09** → [verificaciones-humanas §20](../verificaciones-humanas.md), con las consultas escritas.
+- ⬜ **§18 y §19** de ese mismo doc: el `.docx` en Word y el modo selección en celular.
+- 🔴 **Lo del refactor del motor no se tocó** y sigue entero en [plan-refactor-motor.md §11](./plan-refactor-motor.md).
+- 🟡 **`plan-multi-tenant.md` §15 es el doc vivo más grande y nadie lo miró esta sesión.** Ahora al menos está en el mapa.
+
+---
+
+## 🔒 CIERRE 152 (2026-09-12): brainstorm del refactor del motor, y cuatro conclusiones propias que se cayeron
 
 > 🧠 **Sesión de brainstorm y documentación. Cero código del motor, cero corridas, cero migraciones.**
 > Lo único aplicado al producto fue **bloquear el botón ▶** (`e4c1133`).

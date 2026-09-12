@@ -982,7 +982,20 @@ citado como si estuviera medido.**
 ## §12 · 🗂️ La sesión de consolidación de docs — dedicada, y se descarta al terminar
 
 > Decidido por Mani el 2026-09-12 al cierre: **esto va en su propia sesión, literal solo para esto, y
-> después se descarta.** No se ejecutó nada.
+> después se descarta.**
+>
+> ✅ **EJECUTADO el 2026-09-12 por esa sesión.** `docs/agents/` pasó de **13 a 9 archivos** y de
+> **15.718 a 14.058 líneas** (−1.660, contra las ≈1.600 que este plan estimó). Nació
+> **[ADR-098](../adr/ADR-098-el-proveedor-no-es-el-problema-la-cadencia-si.md)**, el chequeador de
+> links quedó enganchado a `npm run validate`, y **cero borrados**. El detalle está en el CIERRE 153
+> del [handoff](./handoff.md).
+>
+> 🩸 **Y el primer paso —re-medir antes de mover— pagó: dos renglones de la tabla de abajo estaban
+> mal.** `plan-modo-seleccion` no estaba *"acordado sin construir"*: tenía las fases 0-4 y 6
+> construidas y su encabezado envejecido. Y `plan-costo-apify` no eran 350 líneas de merge: **16 de
+> sus 19 hallazgos ya estaban en `costos.md`**, y los otros 3 también con otras palabras — el merge
+> real fueron 4 líneas. *Un plan de limpieza que no se re-mide antes de correr limpia el mapa de
+> ayer.*
 
 ### El diagnóstico: el problema NO es cuántos docs hay
 
