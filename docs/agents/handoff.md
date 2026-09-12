@@ -3,8 +3,8 @@
 > **Si vas a trabajar en el repo, leé esto primero (2 min).** Acá vive el estado real: qué task
 > está libre, quién tiene qué, y qué pasó en las últimas sesiones. El *qué hacer y cómo* de cada
 > task vive en [ROADMAP §3](../../ROADMAP.md); el contexto de producto en [ROADMAP §1](../../ROADMAP.md) y el
-> diseño en [PLAN.md](../../PLAN.md). El tablero activo del refactor vive en
-> [refactor-voces-proyectos.md §4–§5](./refactor-voces-proyectos.md) (componentes A–E).
+> diseño en [PLAN.md](../../PLAN.md). El refactor vivo es el del **motor**:
+> [plan-refactor-motor.md](./plan-refactor-motor.md).
 
 ## Protocolo (lo único que hay que respetar)
 
@@ -33,7 +33,7 @@ tercio del medio eran cierres viejos anidados uno dentro de otro bajo un encabez
 | **el refactor del motor** | 🧭 [plan-refactor-motor.md](./plan-refactor-motor.md) — el punto de partida único |
 | **los cierres 145 a 152** | acá abajo, completos |
 | **los cierres 70 a 144** | [handoff-archivo-2026-06_09.md](./handoff-archivo-2026-06_09.md) |
-| **el tablero del refactor Voces→Proyectos** | [refactor-voces-proyectos.md](./refactor-voces-proyectos.md) §4–§5 |
+| **el refactor Voces→Proyectos** | 🗄️ terminado y archivado el 2026-09-12: [docs/archivo/refactor-voces-proyectos.md](../archivo/refactor-voces-proyectos.md) |
 
 **Regla al cerrar sesión:** el cierre nuevo va **arriba**, como hermano de los demás (`## 🔒 CIERRE
 N`), **nunca anidado dentro del anterior**. Así fue como nacieron las 5.736 líneas de blockquotes
@@ -1035,11 +1035,13 @@ verificaciones de esta sesión costaron ~**$0,07**. A ese ritmo el ciclo no lleg
 no es un estado, es un saldo.*
 
 
-## Tablero activo — refactor Voces→Proyectos
+## 🗄️ Tablero del refactor Voces→Proyectos — TERMINADO, archivado el 2026-09-12
 
-Vive en [refactor-voces-proyectos.md](./refactor-voces-proyectos.md) §4–§5 (componentes A–E). *Acá
-había un espejo de esa tabla, de la era Airtable; se archivó porque un tablero duplicado envejece
-en silencio.*
+Vive en [docs/archivo/refactor-voces-proyectos.md](../archivo/refactor-voces-proyectos.md). Este
+handoff lo llamaba *"tablero activo"* y era falso: su pregunta central (§3 ⭐ *¿Airtable o dashboard
+propio?*) la cerró **[ADR-025](../adr/ADR-025-cockpit-producto-propio.md) el 2026-07-17**, y el
+cockpit lleva meses en producción. *Un tablero que nadie mueve se ve idéntico a uno sin trabajo
+pendiente.* El detalle de los 6 checkboxes que quedaban está en el CIERRE 153.
 
 ## Log de avance (más reciente arriba)
 

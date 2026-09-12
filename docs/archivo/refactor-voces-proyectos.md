@@ -1,10 +1,33 @@
 # Refactor Voces→Proyectos — plan por componentes
 
+> # 🗄️ ARCHIVADO el 2026-09-12 — TERMINADO. No leas esto para saber qué existe hoy.
+>
+> **Su pregunta central se contestó hace dos meses.** El §3 ⭐ (*¿Airtable aguanta o conviene un
+> dashboard propio?*) lo cerró **[ADR-025](../adr/ADR-025-cockpit-producto-propio.md) el
+> 2026-07-17** hacia producto propio, y el cockpit lleva meses en producción con 17 pantallas sobre
+> Postgres. **Airtable se purgó el 2026-08-03**, así que todo lo que este doc describe como "el
+> modelo actual" ya no existe.
+>
+> **Los 6 checkboxes que quedaban `[ ]` no eran trabajo pendiente** (medido el 2026-09-12 contra el
+> repo, no contra el doc):
+>
+> | | qué decía | qué es hoy |
+> |---|---|---|
+> | **A.1** | auditar los 3 `workflow.json` contra dev-doc a mano | lo hacen `auditar-workflows.mjs` y `npm run n8n:diff`, en cada cambio |
+> | **B.1** | definir el flujo de una corrida punta a punta | construido: 17 pantallas y el equipo opera solo |
+> | **B.5** | toggle de Voz visible para el equipo | construido: `curar/voces` con su `activo` |
+> | **B.6** | cerrar Métricas + Costos | construido: la zona `entender/` |
+> | **B.3 · E.3** | racionalizar los campos de Airtable | 🪦 **muertos, no pendientes** — Airtable no existe |
+>
+> **Para qué sirve todavía:** es el PRD original (§0) y el porqué de ADR-023, ADR-024 y ADR-025.
+> Sirve para entender **por qué** el cockpit quedó así, no para saber qué hay.
+
+
 > **Qué es esto:** el plan de alto nivel del refactor del pipeline, **organizado por componentes
 > estructurales** (dashboard, motor de búsqueda, archivado, capa de datos) para que **dos devs trabajen
 > en paralelo**. Cada componente dice qué es, qué cambia, sus subsets, y su "hecho cuando". Es el
 > **scope general** de en qué nos estamos metiendo; el detalle de implementación de cada subset se
-> resuelve en su propia sesión leyendo este doc + el [handoff](./handoff.md).
+> resuelve en su propia sesión leyendo este doc + el [handoff](../agents/handoff.md).
 >
 > **Disparador:** reunión con el equipo de redes (Majo, Jero) del **2026-07-15** + comentarios de cierre
 > de Mani. De ahí salió el modo de operación on-demand por proyecto, los toggles por Voz, y la pregunta
@@ -172,7 +195,7 @@ Airtable salvo que la auditoría pruebe lo contrario.
 **Qué es:** el mapa verificado y sin puntos ciegos de los 3 workflows y del cockpit — cada nodo, cómo
 se alimenta cada tabla/vista, para qué sirve cada campo, y que **no haya componentes sin propósito o con
 uso no visto**. Es lo que Mani pidió explícito, y lo que destraba §3. Punto de partida (no arrancar de
-cero): [dev-doc.md](dev-doc.md) → **verificar contra el JSON vivo, extender, flagear huérfanos**.
+cero): [dev-doc.md](../agents/dev-doc.md) → **verificar contra el JSON vivo, extender, flagear huérfanos**.
 
 - [ ] **A.1** Verificar los 3 `workflow.json` contra dev-doc/guía: cada nodo existe, hace lo dicho, y
       está cableado (0 refs rotas, 0 huérfanos — reusar el chequeo de grafo de cierres 34/36).
@@ -199,7 +222,7 @@ cero): [dev-doc.md](dev-doc.md) → **verificar contra el JSON vivo, extender, f
       seed: `Días de recencia`=100 y `Bonus idioma`=0.45 son el equipo usando sus knobs, no drift; los 2
       toggles del descubrimiento faltan en `ajustesSeed` → pasada única de `setup-airtable.mjs`).
       ⚠️ **Verificación real pendiente:** el primer ciclo completo cierra el **26/07** (ver §Ciclo del
-      [handoff](./handoff.md)) — hasta ahí no hay prueba viva de que el re-import quedó bien.
+      [handoff](../agents/handoff.md)) — hasta ahí no hay prueba viva de que el re-import quedó bien.
 - [x] **A.5** ✅ **CERRADA (2026-07-17): [ADR-025](../adr/ADR-025-cockpit-producto-propio.md)** — el
       cockpit migra a un **producto propio** (frontend+backend+DB+auth sobre Supabase), toda la
       superficie; Airtable queda como cockpit **interino** curado al mínimo (la guía ejecutable está en

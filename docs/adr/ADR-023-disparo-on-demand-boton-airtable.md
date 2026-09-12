@@ -1,7 +1,7 @@
 # ADR-023 — Disparo on-demand: botón en Airtable → automation → webhook n8n (señal desnuda, el motor lee Airtable)
 
 - **Estado:** aceptada — 2026-07-15 (grilling del refactor Voces→Proyectos con Mani).
-  Es el contrato de disparo del refactor ([refactor-voces-proyectos.md](../agents/refactor-voces-proyectos.md) §0/B.2/§5).
+  Es el contrato de disparo del refactor ([refactor-voces-proyectos.md](../archivo/refactor-voces-proyectos.md) §0/B.2/§5).
   Coexiste con el cron semanal (no lo retira).
 - **Contexto:** la reunión con el equipo de redes (2026-07-15) pidió que Majo/Jero puedan disparar
   una corrida **a demanda** sin esperar al cron semanal ni a un dev. Hoy una corrida solo nace del

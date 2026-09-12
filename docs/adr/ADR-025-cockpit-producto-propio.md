@@ -1,7 +1,7 @@
 # ADR-025 — El cockpit migra a un producto propio; Airtable queda como superficie interina
 
 - **Estado:** aceptada — 2026-07-17 (decisión de Mani; cierra **A.5**, la decisión gated de
-  [refactor-voces-proyectos §3](../agents/refactor-voces-proyectos.md)). Mani la propone al equipo
+  [refactor-voces-proyectos §3](../archivo/refactor-voces-proyectos.md)). Mani la propone al equipo
   como información de dirección y avanza por su cuenta; no hay gate de aprobación.
   **Enmienda el invariante transversal de ROADMAP §1** ("Airtable es el punto de entrada único").
 - **Contexto:** la auditoría del refactor (A.2/A.3, [mapa-campos](../archivo/mapa-campos.md)) dejó la

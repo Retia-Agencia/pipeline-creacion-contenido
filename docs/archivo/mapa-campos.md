@@ -15,7 +15,7 @@
 > quién lo lee, si tiene propósito) y **página** (§5: qué tabla lee, qué edita, para qué sirve). Responde
 > las 4 preguntas de Mani: *¿cada campo cómo se maneja? ¿cómo influye en el workflow? ¿es necesario?
 > ¿está estandarizado?* Es el entregable de **A.2 + A.3** del
-> [refactor Voces→Proyectos](../agents/refactor-voces-proyectos.md), y lo que alimenta la racionalización de
+> [refactor Voces→Proyectos](./refactor-voces-proyectos.md), y lo que alimenta la racionalización de
 > campos de **B.3** y la decisión de herramienta de **A.5**.
 >
 > **Granularidad:** el mapa **por tabla** (quién toca qué tabla) vive en [dev-doc §5](../agents/dev-doc.md);
@@ -101,7 +101,7 @@ solo aplica si la fila no existe. Mismo caso que `Bonus idioma extranjero` 0.45 
 
 ### 2.5 ⭐ Un referente puede alimentar VARIOS proyectos — y por lo tanto varias voces
 
-El [plan del refactor §2](../agents/refactor-voces-proyectos.md) daba "referentes independientes entre voces"
+El [plan del refactor §2](./refactor-voces-proyectos.md) daba "referentes independientes entre voces"
 como ✅ *implícito (referente → 1 proyecto → 1 voz)*, con un "confirmar en la auditoría". **Confirmado, y
 es al revés:** `Referentes.proyecto` es un `multipleRecordLinks` (la descripción en vivo lo dice
 explícito: *"podés linkear varios"*), y `Armar plan de corrida` **itera el array entero**, empujando el
@@ -358,7 +358,7 @@ superficie curada. Decidir en B.1 si sube a página.
 > queda como el insumo que alimentó esa decisión.
 
 El mapa parte en dos, limpio, y **confirma el matiz de "partir la superficie"** de
-[§3 del plan](../agents/refactor-voces-proyectos.md):
+[§3 del plan](./refactor-voces-proyectos.md):
 
 - **El eje operativo funciona bien en Airtable.** *Configuración Global*, *Referentes*, *Sugeridos* y
   *Feed* hacen lo suyo; sus problemas son de **curaduría** (un permiso, un filtro, un campo de más), no

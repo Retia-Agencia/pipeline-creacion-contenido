@@ -3,11 +3,11 @@
 > **Qué es este doc:** el plan de construcción de la superficie propia que reemplaza a Airtable
 > ([ADR-025](../adr/ADR-025-cockpit-producto-propio.md)). Define **qué componentes tiene el sistema**,
 > **con qué se construye cada uno** y **en qué orden**, con un "hecho cuando" verificable por fase.
-> Es el hermano de [refactor-voces-proyectos.md](../agents/refactor-voces-proyectos.md) para el producto: ese
+> Es el hermano de [refactor-voces-proyectos.md](./refactor-voces-proyectos.md) para el producto: ese
 > plan cierra (su componente B muere acá), este arranca.
 >
 > **El PRD no se reescribe.** El contrato de producto —objetivo, usuarios, FR1–FR10, NFR1–NFR8— es el
-> de [refactor §0](../agents/refactor-voces-proyectos.md), y sigue siendo el juez: si algo de acá no sirve a
+> de [refactor §0](./refactor-voces-proyectos.md), y sigue siendo el juez: si algo de acá no sirve a
 > eso, no va.
 >
 > **Decisiones que lo gobiernan:** [ADR-025](../adr/ADR-025-cockpit-producto-propio.md) (producto
