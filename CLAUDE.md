@@ -74,26 +74,6 @@ en §Agent skills; acá solo se ubican.
   de `docs/` (§10), **§11 con todo lo que quedó abierto** y **§12, la consolidación de `docs/`**
   (merges + chequeador de links) que Mani mandó a **su propia sesión dedicada y desechable**.
   **Si vas a tocar el motor, empezá acá.**
-- [docs/agents/evaluacion-proveedores-scraping.md](docs/agents/evaluacion-proveedores-scraping.md) —
-  5 actores de Apify y 7 alternativas externas, con precio, paginación, infraestructura y riesgo
-  (cierre 151). Su veredicto: **el proveedor nunca fue el problema, la cadencia sí**. Apify bien
-  usado son 0,84-2,41 USD/mes y el cupo aguanta 580-2.149 referentes.
-- [docs/agents/evaluacion-proveedores-scraping.md](docs/agents/evaluacion-proveedores-scraping.md) —
-  **¿hay que sacar a Apify?** El inventario de los 5 actores de Apify y las 7 alternativas externas
-  (Meta Graph API, HikerAPI, ScrapeCreators, EnsembleData, Bright Data, instaloader/instagrapi,
-  Agent-Reach), cada una con precio de primera mano, paginación, infraestructura y riesgo. Su
-  hallazgo ordenador, y contradice el título: *el proveedor nunca fue el problema* — **Apify con
-  marca de agua por referente y cadencia semanal cuesta 0,84-2,41 USD/mes** de un cupo de 50, y la
-  config de HOY a cadencia semanal ya cuesta 4,45. Los 23,83 USD del 10/09 los causó **disparar 5
-  tandas en un día**, no la ventana. 🔴 **Y el hallazgo que reordena el norte: 25 referentes no
-  pueden dar los ~150 videos/semana que pide el equipo** — el techo físico del roster son 45
-  aprobados, y para 150 hacen falta **301-1.115 referentes con `min_views` en 100.000**. ⇒ *la marca
-  de agua no es la mejora, es el permiso para multiplicar los referentes por 12-40.* Trae también
-  los dos precios que se creían no consultables (el add-on de transcript de Apify sale **26×
-  Supadata**; el actor "13 % más barato" sale **+5 % más caro** por su cobro de arranque) y el
-  análisis de seguridad de Agent-Reach: **código limpio, descartado por arquitectura** (es
-  desktop-only sobre tu Chrome logueado, no corre en un servidor). **Si la pregunta es "¿nos
-  cambiamos de proveedor?", empieza acá.**
 - [docs/agents/plan-motor-linkedin.md](docs/agents/plan-motor-linkedin.md) — de **esqueleto a motor**:
   las fases 0–4 para que el pipeline de LinkedIn corra. Su hallazgo ordenador: **los dos carriles no
   comparten bloqueos** — el personal está a un pedido (los few-shot) y el copiable necesita los tres.
@@ -120,6 +100,14 @@ por qué. **No los leas para saber qué existe hoy.**
 - `plan-orden-y-filtro.md` — ✅ ejecutado y live el 26/08. Lo vigente son sus decisiones, y esas
   viven en [ADR-076](docs/adr/ADR-076-ordenar-es-una-vista-no-una-consulta.md).
 - `plan-rescate-huerfanos.md` — ✅ ejecutado (corrida del 31/08, cerrada `ok` en 13 min).
+- `evaluacion-proveedores-scraping.md` — ✅ evaluación cerrada. Su veredicto es
+  **[ADR-098](docs/adr/ADR-098-el-proveedor-no-es-el-problema-la-cadencia-si.md)** y sus números
+  viven en [costos.md](docs/costos.md) (§4.1.1 el techo del roster, §6.1.2 los dos precios, §6.1.3
+  Meta Graph). Acá queda el inventario largo: 5 actores de Apify y 7 alternativas externas con
+  precio de primera mano, paginación, infraestructura y riesgo, más el análisis de seguridad de
+  Agent-Reach (**código limpio, descartado por arquitectura**: es desktop-only sobre tu Chrome
+  logueado, no corre en un servidor). *Este renglón estaba DOS veces en este mapa, con dos
+  resúmenes distintos del mismo doc.*
 - `plan-costo-apify.md` — 🪦 su tesis (*"el costo de Apify no es sostenible"*) quedó desmentida el
   12/09, y su mecánica ya vivía en [costos.md](docs/costos.md): medido pieza por pieza, **16 de sus
   19 hallazgos estaban allá, y los otros 3 también con otras palabras**. Lo único que no tenía dueño
@@ -130,7 +118,11 @@ por qué. **No los leas para saber qué existe hoy.**
 se cita, y varios gobiernan código vivo.
 
 **Decisiones**
-- [docs/adr/](docs/adr/) — ADRs 001–097 (97 archivos), una decisión por archivo con su porqué ([índice](docs/adr/README.md)).
+- [docs/adr/](docs/adr/) — ADRs 001–098 (98 archivos), una decisión por archivo con su porqué ([índice](docs/adr/README.md)).
+  💸 **Si la pregunta es *"¿nos cambiamos de proveedor de scraping?"*, la contesta
+  [ADR-098](docs/adr/ADR-098-el-proveedor-no-es-el-problema-la-cadencia-si.md): no.** El costo no es
+  una propiedad del proveedor sino del régimen de uso — el mismo actor cuesta 23,83 USD o 4,45
+  USD/mes según cuántas veces al día se dispare.
   🧭 **[ADR-089](docs/adr/ADR-089-una-sola-metrica-aprobados-contra-lo-pedido.md) manda sobre las métricas de todos los demás:** el norte es **`aprobados / N pedido`, por proyecto y por corrida** (cobertura × precisión). Un cambio que no lo mueve no es una mejora, por más que suba su propio número.
 
 **Contratos del núcleo (`core/`, solo cambia con ADR)**

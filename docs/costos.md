@@ -396,6 +396,46 @@ pedido**.
 
 **Y eso es sólo para pasar `min_views`; el gate mata la mayoría de lo que sobrevive.**
 
+#### 4.1.1 🔴 Y a la escala que pide el equipo, el que no cierra es el ROSTER (medido 12/09)
+
+La tabla de arriba mira una corrida. Mirado por semana contra lo que el equipo pide (**~150
+videos**), el número que no cierra deja de ser el umbral y pasa a ser **cuántas cuentas hay**.
+
+**El techo físico del roster de 25 referentes, con marca de agua semanal y todo comprado, es
+59 a 218 reels crudos/semana** *(dos estimadores que este pool no puede cerrar: el piso está
+censurado porque 14 cuentas topearon en 25; se reportan los dos en vez de inventar precisión)*.
+Lo que sobrevive de ahí, × 39 % de aprobación humana:
+
+| `min_views` | % del pool que pasa | aprobados/sem (pool 59) | aprobados/sem (pool 218) |
+|---|---|---|---|
+| **500.000 (hoy)** | **2,7 %** | **0,6** | 2,3 |
+| 250.000 | 6,7 % | 1,5 | 5,7 |
+| **100.000** | **14,7 %** | 3,4 | 12,5 |
+| 50.000 | 25,6 % | 5,9 | 21,7 |
+| 20.000 | 53,1 % | 12,2 | **45,1** |
+
+**Se piden 150 y el techo son 45**, con el umbral tan bajo que deja de filtrar. **Ningún ajuste de
+umbral, presupuesto o proveedor cierra esa brecha: el material no existe.** Cuántos referentes
+harían falta, y cuánto costarían con marca de agua:
+
+| `min_views` | referentes necesarios | USD/mes de Apify | ¿cabe en el cupo de 50? |
+|---|---|---|---|
+| 500.000 | 1.656 a 6.132 | **142,6** | ❌ no |
+| **100.000** | **301 a 1.115** | **25,9** | ✅ sí |
+| 50.000 | 173 a 640 | 14,9 | ✅ sí |
+
+🔑 **Lo que esto hace obvio: el costo de Apify escala con lo que las cuentas PUBLICAN, no con
+cuántas cuentas hay en la lista.** 300 referentes con marca de agua cuestan 26 USD/mes; hoy, a
+ventana de 50 días, costarían ~30 USD **por corrida**. ⇒ **la marca de agua no es la mejora, es el
+permiso para multiplicar los referentes por 12-40.** El veredicto está en
+[ADR-098](adr/ADR-098-el-proveedor-no-es-el-problema-la-cadencia-si.md).
+
+⚠️ **Lo que este cálculo NO dice, y por eso no autoriza a comprar 300 cuentas:** supone que las
+nuevas rinden como las 25 de hoy, y **no hay evidencia de eso** — con 137 calificaciones en toda la
+historia no se puede distinguir una cuenta buena de una mala, y 5 cuentas ya se llevan el 24 % del
+gasto devolviendo cero útiles (§4.3.3). *Sumar 300 referentes sin criterio de poda es comprar 300
+suscripciones que nadie cancela:* el ledger por cuenta (§4.3.7) es prerrequisito, no un extra.
+
 ⛔ **Conclusión aritmética: con el piso en 500.000, llenar N=70 no cierra a ningún presupuesto
 razonable.** No es que la corrida sea cara: es que se le piden 70 videos a un embudo cuyo primer
 filtro deja pasar 5. Las salidas son **bajar el piso** o **bajar el N**.
@@ -740,6 +780,22 @@ distinto, `reproducciones` da 0 y **todo muere contra el piso de views**, tambi�
 📐 **El break-even del actor barato es `0,0015 / 0,0023 = 65 %`:** sólo conviene si más del 65 % de
 lo que publica el referente son reels. Ese número no se puede sacar de los datos que ya tenemos;
 pedirlo cuesta ~0,03 USD (1 referente, 20 posts) y **no se disparó**.
+
+### 6.1.2 Dos precios que se creían no consultables, y los dos cierran su pregunta (12/09)
+
+- 🔓 **El add-on de transcript de Apify cuesta 26× Supadata.** Consultado por su propia API. Cierra
+  la idea de transcribir en el mismo proveedor que colecta: ⛔ descartado, con número.
+- 🔓 **El actor "13 % más barato" sale +5 % más CARO** en el régimen de marca de agua, por su cobro
+  de arranque: a pocos ítems por corrida, el cargo fijo pesa más que el descuento por ítem.
+  *Un precio por ítem no es un precio hasta que se lo multiplica por el régimen de uso real.*
+
+### 6.1.3 🟡 Meta Graph API — la única fuente oficial, y es estructuralmente parcial
+
+Cubre **25-50 % del roster**, medido sobre `metaData.isBusinessAccount` de los reels ya pagados: la
+API oficial sólo ve cuentas business. **Nunca puede ser proveedor único**, pero es gratis y oficial,
+así que vale como **segundo carril** para la concentración de proveedor. El inventario completo de
+las 7 alternativas externas está en
+[docs/archivo/evaluacion-proveedores-scraping.md](archivo/evaluacion-proveedores-scraping.md).
 
 ### 6.2 Sin evaluar
 

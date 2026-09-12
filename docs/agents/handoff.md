@@ -115,7 +115,7 @@ Las cuatro quedaron **marcadas en su doc de origen**, no sólo acá.
 > Disparada por Mani: *"evaluar alternativas al actor de Apify y traer una recomendación con
 > números"*.
 >
-> 📕 **El doc entero es [evaluacion-proveedores-scraping.md](./evaluacion-proveedores-scraping.md)**
+> 📕 **El doc entero es [evaluacion-proveedores-scraping.md](../archivo/evaluacion-proveedores-scraping.md)**
 > — 5 actores de Apify y 7 alternativas externas, con precio, paginación, infraestructura y riesgo.
 > Acá van sólo los cinco hechos que cambian decisiones. **No los re-derives.**
 

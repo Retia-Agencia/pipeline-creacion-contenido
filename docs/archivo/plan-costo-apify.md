@@ -17,7 +17,7 @@
 
 > 🩸 **EL TÍTULO QUEDÓ DESMENTIDO el 2026-09-12, y por dos mediciones distintas.** Apify **sí** es
 > sostenible: bien usado cuesta **0,84-2,41 USD/mes**, y el cupo de 50 aguanta **580-2.149
-> referentes** ([evaluacion-proveedores-scraping.md](../agents/evaluacion-proveedores-scraping.md)). Más
+> referentes** ([evaluacion-proveedores-scraping.md](./evaluacion-proveedores-scraping.md)). Más
 > todavía: la exec 183 **con la config de entonces y SIN marca de agua**, a cadencia semanal, cuesta
 > **4,45 USD/mes — el 9 % del cupo.**
 >

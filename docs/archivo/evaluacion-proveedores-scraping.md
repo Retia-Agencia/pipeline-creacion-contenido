@@ -1,5 +1,24 @@
 # Evaluación de proveedores de scraping — ¿hay que sacar a Apify?
 
+> # 🗄️ ARCHIVADO el 2026-09-12 — su veredicto es un ADR, y la respuesta es NO.
+>
+> **La decisión vive en
+> [ADR-098 — El proveedor no es el problema, la cadencia sí](../adr/ADR-098-el-proveedor-no-es-el-problema-la-cadencia-si.md).**
+> Los números monetarios se mudaron a [costos.md](../costos.md): §4.1.1 el techo del roster y cuántos
+> referentes caben en el cupo, §6.1.2 los dos precios que se creían no consultables, §6.1.3 Meta
+> Graph API.
+>
+> ⚠️ **El ADR es más chico que este doc a propósito.** Decide **una sola cosa: Apify se queda.** Las
+> otras dos recomendaciones de su §10 —bajar `min_views` a 100.000 y multiplicar el roster de 26 a
+> ~300— **NO se adoptaron**: el 500.000 es una instrucción explícita del jefe (no un default de dev)
+> y el roster grande necesita un ledger por cuenta que todavía no existe. Siguen abiertas, y no las
+> decide un dev.
+>
+> **Para qué sirve todavía:** es el inventario completo —5 actores de Apify, 7 alternativas externas
+> con precio de primera mano, paginación, infraestructura y riesgo— más el análisis de seguridad de
+> Agent-Reach. Si alguien vuelve a preguntar *"¿y probaste X?"*, la respuesta con su número está acá.
+
+
 > **Qué es esto.** El inventario completo de alternativas al actor `apify/instagram-scraper` que usa
 > el motor de reels, con precios de primera mano, y el contrafáctico de cuánto costaría Apify bien
 > usado. **Fecha: 2026-09-12.** No es un ADR y no decide nada todavía: es el material para decidir.
@@ -9,7 +28,7 @@
 > medir está marcado ⚠️ y dice por qué y qué experimento lo cerraría.
 
 **Docs hermanos.** El mapa monetario es [costos.md](../costos.md); el diagnóstico del gasto es
-[plan-costo-apify.md](../archivo/plan-costo-apify.md). Este doc es el tercero: **el proveedor**. El norte del
+[plan-costo-apify.md](./plan-costo-apify.md). Este doc es el tercero: **el proveedor**. El norte del
 producto está en [ROADMAP §1](../../ROADMAP.md) y la métrica única en
 [ADR-089](../adr/ADR-089-una-sola-metrica-aprobados-contra-lo-pedido.md).
 
@@ -197,7 +216,7 @@ rango de rendimiento medido va de 60 % a 0 % de útiles, y 5 cuentas se llevan e
 devolviendo cero.
 
 **Sumar 300 referentes sin un criterio de poda es comprar 300 suscripciones que nadie cancela.** El
-ledger por cuenta ([handoff §2.a](./handoff.md), `app.v_salud_referentes` + dos contadores que
+ledger por cuenta ([handoff §2.a](../agents/handoff.md), `app.v_salud_referentes` + dos contadores que
 faltan) es prerrequisito de esto, no un extra.
 
 ---

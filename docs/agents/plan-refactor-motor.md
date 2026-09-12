@@ -106,7 +106,7 @@ cabe en el cupo a ningún precio**.
 
 🔑 **Lo que las reconcilia: la marca de agua no es un ahorro, es el PERMISO para multiplicar los
 referentes por 12-40 dentro del mismo cupo.** Esa es la tesis de
-[evaluacion-proveedores-scraping.md](./evaluacion-proveedores-scraping.md) y es lo que convierte dos
+[evaluacion-proveedores-scraping.md](../archivo/evaluacion-proveedores-scraping.md) y es lo que convierte dos
 arreglos que parecían pelearse en un solo movimiento.
 
 ---
