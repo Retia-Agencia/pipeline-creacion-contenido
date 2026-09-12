@@ -74,6 +74,11 @@ en §Agent skills; acá solo se ubican.
   de `docs/` (§10), **§11 con todo lo que quedó abierto** y **§12, la consolidación de `docs/`**
   (merges + chequeador de links) que Mani mandó a **su propia sesión dedicada y desechable**.
   **Si vas a tocar el motor, empezá acá.**
+- [docs/agents/plan-multi-tenant.md](docs/agents/plan-multi-tenant.md) — de **producto individual** a
+  **producto repartido**: varios pipelines y varios clientes sobre el mismo cockpit. **Fases 0-4 y 6
+  en producción**; lo vivo es su §15, el cierre del producto en dos carriles. ⚠️ **Es el doc vivo más
+  grande del repo (1.638 líneas) y hasta el 2026-09-12 no estaba en este mapa** — o sea que para un
+  agente nuevo no existía.
 - [docs/agents/plan-motor-linkedin.md](docs/agents/plan-motor-linkedin.md) — de **esqueleto a motor**:
   las fases 0–4 para que el pipeline de LinkedIn corra. Su hallazgo ordenador: **los dos carriles no
   comparten bloqueos** — el personal está a un pedido (los few-shot) y el copiable necesita los tres.
@@ -100,6 +105,13 @@ por qué. **No los leas para saber qué existe hoy.**
 - `plan-orden-y-filtro.md` — ✅ ejecutado y live el 26/08. Lo vigente son sus decisiones, y esas
   viven en [ADR-076](docs/adr/ADR-076-ordenar-es-una-vista-no-una-consulta.md).
 - `plan-rescate-huerfanos.md` — ✅ ejecutado (corrida del 31/08, cerrada `ok` en 13 min).
+- `refactor-voces-proyectos.md` — ✅ terminado. El PRD original del refactor de julio y la raíz de
+  ADR-023/024/025. Su pregunta central (§3 ⭐ *¿Airtable o dashboard propio?*) la cerró ADR-025 el
+  17/07; sus 6 checkboxes abiertos están construidos o murieron con Airtable. **El handoff lo llamó
+  "tablero activo" hasta el 12/09.**
+- `plan-modo-seleccion.md` — ✅ construido (fases 0-4 y 6), con el encabezado diciendo *"acordado, sin
+  construir"*. Su decisión es ADR-075; lo que le quedaba abierto vive en
+  [verificaciones-humanas §18-§20](docs/verificaciones-humanas.md).
 - `evaluacion-proveedores-scraping.md` — ✅ evaluación cerrada. Su veredicto es
   **[ADR-098](docs/adr/ADR-098-el-proveedor-no-es-el-problema-la-cadencia-si.md)** y sus números
   viven en [costos.md](docs/costos.md) (§4.1.1 el techo del roster, §6.1.2 los dos precios, §6.1.3
@@ -388,6 +400,17 @@ se cita, y varios gobiernan código vivo.
   *Una empresa es un parámetro; un pipeline es un dominio.*
 - [core/templates/](core/templates/) — los esqueletos. Crearlo **es ejecutar F5**, que ya lo nombra
   por su ruta; cambiar lo de adentro sí pide ADR si cambia el contrato.
+
+**Fuentes y material crudo**
+- [docs/prompts/limpieza-guion.md](docs/prompts/limpieza-guion.md) — el prompt con el que una
+  transcripción cruda se vuelve un guion revisable. Hoy Majo lo pega a mano; mañana es el `system` de
+  la acción *Limpiar*. **Vive en un doc y no en el código a propósito:** se valida a mano antes de
+  hardcodearlo, así que si cambia, cambia acá primero.
+- [docs/transcripciones/](docs/transcripciones/) — las fuentes crudas de las decisiones de producto,
+  para verificar qué se dijo de verdad. Hoy hay una: el
+  [visto bueno del 2026-06-12](docs/transcripciones/2026-06-12-visto-bueno-workflow.md), que es el
+  porqué literal de ADR-009 (*el guion se transcribe, no se reescribe*). 🩸 **La citan 4 docs y
+  estuvo borrada** por un commit llamado `useless`; se restauró de git el 12/09.
 
 **Operación / equipo de redes**
 - [docs/onboarding-equipo-redes.md](docs/onboarding-equipo-redes.md) — guía no-code para Majo y Jero (qué cargar + cómo calificar). *(También compartido como Google Doc.)*
