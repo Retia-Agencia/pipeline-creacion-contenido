@@ -6,7 +6,7 @@
 > (`Colectar` como stub, `Calidad` entera). En n8n sigue viviendo el esqueleto de 11: los 5 nodos
 > nuevos son **topología** y todavía no se aplicaron.
 >
-> Hermano de [plan-cockpit-propio.md](./plan-cockpit-propio.md) y
+> Hermano de [plan-cockpit-propio.md](../archivo/plan-cockpit-propio.md) y
 > [plan-multi-tenant.md](./plan-multi-tenant.md). El estado vivo manda: si esto y
 > [handoff.md](./handoff.md) se contradicen, gana el handoff.
 

@@ -1,7 +1,7 @@
 # ADR-076 — Ordenar es una vista, no una consulta
 
 - **Estado:** aceptada · **construida** — 2026-08-26 (con Mani). Las 7 tareas de
-  [plan-orden-y-filtro](../agents/plan-orden-y-filtro.md), verificadas contra prod pantalla por
+  [plan-orden-y-filtro](../archivo/plan-orden-y-filtro.md), verificadas contra prod pantalla por
   pantalla. Extiende
   [ADR-072](./ADR-072-el-video-es-la-unidad-una-llave-una-tarjeta.md): si el video es la unidad y la
   tarjeta es una sola, *ordenar y filtrar esas tarjetas* también tiene que ser uno solo. **No toca

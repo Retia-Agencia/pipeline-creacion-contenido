@@ -642,12 +642,12 @@ Base "Reels Cockpit", 9 tablas (contrato completo en
 `https://api.airtable.com/v0/<base_id>/<Tabla>`. Quién tocaba qué:
 
 > **La superficie del equipo (páginas del interface) tiene su propio spec:**
-> [mapa-campos §6](./mapa-campos.md) — qué campo se muestra en cada página, en qué orden, y qué es
+> [mapa-campos §6](../archivo/mapa-campos.md) — qué campo se muestra en cada página, en qué orden, y qué es
 > editable. Desde el cierre 56, **todos los campos de las 9 tablas tienen *description* en la base
 > viva** (el ⓘ que ve el equipo) — al tocar el schema, mantener la description junto con el campo.
 
 > El mapa **por campo** (quién escribe/lee cada campo + huérfanos) vive en
-> [mapa-campos.md](./mapa-campos.md) — acá la tabla y el nodo, allá el campo.
+> [mapa-campos.md](../archivo/mapa-campos.md) — acá la tabla y el nodo, allá el campo.
 
 > ⚠️ **"Lee" es la lectura LÓGICA, no de dónde sale el dato.** Desde D4 ningún workflow le pregunta
 > a Airtable por la config: la pide a la fachada (`Leer plan (fachada)`), y de D5 en adelante la

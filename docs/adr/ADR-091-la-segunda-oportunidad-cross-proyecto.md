@@ -46,7 +46,7 @@ con cupo que NO los habían visto.** Sólo Haiku: el transcript ya está pagado 
 Es el único lugar que sabe **las dos cosas que hay que cruzar**: quién quedó sin dueño (sale del
 corte) y cuánto cupo le queda a cada proyecto (`_entregados` contra `_nDe`). Un nodo aparte tendría
 que **re-implementar el corte** para saberlo, y *dos implementaciones de la misma regla* es el error
-que [plan-orden-y-filtro](../agents/plan-orden-y-filtro.md) ya dejó escrito.
+que [plan-orden-y-filtro](../archivo/plan-orden-y-filtro.md) ya dejó escrito.
 
 **El costo de esa elección, dicho:** el nodo que decide la entrega pasa a hacer una llamada paga. Por
 eso todo el escalón está envuelto en un **fail-open duro** (invariante #1 de PLAN §2.5): si Haiku se

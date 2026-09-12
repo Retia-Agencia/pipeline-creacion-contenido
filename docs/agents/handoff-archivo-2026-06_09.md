@@ -1,0 +1,7095 @@
+# HANDOFF — archivo (2026-06 → 2026-09-09)
+
+> **Esto es historia, no estado.** Se separó del [handoff vivo](./handoff.md) el **2026-09-12**,
+> cuando ese archivo llegó a 8.334 líneas. **Nada se borró**: todo lo de acá estaba en `handoff.md`
+> y sigue además en git.
+>
+> **Para trabajar NO leas esto.** El estado vivo es [handoff.md](./handoff.md) y el refactor del
+> motor es [plan-refactor-motor.md](./plan-refactor-motor.md). Esto sirve para una sola cosa:
+> contestar *"¿por qué esto quedó así?"* sobre algo decidido antes del 09/09.
+>
+> **Qué contiene, en orden:**
+> 1. El brainstorm del refactor del 11/09 *(superado por `plan-refactor-motor.md`, que lo corrige en
+>    dos puntos: las vistas no se congelan, y `cap_top_n` no es un techo)*
+> 2. El cierre 144
+> 3. Los cierres **130 a 143**, más el 98 y el 70 — tal como estaban: **anidados uno dentro de otro
+>    en blockquotes**, bajo un encabezado que decía "Pendiente vivo". 5.736 líneas. Se conservan con
+>    su formato roto a propósito, para no reescribir historia
+> 4. "Ciclo post-re-import" — julio, sobre páginas de Airtable *(purgado el 2026-08-03)*
+> 5. El espejo viejo del tablero Voces→Proyectos
+> 6. La sección ya marcada 🪦 SUPERSEDED el 2026-09-02
+> 7. El log de avance anterior al 2026-08-31
+
+---
+
+## 🚦 ARRANCÁ POR ACÁ — sesión del 2026-09-11 (brainstorm del refactor, sin código todavía)
+
+> 🧠 **Esta sesión NO tocó código ni datos: fue brainstorm puro sobre el refactor del motor**,
+> disparado por Mani: *"el north star debe sumar accuracy (videos alineados) y cost efficiency
+> (recursos sin bajar calidad), y el workflow merece un refactor completo — bajo acoplamiento,
+> pasos por contrato"*. Todo lo de acá es diagnóstico medido contra prod (candidatos, Apify,
+> `v_salud_referentes`), **cero cambios aplicados**. Retomar clasificándolo como arquitectural
+> (skill `brainstorming`) y seguir por las preguntas que quedaron abiertas al final.
+
+### 1 · Se leyeron los cierres 148 y 149 antes de arrancar — no re-derivar esto
+
+El cierre 149 (11/09, commit `2f7c427`) ya midió tres cosas que esta sesión dio por sentadas:
+- **74 % del gasto de un día (17,63 de 23,83 USD) se fue en reels re-comprados el mismo día**
+  (`docs/costos.md §3.5`, `plan-costo-apify.md`). Dos tandas de la mañana solaparon 100,0 %.
+- **Las views se congelan a los ~7 días** (`§3.6`): `<24h` crecen 2,29 %, `>7d` crecen **0,00 %**.
+  Medido gratis (mismas 1.741 filas pagadas dos veces con 52 min de diferencia). Esto es la base
+  física de "comprar fresco y no esperar 30 días para juzgar".
+- **Hay un techo estructural que nadie había nombrado:** `cap_top_n` corta la transcripción en
+  **250** y los 15 proyectos activos piden **N=320**. Aunque sobre supply, no entra.
+- El run que no cierra (exec 178, 183) YA TIENE causa raíz escrita en el cierre 149 §1: cadena
+  lineal de 30 nodos que corta con `[]` cuando no hay entregas. Arreglo propuesto, NO aplicado.
+
+### 2 · Lo que esta sesión midió de nuevo (todo gratis, contra prod)
+
+**a) El ledger por cuenta YA EXISTE, a medias: `app.v_salud_referentes` (schema `009`).**
+Devuelve 59 filas hoy (`handle, videos_evaluados, tasa_gate, tasa_aprobacion, seguidores`), se
+alimenta de `runs.metricas.por_referente` que el nodo `Resumen del run` ya escribe. **Lo que le
+falta es la mitad de arriba del embudo**: `evaluados` arranca DESPUÉS de `min_views` y de
+transcribir, así que una cuenta que se compró y dio 0 útiles (ej. `therobinritter`, 25 reels /
+0,0575 USD por corrida) **es invisible en la vista que existe para juzgar cuentas**. El arreglo
+son dos contadores más (`comprados`, `paso_min_views`) en un nodo que ya existe — no hay que
+inventar tabla nueva.
+
+**b) Ningún actor de Apify permite pedir "los más viejos".** Verificado el input schema de los 3
+actores oficiales (`instagram-scraper`, `instagram-reel-scraper`, `instagram-post-scraper`): los
+3 tienen SOLO `onlyPostsNewerThan` (cota inferior), nunca `onlyPostsOlderThan`. El cursor siempre
+arranca por lo más nuevo y `resultsLimit` corta desde ahí. **No se puede pedir "de 30 a 37 días
+atrás" sin comprar también todo lo más nuevo.** Quedan 2 caminos, y el experimento de la Tarea 5
+decide cuál: (i) comprar fresco+barato y esperar, guardando todo el pool; (ii) seguir comprando
+maduro aceptando el re-compra medido en cierre 149.
+- 🎁 Lateral: `instagram-reel-scraper` tiene `skipPinnedPosts` (mata la fuga de posts fijados,
+  6,5 % medido) y `includeTranscript` como **add-on pago** — si el transcript viene con el reel,
+  Supadata sale entero del pipeline (se va el caché, la cobertura parcial, `generate`, el bug de
+  ADR-095). Falta precio del add-on (Apify no lo expone por API). ⚠️ Pero ese actor cobra
+  `actor-start` (SÍ tiene costo fijo), así que con el diseño de "1 corrida por cuenta" convertiría
+  "cantidad de referentes" en costo real — se resuelve pasando el array completo en una sola
+  corrida, pero deja de ser gratis equivocarse en el diseño.
+
+**c) `min_views` global (500.000) compara reels de edades muy distintas con la misma vara —
+y ESO, no la calidad de la cuenta, es lo que mi curva de "rank por profundidad" estaba midiendo.**
+Cruzando el hallazgo (a) del cierre 149 (views se congelan a los 7 días) con mi curva de
+profundidad (tramo 21-25 pasa el umbral 28,8 % de las veces contra 2,7 % en el tramo 1-5): la
+diferencia de edad entre esos tramos es 22 días vs 2 días. **No es que los reels viejos sean
+mejores: es que a un reel de 2 días nunca se le dio tiempo de acumular vistas antes de juzgarlo
+contra un umbral pensado para reels maduros.** Esto es la CAUSA RAÍZ COMPARTIDA de costo e
+inaccuracy: el mismo umbral mal calibrado (a) hace que comprar fresco parezca "peor calidad" y
+dispare el escalón de relleno con material fuera de tema, Y (b) fuerza a comprar profundo/viejo
+para poder pasar el corte, lo cual es justo lo que causa el 74-98% de re-compra.
+- **Arreglo propuesto (NO implementado, necesita el experimento de maduración primero):**
+  normalizar por edad en vez de comparar contra un piso fijo:
+  `pasa ⟺ vistas / madurez(edad) ≥ min_views`, con `madurez(edad)` subiendo de ~0,15 en el día 1
+  a 1,0 en el día 7 y quedándose ahí (consistente con el §3.6 del cierre 149). Aritmética pura,
+  cero costo, cero llamadas nuevas. La forma exacta de `madurez()` sale de re-medir la cohorte
+  congelada (Tarea 5 de abajo).
+
+**d) La función de asignación que había que optimizar (pedido explícito de Mani: "resultados por
+referente no debería ser libre, debería depender de la cantidad de referentes Y de la calidad de
+la cuenta") se simplifica una vez que la ventana deja de solapar:** si `dias_recencia` se iguala
+al intervalo entre corridas, la profundidad deja de ser una decisión de calibrar — es
+"todo lo nuevo de una cuenta buena, nada de una mala". Propuesta (sin pesos que calibrar, porque
+medí que `p_a` = tasa_aprobacion es ~plana en profundidad):
+
+```
+B = presupuesto_reels por corrida (el único knob de plata)
+cuentas ordenadas por p_a = tasa_aprobacion (con mínimo de muestra, NO viralidad —
+  usar viralidad reproduce el problema de Marú)
+para cada cuenta, de mejor a peor:
+    r_a = min(cap, ceil(ritmo_publicación_a × días_desde_última_compra × 1,3))
+    si entra en B → comprar; si no → cortar acá
+reservar ~20% de B para cuentas sin histórico (exploración, sin esto el ranking se congela)
+```
+
+⚠️ **Esta función queda BLOQUEADA por la Tarea 6 (abajo): con 137 calificaciones totales en todo
+el sistema, no hay evidencia estadística de que ninguna cuenta sea mejor que otra** (chi²=15,9
+sobre 11 grados de libertad ⇒ p≈0,15, indistinguible de ruido). No calibrar contra esto todavía.
+
+**e) `processed_items` no guarda lo que se paga, solo lo que se entrega** — el cierre 149 §6.3 ya
+lo decía. Esta sesión lo conecta con 4 consecuencias, no solo la ventana por referente: sin una
+tabla de "pool crudo comprado" (cuenta, fecha publicación, vistas al comprar, corrida — barato,
+~450 filas/corrida) no hay (i) marca de agua por referente, (ii) mitad de arriba del ledger de (a),
+(iii) `ritmo_publicación_a` para la función de (d), (iv) dónde guardar la cohorte de maduración.
+🔴 **Tiene plazo: Apify (plan STARTER) borra datasets a los 31 días** (medido en `/v2/users/me`).
+Todo lo que no se copie antes del **2026-10-11** se pierde para siempre.
+
+### 3 · El experimento de maduración YA ESTÁ CONGELADO — falta correr la medición 2
+
+**`docs/experimentos/2026-09-10-cohorte-maduracion.json`** (commit `465b4af`, ANTES de esta
+sesión): 446 reels de la exec 183 con vistas/likes/comentarios y edad exacta en t0=10/09 21:43.
+Distribución: 85 de 0-3d, 105 de 3-7d, 94 de 7-14d, 103 de 14-30d, 59 de >30d. 380 de los 446 están
+bajo 100k (pueden cruzar). **PENDIENTE, Mani dijo "hagamos el experimento" y quedó sin ejecutar
+esta sesión:** re-medir por URL una muestra estratificada de ~150 de esos 446 (0,35 USD,
+`resultsType: posts, resultsLimit: 1` por shortcode — el motor ya usa este patrón para
+`videos_meta`) para construir la curva `madurez(edad)` de (c). Con el §3.6 del cierre 149 ya se
+sabe que 7 días alcanza (no hace falta esperar a los 31 días de retención de Apify).
+
+### 4 · Decisión de Mani, tomada en esta sesión — el relleno se QUEDA como piso duro
+
+Pregunta hecha con `AskUserQuestion`: *"¿el N que pide el equipo es piso duro u objetivo?"*
+Respuesta de Mani: **"Mejor como piso duro y que el equipo descarte; esto entrena la
+herramienta."** Medido para chequear esa intuición, contra prod:
+
+- **El relleno (`relevancia_score < 0,4`) NO se aprueba menos que lo que pasó el gate.** Mismo mes
+  (septiembre, para controlar por tiempo): gate 36,1 % de aprobación (13/36), relleno **41,2 %**
+  (28/68). *`plan-costo-apify.md §1.4` decía "a Marú le llegó relleno = video que era nada" como si
+  fuera obviamente peor — no lo es, medido.* La decisión de Mani queda respaldada por datos, no
+  solo por preferencia.
+- 🔴 **PERO el canal por el que "entrena" está roto, y esto es más grave que el relleno:**
+  correlación `relevancia_score ↔ aprobado` = **+0,041**; `heat_score ↔ aprobado` = **+0,044**
+  (n=136 calificados con score). Ninguno de los dos números que el motor calcula para decidir qué
+  entregar predice lo que el equipo aprueba. Esto reubica el problema de accuracy: no es el
+  relleno ni el umbral del gate — **es que el gate optimiza algo que nadie comparó nunca contra
+  la calificación humana.**
+- 🔴 **Y el problema de fondo para CUALQUIER cambio al gate/score/ranking: solo hay 137
+  calificaciones en toda la historia del sistema, de 386 candidatos (249 = 65% nunca tocados).**
+  Con eso no se puede validar ni el criterio viejo ni uno nuevo. Detectar una mejora de 10 puntos
+  contra una base de ~40% de aprobación necesita del orden de 300-400 calificaciones.
+  ⇒ **El relleno es hoy la única fuente de contra-ejemplos del sistema** (si solo se entrega lo
+  que el gate aprueba, el gate nunca ve lo que descartó y no puede aprender que se equivoca) —
+  coherente con la decisión de Mani y con que el relleno se califica MÁS que el resto (68,7 %
+  contra 42,3 %).
+
+### 5 · Cómo queda partido el refactor, y por dónde seguir
+
+**Costo: accionable YA, todo medido, sin dependencia de más datos.**
+1. Podar por rendimiento (no por mediana) las cuentas de 0 útiles — medido en la sesión anterior
+   (§4.3.3 de costos.md), −24% de gasto sin perder útiles.
+2. Igualar `dias_recencia` al intervalo entre corridas (mata el 74-98% de re-compra).
+3. Tabla de pool crudo comprado (2.e arriba) — antes del 2026-10-11.
+4. Normalizar `min_views` por edad, una vez esté la curva de madurez (Tarea 3 arriba).
+5. Arreglar el cierre de runs con cero entregas (cierre 149 §1, ya diagnosticado, falta aplicar).
+
+**Accuracy: bloqueada por falta de termómetro — no calibrar nada todavía.**
+1. Marcar el relleno EXPLÍCITAMENTE en la fila del candidato (hoy se deduce del
+   `relevancia_score`, frágil) — prepara la separación ejemplo/contra-ejemplo para cuando haya
+   volumen.
+2. Atacar el 65% sin calificar — es el cuello de botella real, más que cualquier ajuste al gate.
+3. Solo después: comparar `relevancia_score`/`heat_score` contra calificación real con volumen
+   suficiente, y recién ahí tocar el gate o el ranking de referentes.
+
+**Próximo paso concreto al retomar (en orden):** (1) correr el experimento de maduración —
+Mani ya dijo "hagamos el experimento" y quedó pendiente; (2) con la curva en mano, diseñar
+`madurez(edad)` y la normalización de `min_views`; (3) recién ahí, clasificar el refactor completo
+como arquitectural con la skill `brainstorming` y seguir con preguntas una por vez — quedó
+cortado ahí, sin haber propuesto todavía los 2-3 enfoques de arquitectura para bajo acoplamiento
+y pasos por contrato que pidió Mani explícitamente.
+
+---
+
+## 🖼️ CIERRE 144 (2026-09-09) — Tres bugs de UI de la pestaña Transcribir, y el "sin título/miniatura" NO era un bug sino una feature no construida
+
+> ✅ **Commiteado y DEPLOYADO** (Mani lo confirmó mirando la app, 10/09). 5 archivos de
+> `apps/dashboard`, cero `core/`, cero migración, cero n8n. *Este renglón decía "en el working tree,
+> sin commitear y sin deployar" y quedó viejo un día después.*
+
+Mani reportó tres cosas de la pestaña Transcribir. Se leyó el código de las cuatro (los 3 bugs + el
+costo de Apify) antes de tocar nada. Los tres arreglos son de UI pura.
+
+### 1. La barra de "agregar a colección" solo aparecía al final de la tanda
+
+`BarraSeleccion` (`apps/dashboard/components/video/seleccion.tsx`) era `sticky bottom-0` **dentro del
+bloque de la tanda**, así que con 100 videos había que scrollear hasta el fondo para que entrara en
+vista. Pasó a `fixed` anclada al viewport: isla centrada, ancho acotado (`w-fit max-w-[calc(100vw-2rem)]`),
+siempre visible mientras el modo selección está prendido, se va al cancelar. Es el componente
+compartido ⇒ la mejora también toca Feed, Históricos y el detalle de colección.
+🔑 **El costo de `fixed` que motivó el `sticky` original (tapaba pies, flotaba sobre el nav) está
+resuelto por diseño, no ignorado:** isla centrada en vez de barra full-width, y la tanda reserva
+`pb-24` cuando el modo está activo (`tanda.tsx`) para no tapar las últimas tarjetas.
+
+### 2. "sin título / sin miniatura" en toda la tanda — NO es un bug, es una feature no construida
+
+🔑 **El pegote NUNCA compra título ni miniatura.** `pegarEnlaces` solo encola en
+`app.transcripciones`; Supadata devuelve `content`/`lang` y nada más. Y `TarjetaCola` renderiza
+`video={{titulo:null, referente:null, thumbnail:null}}` **hardcodeado**. El sistema sí sabe comprar
+esa metadata a Apify, pero **solo al agregar un video a una Colección** (ADR-072/073) — Transcribir
+se dejó desnudo a propósito para no gastar.
+
+**Mani eligió la opción A: tarjeta de cola honesta, sin gastar Apify.** `TarjetaVideo`
+(`apps/dashboard/components/video/tarjeta.tsx`) gana una `variante` (`rica` default | `cola`). En
+`cola`: el placeholder de miniatura es un ícono de play neutro (no el cartel "sin miniatura", que se
+repetía idéntico en 100 tarjetas y se leía como fallo), y sin título no se dibuja el itálico "sin
+título" — la URL toma el rol de identificador con peso de título. **Se mantiene la regla de ADR-072
+§4: NUNCA se cae a la URL en el campo título de la variante `rica`** (ese disfraz fue el falso
+positivo del 21/08); la URL solo sube de rol en `cola`, que es donde ES la identidad. `TarjetaCola`
+pasa `variante="cola"`.
+
+### 📏 El costo de Apify, medido (para la decisión que Mani ya tomó, y para la sesión de costos)
+
+El actor es `apify~instagram-scraper`, **$0.0023 por resultado** en STARTER
+(`plan-transcript-completo.md:74`), `resultsLimit: 1` ⇒ 1 resultado = 1 video. Una tanda de 100
+("videos Nelly") = **~$0.23 USD**. No es *compound*: la PK de `app.videos_meta` evita re-pagar el
+mismo video **si se persiste** — pero el pegote no persiste hoy, así que traerlo ahí sin guardar
+re-pagaría en cada carga. ⚠️ **Contexto que pesó en descartar B/C:** el cupo de Apify es el cuello
+actual (cerró en 50,02/50 el 09/09, cierre 143), y motor + sesiones de agente comparten una sola
+cuenta con un solo tope. Enriquecer Transcribir competiría por ese saldo. Por eso A: cero Apify, y
+arregla el síntoma volviéndolo honesto en vez de un hueco.
+
+### 3. El texto de "Abandonar" se salía de la tarjeta
+
+`Abandonar` (`apps/dashboard/app/[cliente]/[pipeline]/(zonas)/transcribir/abandonar.tsx`) mostraba
+"¿Seguro? No se deshace" al confirmar, y desbordaba el pie angosto de la tarjeta de grilla porque
+los botones son `whitespace-nowrap`. Gana la prop `compacto` (misma solución que `Grabado` ya tenía):
+en el pie de una tarjeta la confirmación se acorta a "¿Seguro?". La advertencia de irreversibilidad
+ya vive en el copy de la tarjeta de fallidas. `TarjetaCola` usa `<Abandonar compacto />`.
+
+### ✅ Verificado / 🔴 lo que falta
+
+- ✅ `npm run typecheck` limpio · `npm test` **512 pass / 0 fail** · `npm run build` OK.
+- 🔴 **NADIE lo vio en el navegador.** Los tres son cambios visuales y de layout: typecheck y tests
+  no prueban que la barra flote bien ni que la tarjeta de cola se vea. **Es exactamente el patrón que
+  este repo pagó varias veces (el trabajo real aparece en el primer click, no en la suite).** Falta
+  levantar el dev server contra prod y mirarlo — sobre todo la barra `fixed` en una tanda larga y el
+  "¿Seguro?" que no desborde.
+- 🔴 **Sin commitear (working tree) y sin deployar.** Los 5 archivos:
+  `components/video/seleccion.tsx`, `components/video/tarjeta.tsx`, y en `transcribir/`:
+  `abandonar.tsx`, `tanda.tsx`, `tarjeta-cola.tsx`. Están en `main` local sin push.
+- 📌 **Sale de acá una task de producto, no un pendiente de código:** si algún día se quiere título
+  y miniatura reales en Transcribir, es la opción B (comprar a Apify + persistir en `videos_meta`) o
+  la C (bajo demanda), y las dos tocan el cupo compartido de Apify — mirarlo junto con la sesión de
+  costos (§B de arriba, cierre 142).
+
+---
+
+### Lo de la sesión anterior (post cierre 140) sigue vigente
+
+> ⚠️ **Lo que había acá decía "0 corridas desde los cambios" — era cierto al cerrar 139 y dejó de
+> serlo tres horas después.** El equipo corrió DOS VECES el mismo 02/09 (14:14 y 16:11) y el cierre
+> 140 evaluó los 6 cambios (ADR-088 §Enm 1/2, 089, 090, 091, 092, 093) contra esas corridas reales.
+> *Un "0 corridas" no es un estado, es una foto — y esta caducó rápido.* El detalle completo, con las
+> consultas usadas, vive en el cierre 140 más abajo; acá el resumen para arrancar la próxima sesión.
+
+**El norte (ADR-089) casi se duplicó.** La corrida de **14:14** dio **80,0%** (Comunicación en
+empresas, 15/15 calificados) y **76,0%** (Comunicación de parejas, 49/50 calificados) — las dos con
+cobertura de calificación casi completa, o sea **resultado, no piso**. 📏 **Nueva línea base a
+superar: 76%** (la más baja de las dos corridas de 14:14, para no anclar en el mejor caso). La
+corrida de **16:11** dio 46,7%, pero con solo **47% de cobertura de calificación** — puede subir, es
+un piso, no un resultado.
+
+### Los criterios que estaban escritos ANTES de mirar, ya resueltos con datos reales
+
+| qué se midió | criterio escrito de antemano | resultado |
+|---|---|---|
+| `segunda_oportunidad` (ADR-091, escalón 2) | 0 corrida tras corrida ⇒ **no es la palanca** | **0 en las 2 corridas** ⇒ **confirmado: no es la palanca.** Dicho, no defendido |
+| `bajo_umbral_entregados` (escalón 5) | si sale 0, es una red que nadie usa | **0 en las 2** — lectura buena: con 76-80% de aprobación el corte normal llenó N solo, la red no hizo falta |
+| `filtrados_por_motivo` (piso de 100k) | si el dedup mata la mayoría, bajarlo no cambia nada | 🩸 **MEDICIÓN NULA, corregido en el cierre 141.** El piso mató 0 porque **el piso ERA 0**: Mani lo bajó `100000 → 0` el 02/09 00:43, antes de las dos corridas, y la métrica de la propia corrida lo dice (`piso_views: 0`). No se midió ningún piso. Ver cierre 141 |
+| `gate_ve_metrica` (ADR-093) | si el norte baja o sube el 👎 con cobertura completa ⇒ apagar el knob | `true` en las 2, norte alto con cobertura casi completa ⇒ **el knob se queda prendido** |
+
+### 🔴 Bloqueantes que NO son código, actualizados
+
+1. 🟡 **Voces: ya NO son las 4 apagadas.** `Milena Morales` está `activo=true` — es la que permitió
+   las 2 corridas del 02/09. **Vieira, Sánchez y Gomez siguen en `activo=false`.** Prenderlas es la
+   palanca de cobertura más barata que queda: clics, cero código.
+2. 🔴 **Podar 6 cuentas y decidir 5 propuestas — sin tocar.** `thejessicaweiss` **36 entregados · 26
+   calificados · 26 rechazados · 0 aprobados**; las 6 juntas **86 entregados, 46 calificados, 46
+   rechazados, 0 aprobados**. ADR-022 fija que **la poda es del equipo** ⇒ va con Dani, no por SQL.
+
+### Pendientes de código, en orden de efecto sobre el norte
+
+| # | Qué | Estado |
+|---|---|---|
+| 1 | **Decidir el piso de vistas** | 🔄 **REABIERTO en el cierre 141.** El "decidido" del 140 se apoyaba en una medición nula (el piso era 0). **Dos datos reales, los dos con el piso en 500.000: 18:55 → piso 30 / dedup 1; 22:00 → piso 462 / dedup 77** ⇒ con un piso de verdad el piso domina 6 a 1 y **el dedup NO domina**. Falta decidir el valor |
+| 2 | **Escalón 4** — rescatar lo pagado que se cayó de la ventana | sigue sin medir (§1 del plan) |
+| ~~3~~ | ~~El norte en la pantalla Entender~~ | ✅ **hecho el 02/09** — tarjeta nueva "El norte", arriba de todo. ADR-089 "hecho cuando" #1 se cumple. Cambio de app, sin `core/`, sin migración, sin ADR (ver detalle abajo) |
+| 4 | `descartes_expuestos` se lee y no se renderiza (`lib/entender.ts:40`) | sin tocar |
+| 5 | **Los dos modos cantidad/calidad** — [plan §8](./plan-cascada-de-entrega.md) | sigue sin datos suficientes (2 corridas más no alcanzan) |
+| 6 | T2a/T2b/T3 y la anatomía en `dev-doc.md` | sin tocar |
+| **7** | **Refactor del flujo de evaluación** — heat-score, viralidad como tasa (Δvistas/tiempo), pesos, y cómo Haiku combina los `criterios_relevancia` de Proyecto y Voz | 🆕 **abierto por Mani el 07/09, sesión propia.** Ya tiene su medición de arranque: cierre 142 §3–§4 |
+| **8** | **Optimización de costos Apify + Supadata** — la función referentes(X) → videos a scrapear, y bajar el 64,5% de transcripciones descartadas | 🆕 **abierto por Mani el 07/09, sesión propia.** Es el cuerpo de la task de Notion que ya existe, no una nueva |
+| **9** | **La deuda de fondo** — complejidad innecesaria, piezas que no encajan, factores sin justificar; profundizar Referentes, métricas de corridas y las variables del equipo de redes. **Con los aprendizajes de PreWave** | 🆕 **abierto por Mani el 07/09, sesión propia** |
+
+> ✅ **El norte llegó a Entender (02/09), sin tocar `core/`.** Todo lo que hacía falta ya se leía por
+> separado: `runs.metricas.por_proyecto` (N pedido, entregados) y `app.candidatos` (calificados,
+> aprobados, por `run_id`). El único código nuevo es lo que las junta: `domain/entender.ts`
+> (`norteDeCorrida`/`norteHistorico`, 9 tests nuevos, verificados contra los 3 números reales del
+> cierre 140 — 80,0%/76,0%/46,7% — leyendo `app.candidatos` en vivo), `lib/candidatos.ts`
+> (`leerConteosPorCorrida`) y `lib/entender.ts` (`leerNorte`). Un número se marca **piso** en vez de
+> resultado si `calificados/entregados < 80%`, y **`sin_dato`** en vez de 0% si una corrida vieja ya
+> no tiene candidatos vivos (ADR-036 los borra al archivar) — para no leer un archivado como un
+> rechazo. `npm run typecheck`, `npm test` (503, antes 494) y `npm run build` verdes. ⚠️ **No
+> verificado en el browser real**: el login del cockpit es passwordless (magic link) y no hay
+> credenciales de prueba a mano — la verificación fue típecheck + tests + build + una consulta SQL
+> directa contra prod que reprodujo exacto lo que `leerConteosPorCorrida` va a leer. Falta que
+> alguien con sesión lo mire una vez.
+
+📄 **Deuda de doc pre-existente, no la creó esta sesión:** la fila de **ADR-085 en
+[`docs/adr/README.md`](../adr/README.md) tiene texto de ADR-084 pegado adentro.**
+
+---
+
+## Pendiente vivo (arrastres manuales de Mani — antes de la próxima corrida real)
+
+> # 🟢 CIERRE 143 (2026-09-09) — Tres corridas zombis, cero videos perdidos, y el cierre ya no cuelga de que haya datos
+>
+> ## 0. La pregunta con la que arrancó: ¿las tres corridas muertas perdieron videos?
+>
+> **No. Cero.** Mismo método que el cierre 142, tres señales:
+>
+> | señal | 169 | 170 | 171 | 167 (control sano) |
+> |---|---|---|---|---|
+> | `processed_items` | 0 | 0 | 0 | **65** |
+> | `app.candidatos` | 0 | 0 | 0 | **65** |
+> | transcripciones `origen=motor` del día | 0 | 0 | 0 | — |
+>
+> Las 62 transcripciones del 09/09 son todas `origen=manual` (el transcriptor del cockpit, otro
+> workflow). **Costó 0 dólares y 0 videos. Costó 6,5 horas de equipo apretando un botón mudo.**
+>
+> ## 1. La causa, con tres señales independientes
+>
+> 1. `/v2/users/me/limits`: **50,019 USD sobre un tope de 50**, ciclo hasta el 09/09 23:59 UTC.
+> 2. `Apify — IG Reels` devolvió **15 de 15** `{"error":"Forbidden"}` (403); TikTok igual.
+> 3. **Cero actor-runs en Apify después de las 11:09 UTC**, con corridas a las 13:16, 16:29 y 19:54.
+>
+> El token es válido — con ese mismo token la sesión leyó límites y runs. **Token bueno + 403 al
+> arrancar actor + 50,02/50 ⇒ tope, no credenciales.**
+>
+> ## 2. Por qué quedaban zombis, que resultó ser dos bugs encadenados
+>
+> **(a)** el cierre cuelga del carril de datos y **con 0 items n8n no ejecuta el nodo** — incluido el
+> `IF — hay videos nuevos`, que existe para esto y quedó detrás del vacío que debía detectar.
+> **(b)** los nodos de Apify son **sumidero** (invariante #1), así que el 403 se volvió *"no había
+> nada"*, la ejecución salió **`success`** y `workflow-registro-fallos` nunca se enteró.
+>
+> 🔑 *El invariante #1 es correcto para el registro y equivocado para la compra.* Un nodo que reporta
+> tiene que ser sumidero; uno que **adquiere** no, porque tragarse su fallo borra la única evidencia
+> de que la corrida no tiene insumos.
+>
+> ## 3. Lo que se hizo: tres capas, y ningún cierre nuevo
+>
+> La máquina de cerrar runs fallidos con su causa **ya existía** (ADR-054). Faltaba que el motor
+> gritara. Detalle completo y alternativas descartadas en ADR-094.
+>
+> | capa | qué | cubre |
+> |---|---|---|
+> | 1 | `Cupo Apify (pre-flight)` — GET a `/limits` antes de gastar, fail-open, margen 2,5 (una corrida costó 2,27 medidos) | arrancar sin plata |
+> | 2 | `Normalizar IG`/`TT` por lote: `{error}` = nos rechazaron ≠ `{}` = no había nada. Grita sólo si son TODAS | rechazo de proveedor en cualquier momento |
+> | 3 | `metricas.etapa` (`abierta → colecta → seleccion → transcripcion → gate → entrega`) | el zombi de la 166: proveedores sanos, todo muerto en un filtro |
+>
+> **6 nodos nuevos (40 → 46)**, `Config` con `margen_cupo_apify_usd`, y `Barrer runs zombie` apunta a
+> `metricas.etapa` en vez de decir sólo "no cerró".
+>
+> ## 4. 🩸 El bug que sólo apareció al dispararlo en producción
+>
+> El primer intento llegó a la fila del run así, con la causa borrada:
+>
+> ```
+> [Workflow - Shortform Content] no se pago ni se perdio ningun video. [line 52] · nodo: Cupo Apify (pre-flight)
+> ```
+>
+> **n8n parte el mensaje de un Code node por el ÚLTIMO `:` y guarda sólo lo de después**; lo anterior
+> va a `description`, que el error handler no lee. El mensaje empezaba con *"Sin cupo de Apify: 50,02
+> de 50 USD…"* y esa mitad se perdió entera.
+>
+> ⇒ **ningún mensaje de error de este repo puede llevar `:`**. Guiones, fecha como `23h59 UTC`, URLs
+> sin `https`, y los `:` del texto del proveedor reemplazados antes de citarlo. **Dos tests lo fijan.**
+>
+> *Tests verdes, audit verde, validador verde y `n8n:diff` verde — y el cambio igual mentía en la
+> única superficie que el equipo lee. Sólo lo destapó dispararlo de verdad.*
+>
+> ## 5. Verificación
+>
+> `test-nodos.mjs` **276 checks** (antes 251) · `auditar-workflows.mjs` sin hallazgos · `npm run
+> validate` 2.659 checks · **`n8n:diff` verde en los 5** · y la prueba real: **exec 174 abrió con
+> `metricas.etapa = "abierta"`, tiró el error y ADR-054 la cerró en `fallo` en 1 segundo** con
+> `Sin cupo de Apify — 50.02 de 50 USD usados…`. `processed_items` y `candidatos` de esa corrida: **0
+> y 0**. Corridas `en_curso` al cerrar: **ninguna**.
+>
+> ⚠️ **Las dos corridas de verificación (`093b6c9e` y `53ba1e87`) están en la tabla como `fallo`** y
+> su `error` dice que fueron disparadas a propósito. No son fallos del sistema.
+>
+> ## 6. Lo que se cerró a mano
+>
+> `81315874` (exec 171) estaba `en_curso` hacía 2h36m ⇒ cerrada en `fallo` con la causa medida.
+> `6cdf6403` y `ee483feb` (169 y 170) ya las había barrido el guard con un mensaje genérico ⇒ se les
+> **agregó** el diagnóstico sin pisar el original.
+>
+> ## 7. Lo que NO se tocó
+>
+> - **El cupo compartido con las sesiones de agente** (§ARRANCÁ POR ACÁ). Mani eligió anotarlo.
+> - **Supadata sigue sin pre-flight**: `v1/account`, `v1/usage`, `v1/limits` y `v1/account/usage` dan
+>   **404 los cuatro** (re-medido el 09/09). Sólo queda detección reactiva.
+> - **La pantalla Corridas no renderiza `metricas.etapa`.** El dato está en la fila y no lo lee nadie.
+> - Todo lo del cierre 142 sigue vigente: el heat-score, el escalón 5, el piso de vistas.
+
+> # 🟢 CIERRE 142 (2026-09-07) — La primera corrida con los dos cupos sanos entregó 65, y el heat-score resultó no mover nada
+>
+> ## 0. La pregunta con la que arrancó la sesión: ¿la corrida fallida perdió videos?
+>
+> **No. Cero.** Medido con tres señales independientes:
+>
+> | señal | resultado |
+> |---|---|
+> | `processed_items` filtrado por el `run_id` de la corrida fallida (`c4c4493f`) | **0 filas** (la de las 08:00 sí escribió sus 15) |
+> | los 15 `external_id` concretos, buscados uno por uno | **0 en `processed_items`, 0 en `descartes`, 0 en `transcripciones`** |
+> | el código de `Preparar procesados` | cuelga de `Armar candidato` y filtra `_entregado === true`; con 0 candidatos n8n no ejecuta el nodo |
+>
+> 🔑 **Es ADR-087 funcionando, y el resultado es contraintuitivo: el bug #4 del cierre 141 (con 0
+> candidatos la corrida no cierra) es el MISMO que salvó la memoria del dedup.** Desde que la memoria
+> cuelga de lo entregado y no de lo transcrito, **un fallo a mitad de camino ya no cuesta videos,
+> cuesta una corrida.** Antes de ADR-087 estos 15 se habrían quemado sin que nadie los viera, que es
+> exactamente el desperdicio de 1.401 videos que la ADR midió.
+>
+> ## 1. Los dos cupos, re-medidos (el ⛔ del cierre 141 ya no aplica)
+>
+> Mani subió los dos planes. Apify pasó de un tope de 29 a **50**; Supadata de USD 17 a **47/mes**.
+>
+> - **Apify al cerrar la sesión: USD 32,69 de 50 ⇒ quedan 17,31**, ciclo hasta el **9 de septiembre
+>   23:59 UTC**. La corrida de las 22:00 costó **~2,27**. Alcanza para ~7 corridas más antes del reset.
+> - **Supadata: `/v1/account` responde `404`, no 429.** No sirve para medir el cupo y no es prueba de
+>   nada. *La prueba real es de efecto: resolvió los 183 videos de la corrida sin un solo 429.*
+>
+> ## 2. La corrida 167 — `59f9b7d5`, 22:00:59 → 22:39:39, estado `ok`, cerró sola
+>
+> ```
+> 1.407 reels de Apify IG (10 cuentas)      ← eran 246 en la corrida fallida
+>     0 de TikTok
+> 2.688 pares video/proyecto
+>   970 pasan el pre-trim de relevancia
+>   183 pasan dedup + piso    (piso de 500k mató 462, dedup 77, min_likes 0)
+>   183 transcritos           (9 gratis desde la caché de ADR-087, 174 pagados)
+>    65 candidatos al Feed
+>    65 filas en processed_items   ← exactamente los entregados, ni uno más
+>     0 descartes para auditar
+> ```
+>
+> | proyecto | N pedido | entregados | |
+> |---|---|---|---|
+> | Comunicación para líderes | 20 | **20** | ✅ |
+> | Empresarios | 20 | **20** | ✅ |
+> | Marketing | 20 | 17 | `supply` |
+> | Estrategia Mercadeo | 20 | 6 | `supply` |
+> | Marca Personal | 25 | 2 | `supply` |
+>
+> Los tres que quedaron cortos son los mismos que el cierre 141 midió con 3 o 4 cuentas asignadas.
+> **Eso no lo arregla más presupuesto: lo arregla asignarles cuentas.**
+>
+> ## 3. 🔴 EL HALLAZGO: el heat-score NO influye en lo que llega al Feed
+>
+> Arrancó como la pregunta de Mani *"¿por qué los videos de más vistas no pasaron?"* y terminó siendo
+> una propiedad del motor que ningún doc tenía escrita.
+>
+> | medición | número |
+> |---|---|
+> | `heat_score` mediana de los **entregados** | **1,2775** (n=103) |
+> | `heat_score` mediana de los **no entregados** | **1,2736** (n=80) |
+> | correlación `heat_score` ↔ `relevancia_score` | **r = −0,104** (n=159) |
+>
+> Y los 4 videos de más vistas, que son los que dispararon la pregunta:
+>
+> | video | proyecto | heat real | rank por heat | relevancia | entregado |
+> |---|---|---|---|---|---|
+> | Cardone 1,26M | Empresarios | 1,4099 | **6 de 63** | **0** | no |
+> | Cardone 1,39M | Empresarios | 1,3935 | **8 de 63** | **0,2** | no |
+> | Sinek 1,31M | Comunicación para líderes | 1,2899 | 21 de 55 | 0,1 | no |
+> | Cardone 664k | Empresarios | 1,2877 | 34 de 63 | 0,08 | no |
+>
+> ⇒ **El heat-score hizo su trabajo** (los puso arriba) **y no sirvió de nada.** Lo que decide es el
+> gate: Haiku los calificó 0–0,2 de relevancia contra los `criterios_relevancia` del proyecto y la voz.
+> El heat-score solo decide **qué se transcribe y en qué orden** (el corte `cap_top_n`), o sea **dónde
+> se gasta la plata**, no qué ve el equipo.
+>
+> 🩸 **Y una trampa de medición que hay que conocer antes de re-medir esto: en la salida del nodo
+> `Gate de relevancia` la clave `heat_score` YA NO ES el heat-score** — el gate la pisa con su propio
+> veredicto (es justo el desperdicio que ADR-092 vino a tapar guardando `prescore_metrico`). Leer la
+> correlación desde ahí da r≈1 **por construcción**. El heat real se lee del nodo `Heat-score v1`.
+> *Esta sesión se comió el error y lo cazó porque los dos números salían idénticos hasta el decimal.*
+>
+> ## 4. Cómo se calcula hoy el heat-score (línea base para la task de refactor)
+>
+> Del nodo `Heat-score v1`:
+>
+> ```
+> base = peso_views(0,4)·pct(views) + peso_likes(0,4)·pct(likes) + peso_eng(0,2)·pct(engagement)
+> heat = base · (1 + boost_idioma) · (1 + tasa_seleccion_del_referente)
+> ```
+>
+> Tres propiedades que hay que tener a mano antes de tocarlo:
+>
+> 1. **`pct()` es un PERCENTIL dentro del pool del proyecto de ESA corrida, no un valor absoluto.** Un
+>    video de 1,39M no vale por sus vistas: vale por su puesto contra los demás videos de esa corrida.
+>    Cambiar el pool cambia el score sin que cambie el video.
+> 2. **`boost_idioma` (0,3) es multiplicativo y es ciego entre no-españoles.** Cardone, Sinek y Robbins
+>    son todos `en`: los tres reciben el mismo +30%, así que no desempata nada dentro del pool real.
+> 3. **NO HAY NINGÚN COMPONENTE DE TIEMPO.** `fecha_publicacion` se colecta y no entra en el score.
+>    Un reel con 500k vistas en 2 días y uno con 500k en 8 meses puntúan **idéntico**.
+>
+> ## 5. Tres canarios se despertaron con esta corrida
+>
+> `select count(*) ... where run_id = '59f9b7d5...'` ⇒ **`prescore_metrico` 65/65, `huella_guion`
+> 65/65, `duracion_seg` 65/65.** ADR-086 y ADR-092 dejaron de ser columnas vacías: el motor las
+> escribe y la primera fila la escribió el motor, no una verificación. **Ya se pueden medir**; leerlas
+> todavía no las lee nadie.
+>
+> ## 6. El escalón 5 se activó por PRIMERA VEZ
+>
+> `bajo_umbral_entregados = 35` sobre 65 entregados. Daba **0 en las tres corridas anteriores**, y el
+> criterio pre-escrito decía *"si sale 0, es una red que nadie usa"*. Ya no sale 0: **más de la mitad
+> de lo entregado entró por la red de relleno**, o sea por debajo del corte normal de calidad.
+> `segunda_oportunidad` (escalón 2) dio **0 por tercera corrida seguida**.
+> ⏳ **Lo que falta es el norte de esta corrida, y no se puede leer todavía**: los 65 están sin
+> calificar. Si el norte baja, el sospechoso #1 es este escalón. **Medirlo antes de tocarlo.**
+>
+> ## 7. El piso de vistas: segundo dato real, apunta igual que el primero
+>
+> | corrida | piso | mató el piso | mató el dedup |
+> |---|---|---|---|
+> | 07/09 18:55 | 500k | 30 | 1 |
+> | **07/09 22:00** | **500k** | **462** | **77** |
+>
+> Con un piso de verdad el piso domina **6 a 1**. Confirma lo que el cierre 141 sospechó: *"el dedup
+> domina"* era una propiedad de no tener piso, no del sistema.
+>
+> ## 8. Lo que NO se tocó
+>
+> - **Los bugs #4 y #5 del cierre 141** siguen vivos. El #4 no se disparó esta vez sólo porque hubo 65
+>   candidatos; con 0 vuelve a colgar la corrida y a bloquear al equipo 60 minutos en silencio.
+> - **TikTok entregó 0, otra vez en silencio.** Esta vez **no fue `Forbidden`**: el nodo devolvió **un
+>   objeto vacío, sin error**, y `Normalizar TT` sacó 0. No hay forma de distinguir *"no había nada"*
+>   de *"se rompió"*, que es el bug #5 con otra cara.
+> - **El Feed llegó a 298 sin calificar** (233 viejos + los 65 nuevos). El más antiguo sigue siendo del
+>   21/08. *Para Majo, abrir el Feed mañana se va a ver casi igual que hoy aunque la máquina haya hecho
+>   todo bien: el backlog viejo tapa el trabajo nuevo.*
+>
+> ## Consultas y comandos usados (para re-medir, no para citar)
+>
+> ```sql
+> -- ¿esta corrida quemó algo en el dedup, y coincide con lo entregado?
+> select (select count(*) from public.processed_items p where p.run_id = r.id) as quemados,
+>        (select count(*) from app.candidatos c where c.run_id = r.id)         as entregados,
+>        metricas->'filtrados_por_motivo' as murieron_por,
+>        metricas->>'bajo_umbral_entregados' as escalon5
+> from public.runs r where r.id = '<run_id>';
+>
+> -- ¿un video concreto está quemado sin haberse mostrado?
+> select (select count(*) from public.processed_items where external_id = '<eid>') as en_feed,
+>        (select count(*) from app.transcripciones  where external_id = '<eid>') as transcrito;
+> ```
+>
+> ```bash
+> # el embudo real de una corrida, nodo por nodo (items por nodo)
+> curl -s -H "X-N8N-API-KEY: $N8N_API_KEY" "$N8N_BASE_URL/api/v1/executions/<id>?includeData=true"
+> # ⚠️ el heat_score REAL se lee del nodo 'Heat-score v1'. En 'Gate de relevancia' ya está pisado.
+>
+> curl -s -H "Authorization: Bearer $APIFY_TOKEN" https://api.apify.com/v2/users/me/limits
+> ```
+>
+> ---
+>
+> ## 📌 Tres frentes que Mani abrió al cerrar (cada uno pide su propia sesión)
+>
+> ### A. Refactor del flujo de evaluación: heat-score, viralidad y cómo Haiku decide
+>
+> **Por qué ahora:** §3 de este cierre midió que el heat-score no mueve lo entregado (r = −0,104) y §4
+> que no tiene componente de tiempo. **Mani: las vistas deben pesar fuerte sobre la calidad del video.**
+>
+> Lo que la sesión tiene que resolver, todo junto porque es un solo flujo:
+>
+> 1. **Cómo mira el motor las vistas hoy y por qué esos videos no pasaron.** La respuesta parcial ya
+>    está medida (§3: pasaron el heat y murieron en el gate); falta decidir qué se hace con eso.
+> 2. **Definir y medir VIRALIDAD, porque las vistas solas se quedan cortas.** Idea de Mani: la tasa de
+>    crecimiento, o sea **el cambio de vistas respecto al tiempo que lleva publicado el video**. Un
+>    reel con 500k en 2 días no es el mismo que uno con 500k en 8 meses, y hoy puntúan igual.
+>    📎 **PreWave ya usa exactamente esta forma**: *mínimo ~1.000 likes/día en las primeras 2 semanas*
+>    (ver `02 Projects/30x/notebook/prewave-flujo-produccion-contenido.md` en el vault). Es una tasa,
+>    no un acumulado. **El dato de entrada existe ya: `fecha_publicacion` se colecta y hoy se tira.**
+> 3. **Re-evaluar los pesos y la forma del score:** `peso_views` 0,4 · `peso_likes` 0,4 · `peso_eng`
+>    0,2, el percentil relativo al pool (§4.1), y el `boost_idioma` multiplicativo que no desempata
+>    entre no-españoles (§4.2).
+> 4. **Definir qué grado de influencia DEBE tener el score** sobre el destino de un video. Hoy solo
+>    manda sobre el gasto (`cap_top_n`), no sobre la entrega.
+> 5. **Cómo Haiku combina los `criterios_relevancia` del Proyecto y los de la Voz: cuál pesa más y
+>    cómo se complementan**, y cómo usa el `heat_score` para dejar pasar o no.
+>
+> 🎯 **El objetivo declarado de Mani, que es el criterio de aceptación real: que este flujo de
+> evaluación quede claro y bien definido, y que la herramienta sea cada vez más medida y controlada,
+> menos aleatoria.**
+>
+> ⚠️ Antes de tocar: leer **ADR-090** (el prescore desempata pasivo y no vota) y **ADR-093** (el gate
+> ve la métrica), que ya decidieron parte de esto y no se re-litigan.
+> 🔗 Se pisa con la task abierta *"Terminar T4 del pipeline (gate ordena sin vetar) + revisar
+> rechazados + relevancia 0,55"* — mirarlas juntas.
+>
+> ### B. Sesión dedicada a optimización de costos: Apify y Supadata
+>
+> **Apify.** Mirar cómo se ven las llamadas y qué se puede optimizar: **qué factores influyen** — el
+> actor usado, la cantidad de referentes, la ventana de días de recencia, los resultados por búsqueda.
+> 🎯 **La pregunta central es de escalabilidad, y hoy no tiene respuesta: si Mani llega a 200
+> referentes, ¿mejora la calidad de los videos traídos o solo dispara el costo como loco?**
+> 📐 **Entregable que Mani ya bosquejó: una función que relacione la cantidad de referentes de un
+> proyecto (X) contra la cantidad de videos que se deberían scrapear**, para controlar el gasto y las
+> llamadas a la API.
+>
+> **Supadata.** Cómo bajar el costo de transcripción **reduciendo el ratio de videos transcritos que
+> terminan descartados**. Factores a mirar: la calidad de los referentes, qué tan bien representan la
+> autoridad de la voz, cómo se buscan más referentes, qué actor de Apify se usa, y **en qué parte del
+> workflow se hace la llamada a transcribir**.
+> 📏 **Línea base ya medida, de esta misma corrida: 183 transcritos → 65 entregados = 118 pagados y
+> descartados (64,5%).** Ese es el número a bajar. La caché de ADR-087 ya recicla parte (9 de 183
+> salieron gratis), pero solo dentro de la ventana.
+>
+> 🔗 **NO es una task nueva**: es el cuerpo de la que ya existe, *"Arrancar el audit de performance y
+> costo del pipeline de contenido"* (Notion, `retia`, p3).
+>
+> ### C. La deuda de fondo: complejidad innecesaria y piezas que no encajan
+>
+> Diagnóstico de Mani, textual en lo que importa: **la herramienta todavía tiene mucha complejidad
+> innecesaria, componentes que no se conectan bien entre sí, y factores que influyen pero no están del
+> todo justificados.** Y aspectos donde se podría ahondar más:
+>
+> - **el repositorio de Referentes y cómo esos referentes son evaluados**
+> - **las métricas de las corridas**
+> - **las variables abstraídas para que el equipo de redes las manipule** — los días de recencia, los
+>   resultados por corrida
+>
+> 📎 **Y todo lo aprendido de PreWave (la reunión con Ellin) debería usarse para mejorar esta
+> herramienta.** El material está en `02 Projects/30x/notebook/prewave-flujo-produccion-contenido.md`.
+> Lo que ya se ve que aplica directo: **el criterio de autoridad** (cuentas medianas de 40k-100k
+> seguidores con un video muy viral de 500k-600k, en vez de cuentas grandes), **la viralidad como tasa
+> y no como acumulado**, **el orden del flujo** (el copywriter genera el script sólo después de que el
+> video está aprobado, no antes), y **el agente que aprende de las decisiones del equipo** — que es lo
+> que acá hace a medias la `tasa_seleccion` de ADR-019.
+>
+
+
+> # 🧯 CIERRE 141 (2026-09-07) — El equipo reportó "la herramienta saca videos de 3 mil vistas", y eran cinco cosas distintas
+>
+> Majo mandó dos audios pidiendo auxilio: subió `Mínimo de vistas` a 500.000 y la máquina le seguía
+> entregando videos de ~3.000, con grabación de un cliente nuevo en Ibagué al día siguiente. La
+> acusación era "es culpa de la herramienta". **Lo era en tres de los cinco hallazgos, y no en el que
+> ella reclamaba.** Todo lo de abajo está medido con dos señales independientes.
+>
+> ## 1. El ajuste que "no funcionó": funcionó, y llegó tarde
+>
+> Historial completo de `Mínimo de vistas` desde `app.eventos` (que guarda autor, hora y valor
+> anterior):
+>
+> | cuándo | quién | de → a |
+> |---|---|---|
+> | 28/08 15:37 | Mani | 0 → 600.000 |
+> | 30/08 23:53 | Mani | 200.000 → 100.000 |
+> | **02/09 00:43** | **Mani** | **100.000 → 0** |
+> | **07/09 17:47** | **Majo** | **0 → 500.000** |
+>
+> La corrida que entregó los videos malos corrió **de 08:00 a 08:19**; el cambio a 500.000 fue a las
+> **17:47**, casi 10 horas después. Segunda señal, independiente del log de eventos: **la corrida
+> guarda su propio piso en sus métricas y dice `piso_views: 0`**. La máquina hizo exactamente lo que
+> le pidieron. Lo que entregó: 15 videos, **mediana 80.278 vistas, mínimo 2.279**, 1 solo sobre 500k.
+>
+> 🔑 **Y el grueso de lo que ella veía es aún más viejo: 233 candidatos sin calificar en el Feed, el
+> más antiguo del 21/08, 29 de ellos con menos de 10.000 vistas y el peor con 19.** Un piso filtra lo
+> que entra, no limpia lo que ya está adentro — y eso, para quien mira el Feed, es indistinguible.
+>
+> ## 2. La corrida de las 18:55: el piso SÍ se aplicó, y aun así entregó cero
+>
+> Embudo real, sacado de la ejecución **166** de n8n (`GET /executions/166?includeData=true`):
+>
+> ```
+> 246 reels de Apify → 241 normalizados → 363 pares video/proyecto
+>  → 49 pasan el pre-trim de relevancia
+>  → 16 pasan dedup + piso   (piso de 500k mató 30, dedup mató 1)
+>  → 15 videos distintos a transcribir
+>  → 0 candidatos
+> ```
+>
+> Los 15 murieron en el mismo punto: **Supadata devolvió 429 cinco veces a cada uno** (`_tx_429: 5`,
+> 75 rechazos en total), se agotó el backoff, quedaron sin guion y el gate los descartó a todos por
+> `sin_guion`.
+>
+> ## 3. Los dos proveedores están sin cupo (la causa raíz, y no es del código)
+>
+> Se le preguntó a cada API directamente, que es la segunda señal que faltaba:
+>
+> - **Apify** `/v2/users/me/limits`: `monthlyUsageUsd = 29,45` contra `maxMonthlyUsageUsd = 29`, ciclo
+>   **10/08 → 09/09 23:59 UTC**. Por eso **5 de las 10 cuentas IG** (hormozi, garyvee, joeljota,
+>   jun_yuh, vusithembekwayo) y **el scraper de TikTok** devolvieron `Forbidden - perhaps check your
+>   credentials?`. Se quedó sin plata **a mitad de corrida**: las 5 primeras URLs de la lista
+>   trajeron datos y las 5 últimas no, en orden.
+> - **Supadata**: `429 limit-exceeded — "Plan usage limit was exceeded."` en **todos** los endpoints,
+>   incluido el de consultar la cuenta. No es rate-limit, es cuota de plan agotada.
+>
+> ⚠️ **Se venía degradando todo el día y nadie lo leyó:** la corrida de las 08:00 ya traía el aviso
+> "Supadata rechazo 585 pedidos sobre 117 videos" y **130 de 350 transcripciones vacías (37%)**. El
+> aviso existía, decía "el backoff los absorbió", y a las 18:55 el backoff ya no absorbía nada.
+>
+> ## 4. 🩸 Bug: con 0 candidatos la corrida NUNCA se cierra
+>
+> `Armar candidato` salió con 0 items ⇒ n8n no ejecuta un nodo sin input ⇒ **`Preparar candidatos`,
+> `POST Candidatos`, `Preparar procesados`, `Resumen del run` y `Cerrar run en el registro` no
+> corrieron nunca**. La ejecución figura `success` en n8n y el run quedó `en_curso` **67 minutos**,
+> hasta que se cerró a mano. Efecto colateral y peor: **el guard single-flight bloquea al equipo
+> durante `ventana_corrida_min` (60 min) en silencio** — el `Bloqueada: ya hay corrida viva` es un
+> noOp, así que el botón "no hace nada" y no hay forma de saber por qué.
+> *La rama `sin novedades` ya cubre el caso "no había videos nuevos"; el que falta es "sí había, y
+> ninguno sobrevivió".* **No se arregló en esta sesión.**
+>
+> ## 5. 🩸 Bug: los seis `Forbidden` de Apify salieron mudos
+>
+> El `onError: continueRegularOutput` es correcto (invariante #1: el registro es sumidero), pero
+> **nadie convierte una respuesta `{error}` de Apify en un aviso**. La corrida terminó en verde
+> habiendo perdido la mitad de sus cuentas, y los proyectos **Marketing** y **Estrategia Mercadeo**
+> se quedaron con **0 videos asignados** por eso, sin una línea en ningún lado. Mismo patrón que ya
+> pagaron el clamp de `Resultados por cuenta` y el gate de voz apagada. **No se arregló.**
+>
+> ## 6. Lo que sí era configuración del equipo
+>
+> Majo pidió **105 videos** (5 proyectos nuevos de la voz `Nicolás Martínez`: 20+20+20+25+20) con
+> **10 cuentas**, y 3 de esos proyectos tienen solo 3 o 4. Techo real de esa corrida: **16 videos**,
+> incluso con Supadata sano. Reparto: `Comunicación para líderes` 161 asignados → 38 pre-trim;
+> `Empresarios` 128 → 11; `Marca Personal` 74 → **0**; `Estrategia Mercadeo` y `Marketing` → **0
+> asignados**.
+>
+> ✅ **Pero el piso de 500k es viable con estas cuentas**, al revés que con las de Milena (mediana
+> ~178k). Medido sobre el scrape del 07/09: **melrobbins 33 de 49 reels ≥500k**, jefferson_fisher 22
+> de 48, grantcardone 16 de 42, simonsinek 14 de 42, tonyrobbins 12 de 30. *El piso no es el
+> problema; la cantidad de cuentas por proyecto sí.*
+>
+> ## 7. El hallazgo que corrige al cierre 140
+>
+> **La decisión "no bajar el piso de 100k" se tomó sobre una medición que no midió nada.** El piso
+> valía **0** en las dos corridas del 02/09 (`piso_views: 0` en sus propias métricas, y el evento de
+> Mani bajándolo a 0 a las 00:43 de ese día). "El piso mató 0" era tautológico.
+> 📏 **Primer dato real, del 07/09 con el piso en 500.000: el piso mató 30 y el dedup 1.** O sea que
+> **la conclusión "el dedup domina" no es una propiedad del sistema, es una propiedad de no tener
+> piso.** Queda reabierto el pendiente #1. *Regla que sale de acá: un contador de "cuántos mató el
+> filtro X" no se lee sin el valor de X al lado — y `filtrados_por_motivo` ya lo trae, justamente
+> para esto.*
+>
+> ## Lo que se hizo (y lo que no)
+>
+> - ✅ **Corrida zombie cerrada a mano** (`c4c4493f`, estado `fallo`), con las métricas reconstruidas
+>   desde la ejecución 166 **usando las fórmulas del propio nodo `Resumen del run`** (conteos por
+>   video distinto, no por fila) y 4 avisos adentro que explican el cero. Verificado con la misma
+>   consulta que usa el guard: **0 corridas vivas bloqueando**.
+> - ✅ **Explicación enviada a Majo por WhatsApp** (07/09 20:04).
+> - ❌ **Sin tocar: los dos bugs (#4 y #5)**, y los dos cupos (Apify y Supadata) que son decisión de
+>   plata de Mani.
+> - 📌 **Nada de código cambió en esta sesión.** El único write fue a `public.runs`, una fila.
+>
+> ## Consultas que se usaron (para re-medir, no para citar)
+>
+> ```sql
+> -- historial de un ajuste, con autor y valor anterior
+> select e.creado_en at time zone 'America/Bogota', u.nombre, e.detalle
+> from app.eventos e left join app.usuarios u on u.id = e.usuario_id
+> where e.tipo = 'ajustes.editar' and e.detalle->>'clave' ilike '%vistas%'
+> order by e.creado_en desc;
+>
+> -- que piso corrio DE VERDAD en cada corrida (no el de hoy)
+> select id, inicio at time zone 'America/Bogota',
+>        metricas->'filtrados_por_motivo' as murieron_por
+> from public.runs where metricas ? 'filtrados_por_motivo' order by inicio desc;
+>
+> -- corridas colgadas que bloquean el boton del equipo
+> select id, inicio at time zone 'America/Bogota' from public.runs
+> where params->>'workflow' = 'motor' and estado = 'en_curso'
+>   and inicio >= now() - interval '60 minutes';
+> ```
+>
+> ```bash
+> # los dos cupos, que es lo primero a mirar cuando una corrida entrega cero
+> curl -s -H "Authorization: Bearer $APIFY_TOKEN" https://api.apify.com/v2/users/me/limits
+> curl -s -H "x-api-key: $SUPADATA_API_KEY" https://api.supadata.ai/v1/account
+> ```
+
+
+> # 📈 CIERRE 140 (2026-09-02) — Las corridas que "no existían" ya dieron 80%, y el piso de 100k se cierra
+>
+> ## El hallazgo #0: el cierre 139 midió un estado que ya había cambiado
+>
+> El cierre 139 cerró con **"0 corridas desde los cambios"**. La consulta de esa sección, corrida de
+> nuevo al abrir esta sesión, devolvió **2 filas**: el equipo corrió el mismo 02/09 a las **14:14** y
+> **16:11**, cada una ~20-30 min, **1.458 y 1.168 videos colectados** (`public.runs`
+> `9fa96e50-2527-42ec-bf11-504b699ee8cb` y `491a958f-492f-4530-8696-ae07d33891b0`) — corridas reales,
+> no pruebas de escritorio. *Un "0 corridas" describe un instante, no un estado: hay que re-correr la
+> consulta, no citar el número del cierre anterior.*
+>
+> ## El norte (ADR-089): casi se duplicó
+>
+> | corrida | proyecto | N | entregados | calificados | aprobados | **norte** | cobertura de calificación |
+> |---|---|---|---|---|---|---|---|
+> | 02/09 14:14 | Comunicación en empresas | 15 | 15 | 15 | 12 | **80,0%** | 100% — resultado |
+> | 02/09 14:14 | Comunicación de parejas | 50 | 50 | 49 | 38 | **76,0%** | 98% — resultado |
+> | 02/09 16:11 | Comunicación en empresas | 15 | 15 | 7 | 7 | **46,7%** | 47% — **piso**, no resultado |
+>
+> Las dos corridas de las 14:14 casi duplican el techo anterior (**45%**, 31/08 17:22) y con cobertura
+> de calificación casi completa — no son un piso inflado, son el mejor resultado medido hasta hoy.
+> 📏 **Nueva línea base: 76%.**
+>
+> ## Los cuatro criterios pre-escritos, resueltos con datos reales (no re-litigados)
+>
+> - **`segunda_oportunidad` (ADR-091, escalón 2): dio 0 en las DOS corridas.** El criterio decía "0
+>   corrida tras corrida ⇒ no es la palanca, decirlo, no defenderlo". **Con 2 corridas es poco para
+>   descartarlo del todo, pero la lectura honesta es: hasta ahora, no mueve nada medible.**
+> - **`bajo_umbral_entregados` (escalón 5): dio 0 en las DOS.** No es un escalón roto — con 76-80% de
+>   aprobación, el corte normal llenó N sin necesitar la red. Es la lectura buena del criterio.
+> - **`filtrados_por_motivo` (pendiente #1, piso de 100k): dedup mató 286, `min_likes` mató 1,
+>   `min_views` (el piso) mató 0**, en la corrida de 16:11. El dedup domina por completo. Por el
+>   criterio ya escrito ("si el dedup mata la mayoría, bajar el piso no cambia nada y el trabajo está
+>   en otro lado") **esto ya se cierra: no bajar el piso de 100k.** ⚠️ La corrida de 14:14 no trae este
+>   dato (`filtrados_por_motivo` da `null` ahí) — gap a anotar, no invalida la lectura de la otra.
+>   🩸 **ESTO ES FALSO Y SE CORRIGE EN EL CIERRE 141: no había ningún piso de 100k.** Mani lo había
+>   bajado `100000 → 0` el **02/09 a las 00:43**, o sea **antes de las dos corridas**, y la métrica de
+>   la corrida de 16:11 lo dice en la misma línea que se citó: **`piso_views: 0`**. El criterio se
+>   aplicó a un número que solo podía dar 0. *Un contador de "cuántos mató el filtro" no se lee sin
+>   mirar el valor del filtro que va al lado — y el propio `filtrados_por_motivo` lo trae justamente
+>   para eso.* La decisión queda **reabierta**, y el primer dato real está en el cierre 141.
+> - **`gate_ve_metrica` (ADR-093): `true` en las 2.** La época quedó marcada correctamente y el norte
+>   no bajó con cobertura completa ⇒ el knob se queda prendido. No hay corrida `false` comparable a
+>   este nivel de cobertura para aislar su efecto solo.
+>
+> ## Los dos bloqueantes que no eran código
+>
+> 1. **Voces: parcialmente resuelto.** `Milena Morales` está `activo=true` — es la que permitió estas
+>    2 corridas. `Juan Pablo Vieira`, `María José Sánchez` y `Rosario Gomez` siguen en
+>    `activo=false`. Prenderlas es la palanca de cobertura más barata que queda.
+> 2. **Las 6 cuentas con 0 aprobados: sin tocar.** Sigue siendo decisión de equipo con Dani (ADR-022).
+>
+> ## Consultas usadas (para no re-escribirlas la próxima vez)
+>
+> ```sql
+> -- la del cierre 139, re-corrida
+> select to_char(inicio,'DD/MM HH24:MI') as corrida, estado,
+>        metricas->'filtrados_por_motivo'   as murieron_por,
+>        metricas->>'segunda_oportunidad'   as escalon2,
+>        metricas->>'bajo_umbral_entregados' as escalon5,
+>        metricas->>'gate_ve_metrica'       as vio_metrica,
+>        metricas->'por_proyecto'           as norte_por_proyecto
+> from public.runs
+> where metricas ? 'filtrados_por_motivo'
+> order by inicio desc;
+>
+> -- el norte, ADR-089, completa
+> with d as (
+>   select r.id as run_id, r.inicio, v.key as pid,
+>          (v.value->>'nombre')::text     as proyecto,
+>          (v.value->>'n_objetivo')::int  as n_pedido,
+>          (v.value->>'entregados')::int  as entregados
+>   from public.runs r, jsonb_each(r.metricas->'por_proyecto') v
+>   where r.metricas ? 'por_proyecto'
+> )
+> select to_char(d.inicio,'DD/MM HH24:MI') as corrida, d.proyecto, d.n_pedido, d.entregados,
+>        count(c.calificacion) as calificados,
+>        count(*) filter (where c.calificacion in ('🔥','👍')) as aprobados,
+>        round(100.0*count(*) filter (where c.calificacion in ('🔥','👍'))/nullif(d.n_pedido,0),1) as pct_del_pedido
+> from d left join app.candidatos c on c.run_id = d.run_id and c.proyecto_id::text = d.pid
+> where d.n_pedido > 0
+> group by d.inicio, d.proyecto, d.n_pedido, d.entregados
+> order by d.inicio, pct_del_pedido desc;
+> ```
+>
+> ## Lo que queda pendiente, en orden de efecto
+>
+> 1. **Medir el escalón 4** (§1 del [plan](./plan-cascada-de-entrega.md)) — sigue sin hacerse.
+> 2. **Activar las 3 voces restantes** (Vieira, Sánchez, Gomez) — clics, cero código, cobertura barata.
+> 3. **Podar/decidir las 6 cuentas y las 5 propuestas** — con Dani, no por SQL.
+> 4. **Llevar el norte a la pantalla Entender** — ADR-089 "hecho cuando" #1 sigue sin cumplirse: hoy
+>    se lee con SQL a mano, como en este mismo cierre.
+> 5. **Los dos modos cantidad/calidad** ([plan §8](./plan-cascada-de-entrega.md)) — 2 corridas más no
+>    alcanzan para diseñar el dial; sigue "NO decidido".
+
+> # 🎚️ CIERRE 139 (2026-09-02) — El jurado ve la métrica, y el piso de 100k tiene un dato en contra
+>
+> ## ✅ [ADR-093](../adr/ADR-093-el-jurado-ve-la-metrica-como-contexto-debil.md) — el #4, en el live
+>
+> La otra mitad del pedido de Mani (*"que haiku la conozca, no es la voz final"*), que ADR-092 había
+> dejado anotada. Cada video viaja al gate con **`pop`**: su percentil de popularidad (0-100) dentro
+> de su proyecto.
+>
+> 🔴 **El riesgo salía de nuestra propia medición y cambió la REDACCIÓN, no la decisión:** dentro del
+> proyecto más vistas y más seguidores predicen **RECHAZO** (0,407 y 0,311) y dentro de la misma
+> cuenta la métrica se evapora ⇒ decirle *"tiene muchas vistas"* a secas sería **inyectar una señal
+> anti-predictiva dentro de la única que funciona**. Por eso el prompt lleva **el calibre escrito**:
+> débil, de la cuenta, sólo para desempatar, y *"un off-topic con pop 99 sigue siendo off-topic"*.
+>
+> Va el **percentil y no las views crudas**: un absoluto no dice nada sin referencia y **cambiaría de
+> escala** entre una corrida de cuentas chicas y una de grandes.
+>
+> ⚠️ **Levanta el *"el prompt NO cambia"* de ADR-088, cuyo motivo era real:** mueve la distribución de
+> scores. La mitigación es **marcar la época** — `metricas.gate_ve_metrica` va en cada corrida, y sin
+> eso cualquier medición que cruce las dos mezcla escalas. **Y NO entró en la misma corrida que
+> ADR-091:** dos cambios que se miden con la misma métrica no entran juntos.
+>
+> 🩸 **Un comentario mío que corregí antes de commitear:** escribí que el knob era *"reversible sin
+> deploy"* y **es falso** — `gate_ve_metrica` no está en el `AJUSTE_MAP` ni en el CATALOGO, así que
+> una fila en `app.ajustes` **no lo tocaría**. Se apaga con `Config` + `n8n:push`. *Era exactamente
+> el error de ADR-090, dos días después.*
+>
+> `test-nodos.mjs` **251 checks** (eran 242), auditor sin hallazgos, `n8n:diff` verde en los 5.
+> Rollback: `.n8n-snapshots/motor-2026-09-02T06-16-06-925Z.json`.
+>
+> ## 🚧 El #3 (el piso de 100k) está BLOQUEADO, y no por falta de ganas
+>
+> **No hay ninguna corrida el 02/09**, así que `metricas.filtrados_por_motivo` todavía no existe. Los
+> videos que mata el piso **mueren antes de tocar cualquier tabla**, o sea que *no se pueden contar
+> desde los datos guardados*: por eso hubo que instrumentarlo. **Lo desbloquea la primera corrida del
+> equipo.**
+>
+> ### 📏 Pero hay una pregunta vecina que sí se pudo contestar, y aporta
+>
+> *¿Los aprobados viven pegados al piso o muy por encima?*
+>
+> | tramo | entregados | calificados | aprobados | % aprob |
+> |---|---|---|---|---|
+> | **100k–200k** (pegado al piso) | **212** | 86 | 29 | **33,7%** |
+> | 200k–500k | 121 | 64 | 49 | **76,6%** |
+> | 500k–1M | 57 | 44 | 25 | 56,8% |
+> | 1M+ | 32 | 17 | 12 | 70,6% |
+>
+> **La banda pegada al piso es la mitad del volumen y la PEOR tasa.** Bajar el piso traería más de lo
+> que menos funciona ⇒ **por CALIDAD, el dato está en contra de bajarlo.**
+>
+> ⚠️ **Con dos matices que impiden cerrarlo acá:**
+>
+> 1. **Está confundido por proyecto y por cuenta**, igual que la tabla de señales que ya nos mordió
+>    (ADR-088 §Enmienda 2). La banda 100k–200k puede estar dominada por las 6 cuentas de tasa 0%.
+> 2. 🔑 **Por COBERTURA apunta al revés, y ADR-089 juzga el producto de las dos.** Cuando N no se
+>    llena —**14 de 21**— sumar material al 33,7% **igual sube los aprobados absolutos**. Y hay un
+>    detalle que lo decide: **`cap_top_n` = 350 ya acota el gasto**, así que el piso **no ahorra
+>    plata: sólo decide QUIÉN ocupa los 350 lugares.** En la corrida del 01/09 sobrevivieron **42
+>    pares** al piso, muy por debajo de 350 ⇒ **ahí el que ataba era el piso, no el techo.**
+>
+> **Conclusión honesta: no se decide hoy.** El desglose de la corrida dice cuánto mata el piso frente
+> al dedup, y **recién con eso** se elige. Si el dedup mata la mayoría, bajar el piso no cambia nada
+> y el trabajo está en otro lado.
+>
+> ```sql
+> -- Lo primero que hay que correr después de la primera corrida del equipo:
+> select to_char(inicio,'DD/MM HH24:MI') as corrida,
+>        metricas->'filtrados_por_motivo' as murieron_por,
+>        metricas->>'segunda_oportunidad' as escalon2,
+>        metricas->>'bajo_umbral_entregados' as escalon5,
+>        metricas->>'gate_ve_metrica' as vio_metrica
+> from public.runs where metricas ? 'filtrados_por_motivo' order by inicio desc;
+> ```
+
+> # 🔇 CIERRE 138 (2026-09-02) — Cuando el equipo no recibe nada, la herramienta le mentía
+>
+> Auditoría del repo contra el objetivo de Mani: *"cubrir las solicitudes de videos del equipo de
+> redes"*. **El hallazgo no fue un escalón que falta: fue que el motor no dice por qué no entregó.**
+>
+> ## 🩸 El bug, y es de los caros porque MIENTE
+>
+> Le pregunté a la fachada qué haría el motor **si el equipo aprieta Ejecutar ahora**:
+> **0 voces, 0 proyectos, 40 referentes.** No entrega ni un video.
+>
+> Y `Cerrar run (sin novedades)` escribía, siempre, el mismo aviso fijo:
+>
+> > *"sin novedades: se miraron **0** videos y ninguno era nuevo. No se transcribió ni se pagó nada."*
+>
+> 🔑 **Eso se lee como "no hay contenido nuevo" (⇒ esperar) cuando la verdad es "no miré nada porque
+> está apagado" (⇒ prender las voces). Diagnósticos opuestos, acciones opuestas.** Y ese camino
+> **tiraba los `avisos` del plan**: sólo los reenviaba `Resumen del run`, que en una corrida sin
+> novedades **nunca llega a ejecutarse**.
+>
+> Encima, *"proyecto salteado (voz apagada)"* era un **`console.log`** — vive en n8n, y el equipo mira
+> Corridas. **Un log no es un aviso.**
+>
+> ## ✅ Arreglado y en el live
+>
+> - `Armar plan de corrida` emite **dos avisos de verdad**: los proyectos salteados por voz apagada
+>   (nombrándolos y diciendo *dónde* se arregla: Curar → Voces) y el caso **0 proyectos**, con los
+>   números que lo diagnostican (cuántos proyectos vio y cuántas voces activas).
+> - `Cerrar run (sin novedades)` **distingue las dos causas** y **reenvía los avisos del plan**.
+> - `test-nodos.mjs` **242 checks** (eran 236). Un test viejo se puso rojo **con razón**: pedía que
+>   saliera por `console.log`, y ahora se exige que sea aviso. *El test pedía lo débil.*
+> - `n8n:diff` **verde en los 5**. Rollback: `.n8n-snapshots/motor-2026-09-02T06-08-15-959Z.json`.
+>
+> 💰 **Lo que NO pasa, verificado leyendo el código:** con 0 proyectos **no se paga nada**. `ig_urls`
+> y `tt_profiles` se arman **desde `projects`**, así que Apify no recibe un solo perfil. El fallo era
+> puro silencio, no gasto.
+>
+> ## 📏 La palanca de cobertura más grande no es código: son 6 cuentas
+>
+> Medido el 02/09, **separando "lo rechazaron" de "nadie lo miró"** — que es la diferencia que hace
+> honesto al número:
+>
+> | referente | entregados | calificados | rechazados | aprobados |
+> |---|---|---|---|---|
+> | `thejessicaweiss` | 36 | **26** | **26** | **0** |
+> | `jen_gottlieb` | 17 | 5 | 5 | 0 |
+> | `jenniferanncounseling` | 8 | 5 | 5 | 0 |
+> | `jefferson_fisher` | 8 | 4 | 4 | 0 |
+> | `susieinthiran` | 8 | 4 | 4 | 0 |
+> | `nedratawwab` | 9 | 2 | 2 | 0 |
+> | **6 cuentas** | **86** | **46** | **46 (100%)** | **0** |
+>
+> *(`wordsofrizdom` 13 y `sakeembradley` 7 quedan aparte a propósito: **0 calificados**, o sea "nadie
+> los miró", que no es lo mismo que "no sirven".)*
+>
+> **86 lugares del cupo del equipo gastados en cuentas que nunca produjeron un aprobado**, y
+> `thejessicaweiss` sola se llevó 36 con **26 de 26 rechazados**. ⚠️ **ADR-022 fija que la poda es
+> del EQUIPO, no automática** ⇒ va con Dani, no por SQL. Y hay **5 propuestas de referentes en
+> `propuesto`** esperando un clic: supply parado.
+>
+> 📌 *Los docs decían `thejessicaweiss` "0 de 26" y `jen_gottlieb` "0 de 5": eran los **calificados**,
+> y los entregados ya son 36 y 17. El número crece solo mientras nadie pode.*
+>
+> ## 🔴 Lo que queda pendiente, en orden de efecto sobre el norte
+>
+> | # | Qué | Cuesta | Bloquea |
+> |---|---|---|---|
+> | 1 | **Prender las voces** (las 4 en `activo=false`) | 4 clics | **TODO**: sin esto no hay corrida |
+> | 2 | **Podar las 6 cuentas y decidir las 5 propuestas** | clics, cero código | cobertura |
+> | 3 | **Leer `filtrados_por_motivo`** de la 1ª corrida: si `Mínimo de vistas` (100.000) mata más que el dedup, bajarlo es **cero código** | 1 consulta | cobertura |
+> | 4 | **Pasarle la métrica a Haiku** (*"que la conozca"*, ADR-092 §🕳️) | ADR + prompt | precisión |
+> | 5 | **Escalón 4** (rescatar lo pagado que se cayó de la ventana) | medir primero | cobertura |
+> | 6 | **El norte en la pantalla Entender** (hoy muestra `entregados/pedidos`, no aprobados contra pedido) | app | visibilidad |
+>
+> 🔑 **El 1 y el 2 no son código y valen más que todo lo que se construyó hoy.**
+
+> # 🎁 CIERRE 137 (2026-09-02) — La segunda oportunidad, y el heat vuelve como etiqueta
+>
+> ## ✅ La `038` está APLICADA (Mani, 02/09) y el motor está entero en el live
+>
+> Verificada **por efecto y con cuatro señales**: la columna existe (`numeric`) · **`con_prescore = 0`
+> sobre 422 filas**, o sea que el *sin backfill* es un hecho medido y no una intención · el `comment`
+> quedó puesto · y **PostgREST la devuelve con 200 y no `PGRST204`**, que era la pata capaz de fallar
+> sola (cache de esquema vieja) y es el camino exacto por el que escribe el motor.
+>
+> ✅ **`Preparar candidatos` empujado** (era el nodo retenido a propósito, porque manda la columna
+> nueva y sin ella PostgREST tumba el POST del lote ENTERO: la corrida paga Apify + Supadata + Haiku
+> y no entrega nada). **`n8n:diff` verde en los 5.**
+>
+> 🐤 **No se insertó ninguna fila de prueba, a propósito:** el canario de ADR-092 nace en cero y la
+> primera fila la escribe el motor. Verificar escribiendo lo habría contaminado — el error que este
+> repo ya pagó con `videos_meta` (5 filas, las 5 de verificaciones).
+>
+> ## ✅ [ADR-091](../adr/ADR-091-la-segunda-oportunidad-cross-proyecto.md) — escalón 2, en el live
+>
+> Después del corte y del spillover, los huérfanos se le ofrecen a los proyectos **con cupo que no
+> los vieron y tienen rúbrica**. **Sólo Haiku**: el transcript ya está pagado y `Transcribir` dedupea
+> por video ⇒ **cero ASR extra**.
+>
+> 📏 **El problema, medido:** el fan-out por referente ofrece cada video a **~3,5 proyectos de los
+> 11 activos** — dos tercios nunca lo miran.
+>
+> 🔑 **Vive DENTRO de `Armar candidato`** porque es el único lugar que sabe las dos cosas que hay que
+> cruzar: quién quedó sin dueño y cuánto cupo queda. Un nodo aparte tendría que **re-implementar el
+> corte**, y dos implementaciones de la misma regla es el error que `plan-orden-y-filtro` ya dejó
+> escrito. **El costo de esa elección, dicho:** el nodo que decide la entrega hace una llamada paga ⇒
+> **fail-open duro** (invariante #1), presupuesto de 120 s y tope de 1.500 pares.
+>
+> **Seguimiento, que Mani pidió explícito:** `metricas.segunda_oportunidad` + el prefijo
+> `[2da oportunidad] ` en `relevancia_razon`, que permite el norte de ADR-089 **por candidato y sin
+> migración**. ⚠️ **Criterio escrito ANTES de mirar: si da 0 corrida tras corrida, el escalón no es
+> la palanca y hay que decirlo, no defenderlo.**
+>
+> ## ✅ [ADR-092](../adr/ADR-092-el-heat-score-es-una-etiqueta-que-desempata.md) — el heat vuelve, como etiqueta
+>
+> Mani: *"el heat_score es una etiqueta que sirve como desempate PASIVO… no es la voz final"*.
+>
+> 🔑 **Y con eso corrigió un razonamiento mío.** ADR-090 dejó los empates en orden arbitrario porque
+> buscó el desempate como un **peso** y demostró que haría falta `> 0,990`. **La conclusión no se
+> seguía de la premisa:** un orden **lexicográfico** (relevancia, y métrica sólo si empata) es
+> desempate **estricto por construcción, sin peso ninguno**. *El problema nunca fue el valor del
+> peso: era haberlo modelado como un peso.* No es cosmético: relevancia toma **27 valores** y los
+> grupos empatados por proyecto son de **5,42, hasta 14**.
+>
+> Y la métrica se **persiste** (`038`): hasta hoy **no existía en ningún lado** porque el gate pisa
+> `heat_score`. **No se puede recomputar**: es un percentil relativo al pool de SU corrida y se pierde
+> con ella — mismo caso que `run_id` en ADR-081.
+>
+> 🕳️ **Lo que Mani pidió y NO se hizo: *"que haiku la conozca"*** (pasarle la métrica al prompt del
+> gate). Se difiere con motivo: cambia la distribución de scores y rompe la comparabilidad con las
+> 422 históricas, y sobre todo **no se puede medir en la misma corrida que estrena el escalón 2**.
+> *Dos cambios que se miden con la misma métrica no entran en la misma corrida.*
+>
+> ## 🩸 Un error mío que vale más que el código
+>
+> **ADR-090 no estaba vigente y yo dije que sí.** Los ajustes del cockpit **pisan al `Config`**, y
+> `app.ajustes` tenía `Peso de relevancia = 0.7`: el push llegó, **`n8n:diff` cerró verde en los 5**,
+> y el valor que corría seguía siendo el viejo. **`n8n:diff` verde prueba que el live corre el
+> WORKFLOW del repo, no que un VALOR esté vigente** — hay una capa de config en Postgres que el diff
+> no mira ni puede mirar. Corregido en `app.ajustes` y verificado por el camino real (la fachada
+> devuelve 1). **Todo knob con fila en `app.ajustes` tiene el mismo punto ciego.**
+>
+> ## 📏 Y una medición que reordena las prioridades
+>
+> **El 98,7% de los pares muere en pisos + dedup ANTES de transcribir** (01/09: 3.306 → 42). Ese paso
+> tenía **un solo contador para tres filtros**, así que los muertos eran anónimos (pendiente #9).
+> **Ya está instrumentado** (`metricas.filtrados_por_motivo`, con los pisos vigentes al lado) y lo
+> contesta la próxima corrida. ⚠️ **`Mínimo de vistas` está en 100.000.** Si resulta que mata más que
+> el dedup, bajarlo es **cero código** y da más cobertura que cualquier escalón.
+>
+> ## Estado
+>
+> `test-nodos.mjs` **236 checks** (eran 219), auditor sin hallazgos, validador verde. En el live:
+> `Armar candidato` + `Resumen del run` + `Heat-score v1`, `n8n:diff` con el único drift esperado.
+> Rollback: `.n8n-snapshots/motor-2026-09-02T05-37-53-482Z.json`.
+
+> # ⚖️ CIERRE 136 (2026-09-01) — El 30% métrico no rankeaba: desempataba, y al revés
+>
+> Mani, tras ver la medición del 135: *"quiero aplicar el cambio necesario ya. Si toca, hagamos lo de
+> sacar el 30% del corte"*. **Evaluado y aplicado**, con un hallazgo que cambió cuál era el arreglo.
+>
+> ## 🔑 La decisión resultó BINARIA, y por un dato que no estaba mirado
+>
+> La reacción obvia era *"bajemos el peso métrico a algo chico que solo desempate"*. **No se puede.**
+> `relevancia_score` toma **27 valores distintos** en 420 filas (rango 0,60–0,96) con paso **0,01**,
+> y los empates por proyecto son de **5,42 en promedio, hasta 14**. O sea que el 30% métrico **hoy no
+> rankea: rompe empates** — y lo hace a 0,407, en la dirección equivocada. Para ser desempate
+> **estricto** haría falta `(1-P) < P·0,01` ⇒ **`P > 0,990`**. *Cualquier valor intermedio conserva el
+> defecto y aparenta arreglarlo.*
+>
+> ## Lo que quedó hecho
+>
+> - ✅ **[ADR-090](../adr/ADR-090-la-metrica-no-rankea-videos-desempata.md)** — `peso_relevancia`
+>   **0,7 → 1**. Un valor en `Config`, que además es knob del cockpit (*Peso de relevancia*) ⇒
+>   **reversible sin deploy**.
+> - ✅ **En el live**: push de 1 nodo, **`n8n:diff` verde en los 5**. Rollback:
+>   `.n8n-snapshots/motor-2026-09-02T04-54-20-106Z.json`.
+> - ✅ `test-nodos.mjs` **213 checks** (eran 207), auditor sin hallazgos, validador verde.
+>
+> ## 📏 Por qué se aplicó: tres patas, no una
+>
+> 1. **Mecanismo:** un promedio ponderado no mejora mezclando un término sin información.
+> 2. **AUC** (muestra grande): composite **0,523** contra relevancia **0,638** dentro de la cuenta.
+> 3. **Simulacro sobre el norte de ADR-089** (muestra chica, 3 grupos 100% calificados): a mitad de
+>    cupo, relevancia captura **22 aprobados contra 19**, gana o empata **3 de 3, nunca pierde**.
+>
+> ## 🔍 Dos cosas que aparecieron mirando, y no eran el tema
+>
+> - **El Feed ordena por `heat_score`** (`lib/candidatos.ts:88`), no sólo el corte. O sea que el
+>   composite decidía **qué mira primero el equipo**, con **211 sin calificar de 422**. El orden de
+>   atención es tan palanca del norte como el corte, y con un solo valor se arreglaron los dos.
+> - 🩸 **El comentario que avisaba del drift mock↔Config no verificaba nada**, y yo acababa de cambiar
+>   los dos a mano. Ahora hay guard. **Y el primer guard que escribí estaba MAL**: exigía que el mock
+>   valiera lo mismo que prod y salió en rojo contra fixtures deliberados (`piso_referente` 0 acá / 5
+>   allá, para probar el corte sin piso). *Un fixture difiere a propósito; lo invariante es que el
+>   knob EXISTA y que los defaults que son una DECISIÓN estén puestos.* Eso es lo que verifica.
+>
+> ## ⚠️ Lo que NO hace
+>
+> - **Los empates quedan en orden arbitrario, a propósito.** No hay información para ordenarlos y el
+>   desempate viejo apuntaba al revés. *Un orden arbitrario es mejor que uno equivocado.*
+> - **`heat_score` cambia de significado desde hoy**; las 422 históricas guardan el composite y no se
+>   pueden recomputar. `relevancia_score` sí es comparable entre épocas.
+> - **NO ataca el cuello.** El orden muerde en **7 de 21**; la cobertura falla en **14 de 21**. Esto
+>   es precisión. Lo que falta sigue siendo el **escalón 2**.
+> - **Anotado, no hecho:** desempatar por `engagement` (0,674 dentro del proyecto) sería higiene de
+>   catálogo disfrazada de orden de video — dentro de la misma cuenta cae a 0,527. La poda de
+>   referentes es del equipo (ADR-022) y tiene su propio pendiente.
+
+> # 🧭 CIERRE 135 (2026-09-01) — Una sola métrica, y la tabla de señales apuntaba al revés
+>
+> Mani, sobre el cierre 134: *"¿por completa por heat? el heat es una fórmula poco confiable para
+> vetear los videos"*. Al ir a medirlo **se cayó uno de los tres pilares de ADR-088**. Y en la misma
+> vuelta fijó el norte de todo el workflow: *"que de los videos colectados se cumpla con lo que pide
+> cada proyecto y que sean APROBADOS"*.
+>
+> ## ✅ [ADR-089](../adr/ADR-089-una-sola-metrica-aprobados-contra-lo-pedido.md) — el norte
+>
+> **`aprobados / N pedido`, por proyecto y por corrida.** Se descompone en **cobertura ×
+> precisión**, y **el tercer número no es opcional**: `calificados/entregados`, porque un candidato
+> sin calificar **no es un rechazo** y sin eso el norte castiga al motor por algo que pasó en el Feed.
+>
+> 📏 **Línea base contra prod.** `run_id` existe desde ADR-081 sin backfill ⇒ sólo se puede calcular
+> sobre las **5 corridas** desde el 31/08 04:30. El techo es la del **31/08 17:22**, la única en que
+> los 4 proyectos entregaron su N completo:
+>
+> | | colectados | N | entregados | calificados | aprobados | **norte** |
+> |---|---|---|---|---|---|---|
+> | 31/08 17:22 | 1.088 | 80 | **80** | 47 | **36** | **45,0%** |
+> | …Ansiedad | | 20 | 20 | 20 | **18** | **90%** |
+> | …Depresión | | 20 | 20 | 20 | 12 | **60%** |
+>
+> 🔑 **Cuando la cobertura llega a N y el equipo califica, la precisión es 60–90% ⇒ el norte NO está
+> limitado por la precisión, está limitado por la cobertura.** En **14 de 21** (proyecto × corrida)
+> `razon_faltante` es `supply` o `mixta`: el motor ni junta para llenar N. **~30 videos crudos por
+> cada aprobado.**
+>
+> ## 🩸 [ADR-088 §Enmienda 2](../adr/ADR-088-el-gate-ordena-no-veta.md) — la tabla de señales estaba confundida
+>
+> El repo venía citando *"`relevancia_score` 0,218 contra `log(views)` 0,493 ⇒ el filtro caro decide
+> peor que un dato gratis"* en **tres docs**. Es **falso**: era correlación de **Pearson global**, con
+> el confounder de proyecto adentro (`Ansiedad` aprueba 83%, `Comunicación de parejas` **0 de 27**).
+>
+> **AUC** (0,5 = moneda al aire), estratificando:
+>
+> | señal | global (11.040 pares) | dentro del proyecto (1.106) | mismo proyecto **y cuenta** (130) |
+> |---|---|---|---|
+> | **`relevancia_score`** | 0,630 | **0,717** | **0,638** |
+> | `engagement` | **0,765** | 0,674 | 0,527 |
+> | `log(views)` | 0,703 | **0,407** | 0,500 |
+> | `seguidores` | 0,610 | **0,311** | 0,604 |
+> | **`heat_score` (composite)** | **0,583** | 0,658 | **0,523** |
+>
+> 🔑 **Las métricas son señal de CUENTA, no de video.** Dentro del proyecto `log(views)` y
+> `seguidores` predicen **rechazo** (replicado en los 3 proyectos con ≥300 pares, **ninguno** sobre
+> 0,5); dentro de la misma cuenta **todas se evaporan**. La única que sobrevive las tres
+> estratificaciones es `relevancia_score`, y **está subestimada** porque sólo se mide sobre
+> gate-passers. ⇒ **la palanca métrica es podar y sumar referentes, no re-pesar una fórmula**, que es
+> ADR-082 y el T0 otra vez, ahora con mecanismo.
+>
+> **El `composite` a nivel video es 0,523**: diluye su única señal buena con 30% de ruido.
+>
+> ## Qué se cae y qué no
+>
+> - ❌ **El argumento #2 de ADR-088.** ✅ Siguen en pie el #1 (vetar no ahorra un centavo: es de
+>   costo), el #3 (el humano ya filtra) y el contrafactual de +232 (es de conteo).
+> - ⚠️ **El balance cambia:** dejar entrar lo bajo-umbral cuesta más precisión de la supuesta. Lo
+>   hace tolerable la §Enmienda 1 del cierre 134 — entran **sólo si N quedó corto**.
+> - 🕳️ **Grieta abierta:** el cierre de *"re-pesar el heat-score"* (ROADMAP §5, AUC 0,706) se parece
+>   mucho a los AUC **globales** de arriba y **no consta que se haya estratificado**. No es permiso
+>   para re-pesar; es permiso para **re-medir el cierre antes de citarlo**.
+>
+> ## 🔴 Lo que quedó ABIERTO y es decisión de Mani
+>
+> **Por qué se ordena el corte, ahora que se sabe que el composite es una moneda al aire.** Toca
+> ADR-024 y ADR-030 ⇒ **no se cambió de rebote**. Las opciones y el trade-off están en la respuesta de
+> la sesión; el default de hoy sigue siendo el composite.
+>
+> ## Qué sigue
+>
+> **Escalón 2** (segunda oportunidad cross-proyecto): es lo que ataca **cobertura**, que es el factor
+> que muerde. Pide ADR nueva, y Mani pidió explícito que **entre con su seguimiento** — o sea con el
+> norte de ADR-089 medido antes y después, no con una métrica propia.
+
+> # 🪜 CIERRE 134 (2026-09-01) — El escalón 5 dejó de disparar antes de tiempo
+>
+> El **#1 del pendiente** de [plan-cascada-de-entrega.md](./plan-cascada-de-entrega.md), cobrado.
+> ADR-088 (cierre 133) hizo lo correcto en el momento equivocado: los bajo-umbral entraban
+> **siempre**, no sólo cuando N quedaba corto. Mani, al verlo: *"eso de entregar los 6 rechazados no
+> debe ser"*.
+>
+> 🔑 **Y la razón estructural es la que ordena el arreglo: `Gate de relevancia` NO SABE cuánto falta
+> para N.** Ese número es `_nDe(pid)` y sólo existe en `Armar candidato`, dos nodos más abajo — así
+> que **el condicional nunca pudo vivir en el gate.** El cambio es de un solo nodo.
+>
+> ## Lo que quedó hecho
+>
+> - ✅ **El corte de `Armar candidato` tiene dos escalones.** Cada proyecto llena su N con los
+>   aprobados (PISO primero, después heat, como siempre) y **recién si quedó corto** completa con los
+>   `_bajo_umbral`, por heat y **sólo por lo que falta**. Lo que sobra no se entrega y **no se quema**
+>   (ADR-087), así que vuelve gratis.
+> - ✅ **[ADR-088 §Enmienda](../adr/ADR-088-el-gate-ordena-no-veta.md)** reescrita de PENDIENTE a
+>   APLICADA, con las dos puertas de atrás y lo que supersede.
+> - ✅ **En el live** (01/09): `n8n:push --apply` sobre 2 nodos, **`n8n:diff` verde en los 5**, 40
+>   nodos, workflow activo. Rollback: `.n8n-snapshots/motor-2026-09-02T02-02-36-217Z.json`.
+> - ✅ `test-nodos.mjs` **207 checks** (eran 199), `auditar-workflows.mjs` sin hallazgos, validador
+>   **2605/0**.
+>
+> ## 🔑 Dos puertas de atrás por las que la prioridad se anulaba sola
+>
+> Ninguna de las dos era obvia, y las dos habrían dejado el arreglo pareciendo hecho:
+>
+> 1. **El dedup del fan-out.** Haiku devuelve `relevante` y `score` **por separado**, así que un
+>    `relevante:false` con score 0,7 **existe** — y le ganaba la copia a un `relevante:true` con 0,5.
+>    Con eso el video caía en la **reserva** de P1 en vez del **cupo** de P2, que sí lo quería, y el
+>    escalón 5 lo entregaba sólo si P1 quedaba corto. *El dedup podía anular la prioridad un paso
+>    antes de que existiera.* Ahora el orden es *(1) aprobado, (2) relevancia, (3) heat*.
+> 2. **El spillover.** Dos sobrantes peleando el último cupo de otro proyecto se ordenaban sólo por
+>    heat, así que un bajo-umbral viral le sacaba el asiento a un aprobado por la puerta de atrás.
+>
+> **El PISO (ADR-017) NO re-aplica sobre la reserva**, con la misma frase con la que ya no re-aplica
+> en el spillover: *es relleno marginal, no redistribución.*
+>
+> ## 📏 La métrica que el cambio de forma habría dejado mintiendo
+>
+> `metricas.bajo_umbral` cuenta lo **ADMITIDO** por el gate, que hasta el cierre 133 era lo mismo que
+> lo entregado. **Ya no**: el gate admite todo y el corte usa la reserva sólo si hace falta. Sin
+> arreglarlo, `bajo_umbral: 40` se seguiría leyendo como *"40 dudosos en el Feed"* cuando pueden ser
+> 2 — el **mismo modo de falla** que el cierre 129 le encontró a `haiku_lotes_pretrim`. Se agrega
+> **`metricas.bajo_umbral_entregados`**; la marca viaja hasta la salida de `Armar candidato` y **no
+> llega a la base** (`Preparar candidatos` elige campo por campo, igual que con `_entregado`).
+>
+> 🔑 **Y ese contador es el que dice si este escalón importa:** si sale **0 en varias corridas**, el
+> escalón 5 es una red que nadie usa y el cuello está donde dice el §5 del plan — en el supply.
+>
+> ## 🩸 Los tests se corrieron contra el código VIEJO a propósito
+>
+> **7 de los 8 nuevos se ponen ROJOS contra el `workflow.json` de HEAD.** El octavo es una
+> no-regresión (un proyecto sin ningún aprobado entrega su reserva entera y no se queda en cero).
+> *Un test que no puede fallar no prueba nada*, y el primer intento tenía uno así: con la reserva
+> siempre por debajo en heat, el corte viejo daba el mismo resultado. Se corrigió bajándole el heat a
+> un aprobado, que es el caso que de verdad discrimina.
+>
+> ## ⚠️ Lo que este cierre NO resuelve
+>
+> - **Faltan los escalones 2 y 4**, que son los que le dan trabajo a los de arriba **antes** de que
+>   el 5 tenga que actuar. El 5 sin ellos es una red de último recurso que se va a usar más de lo que
+>   debería. El #1 del pendiente ahora es el **escalón 2** (segunda oportunidad cross-proyecto), y
+>   **pide ADR nueva**.
+> - **Sigue sin medirse nada**: 0 corridas desde el push, y las 4 voces en `activo = false`.
+> - **El cuello del §5 sigue intacto**: esto reparte mejor lo que hay, no crea oferta.
+
+> # ⚖️ CIERRE 133 (2026-09-01) — El gate ordena, no veta
+>
+> Segundo movimiento del mismo audit, y **sólo era posible después del cierre 132**: hasta ayer lo
+> que quedaba afuera por cupo se quemaba igual, así que entregar los top-N seguía perdiendo el
+> resto. Con la memoria arreglada, lo que no entra **vuelve gratis la próxima corrida**.
+>
+> ## 📏 El contrafactual, medido sobre 12 corridas
+>
+> **417 entregados de verdad → 649 con top-N = +232 videos (+56%)**, y en 8 de las 12 habría
+> entregado más. Se puede simular exacto porque `llamadas.supadata` = videos distintos que llegaron
+> a transcribirse = el pool real en el momento del gate.
+>
+> ## Los tres argumentos, en orden de peso
+>
+> 1. **Vetar no ahorra un centavo.** El gate corre **después** de `Transcribir` y `Traducir`: el
+>    video que rechaza **ya se pagó** (~USD 0,014). Descartarlo no recupera plata ni cupo.
+> 2. **La señal que vetaba es la más débil que hay.** Sobre 211 calificados: `relevancia_score`
+>    correlaciona **0,218** con el veredicto humano, `log(views)` **0,493**. Y por tramos **no es
+>    monótona** (0,80–0,84 aprueba 38,9%; 0,60 aprueba 50%).
+> 3. **El humano ya es el filtro y funciona:** 96 de 211 son 👎 (45,5%).
+>
+> ## Lo que quedó hecho
+>
+> - ✅ **[ADR-088](../adr/ADR-088-el-gate-ordena-no-veta.md)** — `relevante:false` deja de descartar
+>   y pasa a ser señal. El `composite` (0,7·Haiku + 0,3·métrica) sigue ordenando. **`sin_guion`
+>   sigue vetando** (ADR-030).
+> - 🔧 **`Relevancia mínima` deja de ser un knob INERTE** y pasa a ser el único veto. Estaba en 0 sin
+>   filtrar nada mientras el descarte real lo decidía un booleano que ninguna perilla tocaba: quien
+>   lo movía creyendo que aflojaba el filtro, **no aflojaba nada**. Ahora el nombre dice la verdad, y
+>   es la **válvula de escape** si el Feed queda muy ruidoso.
+> - ✅ **`metricas.bajo_umbral`** — videos distintos que el gate viejo habría tirado.
+> - ✅ **En el live** (01/09): `n8n:push --apply` sobre 2 nodos, `n8n:diff` verde en los 5.
+>   Rollback: `.n8n-snapshots/motor-2026-09-02T01-09-30-343Z.json`.
+>   `test-nodos.mjs` en **199 checks** (eran 193), `auditar-workflows.mjs` sin hallazgos.
+>
+> ## 🔑 Dos decisiones que se tomaron por medición y no por instinto
+>
+> - **NO se fuerza que los bajo-umbral queden siempre abajo.** Suena obvio y la medición lo
+>   desaconseja: con `relevancia_score` en 0,218 y las métricas en 0,493, forzar el grupo
+>   **privilegia la señal más débil**. Un viral que Haiku creyó off-topic puede ser mejor apuesta
+>   que un on-topic de 20 mil vistas.
+> - **NO se marcan en el Feed todavía.** Sería mostrarle al equipo como autoritativa una señal que
+>   predice su propio veredicto con 0,218, y podría hacerles saltear videos buenos. El
+>   `relevancia_score` ya se persiste por candidato ⇒ primero se mide, después se decide.
+>
+> ## ⚖️ Lo que empeora, dicho sin maquillar
+>
+> - 📉 **La calidad promedio del Feed baja** (los nuevos traen score 0,00–0,50 contra 0,60–0,96) y
+>   **el 👎 va a subir. Eso es esperado, no un fallo.**
+> - ⏱️ **Cuesta atención, que es el recurso escaso real:** hay **211 sin calificar de 422**. Si el
+>   Feed se vuelve impracticable, la reacción correcta es **subir `Relevancia mínima`**, no revertir.
+> - 🔕 **`app.descartes` queda dormida** con `MIN_REL = 0`. Los nodos siguen ahí y vuelven solos si
+>   alguien sube el knob. `v_auditoria_descartes` va a mostrar 0 expuestos, que es **honesto**.
+>
+> ## 🔴 CORREGIDO EL MISMO DÍA — dispara antes de tiempo
+>
+> Mani, al verlo: *"eso de entregar los 6 rechazados no debe ser"*. **Este cierre es el ÚLTIMO
+> escalón de una cascada de cinco y hoy dispara siempre**, en vez de sólo cuando N quedó corto.
+> El plan completo, con los 5 escalones y el estado de cada uno, está en
+> [plan-cascada-de-entrega.md](./plan-cascada-de-entrega.md) — **leer ese doc antes de retomar**.
+>
+> 🔑 **El porqué estructural: `Gate de relevancia` no sabe cuánto falta para N** (ese corte vive en
+> `Armar candidato`, dos nodos abajo), así que el condicional **nunca pudo vivir en el gate**. El
+> arreglo son ~10 líneas en `Armar candidato` y **ninguna migración**: la marca `_bajo_umbral` ya
+> viaja.
+>
+> 📌 **0 corridas desde el push**, canarios en cero ⇒ **no entregó ni un video dudoso**. Nada que
+> limpiar. Y la válvula mientras tanto es un knob: `Relevancia mínima` en ~0,55 (hoy está en 0).
+>
+> ## 🔴 PENDIENTE — la medición, y es la que puede revertir esto
+>
+> **La métrica de éxito NO es la obvia:** no *"cuántos entregó"* sino **cuántos 🔥/👍 ABSOLUTOS por
+> corrida**. Medir precisión premiaría al sistema por entregar menos.
+>
+> ```sql
+> select (relevancia_score < 0.55) as habria_sido_vetado,
+>        count(*) filter (where calificacion is not null) as calificados,
+>        count(*) filter (where calificacion in ('🔥','👍')) as aprobados
+> from app.candidatos where creado_en > '<primera corrida con ADR-088>'
+> group by 1;
+> ```
+>
+> **Si los *habría sido vetado* aprueban ~0%, el veto tenía razón y esto se revierte subiendo
+> `Relevancia mínima`.** Si aprueban 30% o más, se estaban tirando videos buenos.
+
+> # 🧠 CIERRE 132 (2026-09-01) — La memoria recordaba lo evaluado, no lo entregado
+>
+> Auditoría de por qué la corrida del 01/09 09:17 entregó **13 de 100** pedidos. La hipótesis de
+> entrada (*"el filtro descarta demasiado"*) resultó **falsa**: el motor ya lo decía solo, los 5
+> proyectos salieron con `razon_faltante: "supply"`.
+>
+> ## 📏 Lo medido contra prod (01/09)
+>
+> | | |
+> |---|---|
+> | Filas en `public.processed_items` | **1.952** |
+> | Videos que llegaron al Feed alguna vez | 866 |
+> | **Quemados que NUNCA vio nadie** | **1.401 — el 71,8%** |
+>
+> Y el embudo de esa corrida: **1.178 colectados → 14 nuevos → 13 entregados**. Los 14 salieron de
+> **una sola cuenta** (`thesabrinazoharshow`).
+>
+> 🔑 **La causa es de modelo, no un bug:** la memoria contesta *"¿ya lo evalué?"* cuando el dedup
+> necesita *"¿ya se lo mostré al equipo?"*. Dos preguntas distintas con la misma llave.
+>
+> 🩸 **Verificar la premisa corrigió el alcance, y conviene no perderlo:** los pisos duros
+> (`min_views`), el heat-score y la recencia matan **antes** de transcribir ⇒ **no entran a la
+> memoria y ya vuelven en cada corrida**. Lo que se pierde para siempre es lo que muere **después**
+> de pagar: el gate, el `sin_guion` y el corte por N. La intuición apuntaba al lugar equivocado.
+>
+> ## Lo que quedó hecho
+>
+> - ✅ **[ADR-087](../adr/ADR-087-la-memoria-recuerda-lo-que-se-entrego-no-lo-que-se-evaluo.md)** —
+>   tres preguntas, tres memorias. `app.transcripciones` = *"¿ya pagué el ASR?"*, `processed_items`
+>   = *"¿ya se lo mostré?"*, `estado='sin_transcript'` = *"¿tiene audio?"*.
+> - ✅ **Migración [`037`](../../core/schema/037_origen_transcripciones_y_descartes_id.sql)
+>   ESCRITA** — `app.transcripciones.origen`, `app.descartes.external_id`, y la RPC
+>   `app.cache_transcripts`. ✅ **APLICADA** (Mani, 01/09) y verificada por efecto con **cinco
+>   señales**: `transcripciones = manual = 130` · **`motor = 0`** · **`descartes_con_id = 0`** (los
+>   dos ceros prueban el *sin backfill*) · la RPC existe con
+>   **`has_function_privilege = true`** para `service_role` y `authenticated` · y la RPC llamada
+>   **por el camino real del motor** (`POST` + `Content-Profile: app`) devuelve **200 con 3 filas y
+>   sus guiones**, y `[]` con 200 para un id inventado.
+> - ✅ **Motor: 36 → 40 nodos.** Nuevos: `Pedir caché de transcripts`, `Leer caché de transcripts`,
+>   `Preparar transcripciones`, `POST Transcripciones`. Movidos: `Preparar procesados` y
+>   `POST processed_items` pasan a colgar de `Armar candidato`.
+>   `auditar-workflows.mjs` **sin hallazgos**, `test-nodos.mjs` en **193 checks** (eran 172).
+>   ✅ **EMPUJADO AL LIVE** (01/09): `n8n:push --apply`, 40 nodos, workflow activo, **`n8n:diff`
+>   verde en los 5**. Rollback: `.n8n-snapshots/motor-2026-09-02T00-59-22-928Z.json`.
+>   🩸 **El push pide `--borrar` para los 4 nodos que cambian de destino** (`IF — hay videos
+>   nuevos`, `Transcribir`, `POST processed_items`, `Armar candidato`). Ninguno desaparece: la
+>   bandera autoriza el **recableado**, no un borrado. *Y el `npm error` que salió primero era
+>   correr `npm run` desde la raíz — no hay `package.json` ahí, los scripts viven en
+>   `core/scripts`.*
+> - ✅ **App: las 5 lecturas de `lib/transcripciones.ts` filtran `origen = 'manual'`.**
+>   typecheck limpio · **494 tests** · `npm run build` OK.
+>
+> ## 🔑 Los cuatro hallazgos que valen más que el código
+>
+> 1. **El orden de los cambios ES la decisión.** ADR-084 había rechazado por escrito mover la
+>    memoria río abajo porque *"alarga la ventana de re-compra"*. **Ese argumento se cae con la
+>    caché**: si la corrida muere entre transcribir y entregar, la próxima encuentra el transcript y
+>    no le paga a Supadata. Regla que queda: *una memoria se puede mover río abajo cuando lo que
+>    protegía ya está protegido por otra.* Al revés se cambia una pérdida de videos por una fuga de
+>    plata.
+> 2. **El motor nunca guardó sus transcripts.** `app.transcripciones` tiene 130 filas y **las 130
+>    tienen `tanda_id`**, o sea que son del transcriptor manual del cockpit. El motor escribió
+>    **cero**: su único caché era un `const cache = {}` intra-corrida. Sin arreglar eso, dejar de
+>    quemar habría sido re-pagar en cada corrida, para siempre.
+> 3. **`leerFallidas()` era una bomba de tiempo.** Trae SIN LÍMITE los `fallo`/`sin_transcript`
+>    porque *"son pocas por definición"*. ADR-082 midió que el **34%** de lo que el motor manda a
+>    Supadata vuelve vacío ⇒ sin el filtro `origen='manual'`, cientos de filas de máquina caían en
+>    la pantalla del equipo con un botón `Reintentar` inútil.
+> 4. 🩸 **Un bug que cazó el test y no yo.** Escribí el guard de `Preparar procesados` mirando el
+>    **valor** de `_entregado` en vez de su **presencia**, y con eso *"me cablearon mal"* y *"esta
+>    corrida no entregó nada"* se volvían indistinguibles — el segundo es legítimo. El guard viejo
+>    de ADR-084 usaba `'_tx_resuelta' in json` justamente por eso. **El test que ya existía lo cazó
+>    en el primer intento.**
+>
+> ## ✅ Aplicado y verificado (01/09) · 🔴 lo que falta
+>
+> 1. ✅ **La `037` está APLICADA**, con las cinco señales de arriba. La que importaba era
+>    `has_function_privilege`: su fallo habría sido **mudo** — un `42501` lo traga el
+>    `onError: continue` y la corrida cierra en verde, sin caché, re-pagándole a Supadata.
+> 2. ✅ **El motor está en el live**: 40 nodos, activo, `n8n:diff` verde en los 5.
+> 3. 🔴 **FALTA deployar la app.** El commit está en `main` local, sin pushear. **Ya se puede**
+>    (la migración está aplicada), y **conviene hacerlo antes de la próxima corrida**: desde que el
+>    motor escriba su primera fila `origen='motor'`, la pantalla Transcribir del equipo la mostraría
+>    sin el filtro.
+> 4. 🔴 **FALTA medir, y la mide la primera corrida real** (decisión de Mani: se mide con uso del
+>    equipo, no con una corrida de prueba). Tres consultas:
+>    · `select count(*) from app.transcripciones where origen='motor'` — el canario, nace en 0 y la
+>      primera fila la escribe el motor.
+>    · `llamadas.supadata` de `runs.metricas` contra los videos distintos que entraron — el ahorro.
+>    · que `processed_items` deje de crecer más rápido que `candidatos + outputs`.
+>
+> ## Lo que este cierre NO resuelve, dicho sin eufemismo
+>
+> - 🔴 **El cuello #1 sigue vivo y es de catálogo, no de código.** ~40 referentes publicando ~1
+>   reel/día son ~40 videos nuevos/día como techo, contra una demanda de **265** (11 proyectos × su
+>   N). Eso no lo arregla ningún umbral. La palanca es podar y sumar cuentas — y hay varianza
+>   brutal: `the.pocket.psychologist` 43 aprobados de 43, `thejessicaweiss` **0 de 26**.
+>   Es lo mismo que [ADR-082](../adr/ADR-082-un-video-quemado-se-rescata-borrandole-la-memoria.md)
+>   ya había anotado y nadie ejecutó.
+> - 🟠 **El volumen que entra a `Transcribir` va a subir** (los no entregados vuelven), así que el
+>   freno pasa a ser `cap_top_n` — que **corta global y puede vaciar proyectos enteros**
+>   (ADR-044 lo midió: con el techo en 10, un proyecto se llevó los 10 y cuatro quedaron en
+>   `evaluados: 0`). **Repartirlo por proyecto es otro ADR** y esta decisión lo acerca.
+> - 🟡 **`Relevancia mínima` está en 0 y es INERTE**: el descarte del gate es un booleano de Haiku,
+>   no un umbral. Quien mueva ese knob creyendo que afloja el filtro, no afloja nada.
+> - 🟡 **`Afinidad mínima de propuesta` = 0,60 muerde exacto**: las 8 propuestas de la historia van
+>   de 0,60 a 0,75, y hay **cero propuestas desde el 20/07** con 5 esperando decisión.
+>   **No se midió** si el buscador no encuentra o si el piso se come todo.
+> - 🟡 **Las 5 voces están hoy en `activo = false`.** Si el cron dispara, el plan sale con **0
+>   proyectos**, y eso sólo se ve en Operar — no llega a `runs.metricas.avisos`.
+> - 🕳️ **Sin medir:** cuánto de los 3.264 muertos en el paso pre-trim→heat-score fue dedup y cuánto
+>   `min_views`. Comparten una sola línea y un solo contador. Es el próximo cambio con más retorno.
+> - 📄 Nota de doc: la fila de **ADR-085 en `docs/adr/README.md` tiene texto de ADR-084 pegado
+>   adentro** (dice *"es el ADR nuevo sobre compensar la memoria"*, que no es suyo). Pre-existente,
+>   no lo toqué.
+
+> # 🔁 CIERRE 131 (2026-09-01) — Dani tenía razón: el dedup recuerda el post, no el video
+>
+> Dani Rodríguez avisó mientras sacaba guiones para la voz nueva (María José Sánchez):
+> *"me están apareciendo en el feed videos que ya había calificado y que grabamos ayer"*.
+>
+> 🔴 **Tenía razón, y NO era ninguno de los bugs que ya arreglamos.** Los cinco sospechosos se
+> descartaron uno por uno, cada uno con su medición contra prod: **0** duplicados por
+> `(instance_id, external_id)` · de los **147** candidatos distintos que calificó, 147 existen y
+> **0** volvieron a `nuevo` · `POST Candidatos` manda `ignore-duplicates` y nunca pisa una nota ·
+> **0** candidatos vivos que ya estuvieran en `outputs` · `n8n:diff` verde en los 5, y por corrida
+> la fuga de la paginación aparece **solo** en la del 31/08 04:30 (4 videos) y **0** de las 13:00
+> en adelante.
+>
+> 🔑 **La causa es de modelo: el dedup compara el ID DEL POST.** Cuando un creador vuelve a subir el
+> mismo reel, Instagram le da un pk nuevo ⇒ para el motor es un video que nunca vio: lo
+> re-transcribe, lo re-paga y lo deja en el Feed como nuevo.
+>
+> **Medido el 01/09 con dos señales independientes** (caption idéntico + guion casi idéntico por
+> solapamiento de palabras), sobre 422 candidatos:
+>
+> | | |
+> |---|---|
+> | Pares "mismo video" en `app.candidatos` | **17** (parecido 0,58–0,93) |
+> | Pares en `app.descartes` (154 filas) | **18** más |
+> | En el Feed sin calificar con el gemelo ya calificado | **11** |
+> | …de esos, con el gemelo **ya grabado** | **3** (ese mismo día, 14:47–14:56, por Dani) |
+> | Juzgados **dos veces** | **4 pares**, y **2 con nota distinta** (🔥 una, 👍 la otra) |
+>
+> Los 2 con nota distinta son lo que envenena a `Destilar criterios` (ADR-022), que aprende de los 🔥.
+> Y lo último que hizo Dani antes de escribir fue **calificar 👍 a las 15:43:20 un video cuyo gemelo
+> ya había 👍 el 31/08**: esa es la tarjeta que disparó el mensaje.
+>
+> 📈 **No es una regresión, es un umbral.** Dani sumó 12 referentes el 30/08 y los `colectados`
+> pasaron de **524 → 1.088 → 1.178** por corrida: a ~100 posts de profundidad por perfil es donde
+> viven las re-subidas. Con más referentes, empeora.
+>
+> ### Lo que quedó hecho
+>
+> - ✅ **Los 11 del Feed, corregidos en prod.** Se les puso la nota de su gemelo (los 🔥 bajados a 👍
+>   para no contarle dos veces el mismo ejemplo al destilado) y una `notas_equipo` que dice de qué
+>   post son repetidos. **Verificado por efecto:** el feed pasó de **222 a 211** sin calificar y
+>   quedaron **0** repetidos adentro. Queda el rastro en `app.eventos` como
+>   `candidatos.marcar_repetidos`, con **`usuario_id` en null a propósito: no fue una persona**.
+> - ✅ **El Feed avisa** (ADR-086): la tarjeta cuyo `referente + caption` coincide con uno ya
+>   calificado muestra *"🔁 ya lo calificaste 👍"*. `domain/repetidos.ts` + **10 tests**,
+>   `lib/candidatos.ts::leerRepetidos` (lee la tabla **entera**, no el filtro abierto — el gemelo
+>   está por definición del lado calificado; es sumidero), y `TarjetaVideo` gana una ranura `aviso`
+>   **fuera del `truncate`**. `npm run typecheck` limpio, **494 tests verdes**, `npm run build` OK.
+> - ✅ **ADR-086** con el porqué de avisar y no bloquear: el caption exacto caza 7 de 17 y **se
+>   equivoca en la mitad** (los creadores repiten caption en una serie). *Un aviso con 50% de
+>   precisión cuesta una mirada; un bloqueo con 50% cuesta un video bueno que nadie vuelve a ver.*
+>
+> ### ⚠️ Lo que NO está arreglado, dicho sin eufemismo
+>
+> - **La detección de hoy caza ~7 de cada 17.** El Feed avisa a medias. No leerlo como cerrado.
+> - **Se sigue pagando la transcripción del duplicado** (~0,014 USD c/u, ~0,5 USD sobre los 35
+>   medidos). El aviso salva a la persona y la doble grabación, no la plata.
+>
+> ### ✅ La migración `036` está APLICADA (Mani, 01/09)
+>
+> Verificada **por su efecto y con cuatro señales**, no por haberse corrido: las dos columnas
+> contestan en SQL sobre las 422 filas · **`con_huella = 0` y `con_duracion = 0`**, o sea que el
+> *sin backfill* es un hecho medido · el índice parcial `candidatos_huella_idx` existe con su
+> `where huella_guion is not null` · y **PostgREST las devuelve con 200, no `PGRST204`**, que es el
+> camino real del cockpit.
+>
+> [`core/schema/036_candidatos_huella.sql`](../../core/schema/036_candidatos_huella.sql) agrega `huella_guion` y `duracion_seg`, y **no las usa nadie todavía:
+> existen para poder medir**. La duración llega gratis desde `Normalizar IG` y hoy **se tira**, así
+> que su tasa de colisión —el único motivo por el que no es ya la llave del bloqueo pre-pago— **no
+> se puede cuantificar todavía**.
+>
+> ✅ **Y el motor ya las escribe** (01/09). `Armar candidato` las calcula, `Preparar candidatos` las
+> manda, empujados al live con `n8n:push --apply` sobre esos 2 nodos; **`n8n:diff` quedó verde en
+> los 5**, `auditar-workflows.mjs` sin hallazgos y `test-nodos.mjs` en **172 checks**, con 8 nuevos
+> para esto. Snapshot de rollback en `.n8n-snapshots/motor-2026-09-01T16-59-04-254Z.json`.
+>
+> Dos hallazgos del camino, los dos ordenadores:
+>
+> - 🔑 **La huella sale de `d.transcripcion`, el transcript ORIGINAL de Supadata, y NO hizo falta
+>   tocar `Transcribir` ni `Traducir`.** `Traducir` hace `Object.assign({}, d, {script})`, o sea que
+>   el original **sobrevive al lado del traducido**. Era la señal que la ADR quería y creía cara: el
+>   ASR sobre el mismo audio es determinista, la traducción de Haiku no (por eso el hash del
+>   traducido caza 1 de 17).
+> - 🔑 **`Armar candidato` es el ÚNICO nodo de la cadena que reconstruye el objeto desde cero**; los
+>   demás hacen `Object.assign`. Los dos datos existían desde el normalizador y se morían siempre en
+>   la misma línea. Por eso el cambio es de 2 nodos y no de 6.
+>
+> 🩸 **Un bug que cazó el test y no producción:** `normalize('NFD')` separa la tilde de la vocal, así
+> que mandar el resto a espacio partía las palabras — *"como estas"* salía *"co mo esta s"* y dos
+> guiones del mismo audio no matcheaban **nunca**. Es el peor modo de falla de esto: una llave que no
+> matchea nunca **se ve idéntica a "no había repetidos"**.
+>
+> ### 🔴 PENDIENTE — la medición, y la hace la primera corrida de redes
+>
+> **No se ejecutó una corrida a propósito** (decisión de Mani, 01/09): se mide cuando el equipo de
+> redes corra el motor normalmente, así el dato es de uso real y no de una corrida de prueba. Al
+> 01/09 las dos columnas están en **0 de 422**, que es lo esperado.
+>
+> Cuando haya corrido, correr **estas tres** y anotar el resultado acá:
+>
+> ```sql
+> -- 1) ¿el motor escribió? (si esto da 0, algo se rompió en el push, no en la medición)
+> select count(*) filas, count(huella_guion) con_huella, count(duracion_seg) con_duracion
+> from app.candidatos where creado_en > '2026-09-01';
+>
+> -- 2) ¿la DURACIÓN colisiona entre videos DISTINTOS del mismo creador? (lo único que decide si
+> --    sirve como filtro pre-pago; si colisiona, se descarta y no se toca `Heat-score v1`)
+> select referente, duracion_seg, count(*) n, count(distinct huella_guion) guiones_distintos
+> from app.candidatos where duracion_seg is not null
+> group by 1,2 having count(*) > 1 order by n desc;
+>
+> -- 3) ¿la HUELLA caza los pares que el Jaccard encontró? (hoy son 17; el número se re-mide, no se cita)
+> select referente, huella_guion, count(*) n, array_agg(external_id) posts
+> from app.candidatos where huella_guion is not null
+> group by 1,2 having count(*) > 1;
+> ```
+>
+> **Recién con eso** se decide (a) si el aviso del Feed cambia de fuente —caption → huella, que lo
+> lleva de ~7/17 a ~17/17 y es un cambio chico en `lib/candidatos.ts` porque el dominio recibe la
+> huella como dato— y (b) si alguna llave aguanta un filtro duro en `Heat-score v1`, que es lo único
+> que ahorraría la transcripción y lo único que sacaría los 18 pares de `descartes`.
+>
+> 🐤 **Y la pregunta que se re-mide, no se cita:** *¿cuántos pares nuevos aparecen por corrida?* Es
+> el mismo Jaccard sobre `app.candidatos`, corrido después de la próxima corrida real. Hoy son 17.
+
+
+> # 🔎 CIERRE 130 (2026-08-31) — revisión completa del pipeline, y lo que quedó a mano
+>
+> Mani pidió una revisión de las tres superficies (workflows · cockpit en Vercel · repo y docs)
+> buscando over-engineering, código muerto, bugs silenciosos, pendientes sin atender y limpieza.
+> **Todo lo de código está aplicado, empujado al live y pusheado.** Quedan 3 cosas que no puedo
+> hacer yo:
+>
+> ✅ **Las tres se cerraron el 2026-09-01.** Quedan escritas con su verificación porque el *cómo se
+> comprobó* es lo reusable:
+>
+> | Qué | Estado | Cómo se verificó |
+> |---|---|---|
+> | Migración [`035`](../../core/schema/035_search_path_triggers.sql) | ✅ **APLICADA** (Mani, 01/09) | **Por efecto y con tres señales, no porque se haya corrido:** `pg_proc.proconfig` pasó de `null` a `search_path=app, public, pg_temp` en las dos · `get_advisors` bajó de **9 avisos a 7**, y los que se fueron son exactamente los dos de `search_path` · las dos califican su tabla (`public.clients`, `public.runs`) con la lógica intacta |
+> | 12 filas de `public.runs` mal clasificadas | ✅ **CORREGIDAS** (01/09) | El transcriptor quedó **12 `ok` + 12 `parcial` y CERO `fallo`**. El total de `fallo` del sistema bajó de **26 a 14**, y los 14 que quedan son de máquinas que sí se cayeron |
+> | `COCKPIT_MAIL` / `COCKPIT_PASSWORD` | ✅ **FUERA del `.env`** (Mani, 01/09) | `n8n:diff` sigue verde en los 5, o sea que ningún script dependía de ellas — que era la medición que decía que se podían sacar |
+>
+> 🧹 **Sobran 3 huérfanas más, inofensivas y sin apuro:** `GOOGLE_SHEET_ID` y `GOOGLE_SHEET_PESTANA`
+> (Google murió con ADR-057 el 05/08) y `DESCUBRIMIENTO_WEBHOOK_PATH`. No las lee nadie.
+>
+> ### 🔥 LA CORRIDA DE FUEGO — 2026-09-01, y la rama vacía corrió por primera vez
+>
+> Dos corridas baratas (topes a 10 y 25 desde `/curar/ajustes`, restaurados a 150/350 al terminar)
+> para probar los dos caminos del arreglo. **Costaron US$ 0,57 las dos**, contra 6,54 de una normal.
+>
+> | | Ejecución 157 · 10:37 | Ejecución 158 · 10:51 |
+> |---|---|---|
+> | Qué probó | el camino **normal** | la **rama vacía** (el arreglo del bug #1) |
+> | `Heat-score v1` | 3 items | **1 item centinela** (0 videos nuevos) |
+> | `IF — hay videos nuevos` | true=3 · false=0 | true=0 · **false=1** |
+> | `Transcribir` | corrió con 3 | **no ejecutó** |
+> | `Cerrar run (sin novedades)` | no ejecutó ✅ | **ejecutó** ✅ |
+> | Cierre | `ok`, 5,5 min, 1 candidato | **`ok`**, 4,7 min, `sin_novedades: true` |
+> | Costo | 0,31 USD | **0,26 USD · CERO de Supadata** |
+>
+> 🔑 **El `[0]=1` de `Heat-score v1` en la 158 es la prueba de que `alwaysOutputData` era
+> imprescindible.** Sin él no hay item, sin item no corre el `IF`, y sin `IF` la corrida vuelve a
+> quedar `en_curso` hasta que el barredor la marque `fallo` tres horas después — exactamente lo que
+> le pasó a la corrida `f0ad3c99` del 31/08, que estuvo **191,9 minutos** colgada.
+>
+> El aviso que dejó escrito: *"sin novedades: se miraron 164 videos y ninguno era nuevo. No se
+> transcribió ni se pagó nada."* Y `registro_dedup: "no_corrio"`, que es correcto: no había nada
+> nuevo que anotar.
+>
+> ⚠️ **`rechazos_supadata` se emite por primera vez y da 0 en las dos — y eso NO dice que haya aire.**
+> Fueron 2 llamadas y 0 llamadas: ningún techo se pone a prueba con eso. El handoff pedía leer esta
+> métrica antes de subir volumen; lo que se puede afirmar hoy es que **ya existe**, no que sobre
+> margen. Medirla de verdad es parte del audit de costo anotado abajo.
+>
+> ### Lo que sí quedó hecho (con su medición, no con su intención)
+>
+> - 🔴 **Una corrida que no encontraba nada se registraba como `fallo`.** `Heat-score v1` devolvía 0
+>   items ⇒ en n8n nada río abajo corre ⇒ `Cerrar run` nunca corría ⇒ el barredor la marcaba
+>   `fallo`. **26 de 87 corridas decían `fallo` y solo ~2 eran errores.** Y como quedaban con
+>   `metricas` en NULL y `v_costos_semana` filtra por `unidades>0`, **el 26% de las corridas del
+>   motor no sumaba nada al costo**. Arreglado con `alwaysOutputData` + `IF — hay videos nuevos` +
+>   `Cerrar run (sin novedades)`. **El motor tiene 36 nodos.**
+> - 🔴 **Un nodo que no existe pintaba una alarma permanente en el cockpit.** `Cerrar run` del
+>   descubrimiento medía `promovidos` contra `$('Preparar promoción')`, borrado con ADR-020. Valía 0
+>   siempre, y tenía **tres** consumidores: el paso "Se sembraron solas" en tono `aviso`, la frase
+>   del resumen, y la tarjeta "aprobadas al banco" de Entender vía `v_embudo_descubrimiento`.
+> - 🕳️ **Y `auditar-workflows.mjs` no podía verlo**, porque su regex solo mira `$('literal')` y ahí
+>   el nombre viajaba como parámetro de un helper. **Ese fue el primer arreglo**, antes que el bug:
+>   ahora resuelve refs indirectas por evidencia estructural. Cero falsos positivos en los 6.
+> - 🔴 **El techo del archivado nunca fue 5.000: es 1.000.** Medido contra prod sobre 1.936 filas:
+>   `limit=5000`, `limit=50000` y sin `limit` devuelven **las mismas 1.000**. La creencia *"no hay
+>   `db-max-rows`"* estaba escrita en **tres** lugares y salía de una medición del 03/08 hecha sobre
+>   175 filas: *no probaba que no hubiera techo, probaba que no lo tocaba.* `Leer Candidatos
+>   calificados` pagina, y los 3 lectores sin límite de `lib/` abortan ruidoso (`lib/supabase/tope.ts`).
+> - 🟠 **El clic más usado podía mentir sobre si guardó.** `exigirTenant` va fuera del `try` (y tiene
+>   que ir: adentro se traga el `redirect()` de Next), así que un parpadeo de infra hacía que la
+>   action **rechazara** y la UI optimista nunca revirtiera. `lib/accion.ts` lo cubre en los 6 sitios.
+> - 🟠 **8 plurales rotos nuevos** (la clase que ya les costó 6 en dos días), ahora con
+>   `domain/plural.ts` y tests. Y `Destilar criterios` dejó de tener el `catch` vacío.
+> - 🟠 **Cerrar la pestaña dejó de contar como falla**: el barrido del transcriptor cierra en
+>   `parcial`. Las 12 que estaban en `fallo` eran las 12 que existían y **ninguna era un error**.
+>
+> ### 📌 ANOTADO — audit aparte de performance y costo de los workflows (pedido de Mani, 31/08)
+>
+> **No es parte de este cierre y no se ejecutó.** Es otra pregunta: ésta fue *"¿qué está mal?"*; ésa
+> es **"¿esto es lo más eficiente para traer guiones?"**. Alcance que definió Mani: revisar la
+> lógica del programa contra el objetivo real · **qué debe ser knob y qué no** (medido: de las **18
+> perillas de `app.ajustes`, 11 no se tocaron nunca** desde que se sembraron el 31/07, y dos están
+> en 0) · influencia y rol de cada etapa (la corrida del 31/08 fue **1.088 colectados → 451 al gate
+> → 80 entregados**, y el techo del scoring actual es **AUC ≈ 0.71**, ROADMAP §5.2) · **si los
+> actores de Apify son los adecuados** o si hay otros que complementen · y **el costo por guion
+> entregado**, que hoy no existe como número.
+>
+> 🔗 **Va DESPUÉS de que corra una corrida con los arreglos de este cierre adentro.** Un audit de
+> costo sobre datos que perdían el 26% de las corridas mide mal.
+
+
+> # 🟢 ESTADO AL 2026-08-29 — el MVP quedó DECLARADO
+>
+> ⚠️ **Al 31/08 espera UNA sola cosa, y no frena una corrida:** deployar el dashboard (la `034` ya
+> está aplicada y el motor ya empujado, cierre 123). **Y ahora hay más para deployar que entonces:**
+> el cierre 126 sumó la pantalla `operar/corridas` y el toggle *Agrupar por corrida* del Feed
+> (ADR-083 + ADR-081 §Enmienda), y el 127 el renombre de los dos botones de Operar a *▶ Buscar
+> contenido* y *▶ Buscar referentes* — todo verificado contra la base de prod pero todavía sin pushear.
+>
+> ⚙️ **El motor SÍ está al día en el live** (cierre 127): ADR-084 + ADR-044 §Enmienda + ADR-016
+> §Enmienda empujados con `n8n:push`, `n8n:diff` verde en los 5 y confirmado por lectura directa de la
+> API. **Falta la corrida de fuego que mide si el Gate bajó**, en la tabla de abajo. El otro bloqueo, el ⛔ de abajo, sigue siendo de
+> producto y no de código.
+>
+> ✅ **El dedup del motor ya no está ciego** (cierre 125): `Leer procesados` devolvía 1.000 filas de
+> 1.547 y el guard fail-closed nunca disparaba. Paginado y empujado al live, `n8n:diff` verde en los
+> 5. 🩸 **Y midiendo eso apareció algo peor que la ceguera: la línea primaria (fail-closed) aportaba
+> 0 al dedup y la secundaria (fail-open) hacía el 100%** — los roles que ADR-029 eligió se habían
+> dado vuelta solos, y las dos se cortan en el mismo 1.000. Y el umbral de vistas bajó a 100.000 (lo movió Mani por la UI), que sobre el último lote lleva
+> de 189 a 286 videos por encima del corte.
+>
+> ✅ **El rescate del cierre 124 ya corrió entero:** 337 huérfanos soltados, corrida disparada y
+> medida — **28 de los 32 candidatos que entregó (88%) son rescatados**. Y dejó un hallazgo que vale
+> más que el rescate: **el supply está concentrado en 11 cuentas de 40** (94% de los crudos), con 24
+> referentes de cola que aportan 1-3 videos cada uno y varios que ni son cuentas de contenido.
+>
+> ✅ **Los "2 drifts ajenos del motor" ya no existen, y nunca fueron drift:** eran los cambios de la
+> OTRA sesión, que trabajó sobre `main` mientras ésta corría en un worktree. Al mergear las dos
+> (`68b79df`, 31/08) el repo se puso al día solo y `n8n:diff` da **verde en los 5**. El porqué que
+> "faltaba" estaba escrito todo el tiempo: es el cuerpo del commit `491aa39` + ADR-030 §Enmienda.
+> *Un drift contra un repo incompleto no es drift: es la mitad del repo que todavía no se leyó.*
+>
+> *Este renglón decía "nada espera a Mani para la próxima corrida" el 29/08 y dejó de ser cierto al
+> día siguiente. Un estado se re-mide, no se cita.*
+>
+> - **El MVP está declarado** (ROADMAP §4): la última condición —*el equipo usa el sistema un día
+>   completo sin un dev*— la cumplió **Majo el 26/08**, sola. Con eso **D3 se cerró por medición y
+>   no por demo**, y el **§5 (horizonte post-MVP) quedó habilitado**.
+> - **El live corre lo que dice el repo** (`n8n:diff` verde, 5 workflows) y **prod corre el `main`**
+>   (Vercel `success` para cada push del 29/08). Último commit desplegado: **`339d0c3`**.
+> - **Cerrados el 26–27/08, ya no son pendientes** *(están en sus ADRs y en git; se podaron de acá
+>   porque este bloque es lo que **falta**, no lo que se hizo)*: el defecto del idioma y su push al
+>   motor vivo (**ADR-077**, cierre 117), el orden y filtro en producción (**ADR-076**), y el susto
+>   de que ADR-076 se perdió y se restauró — *si un doc contradice una medición del log, sospechá
+>   del doc*.
+>
+> ### Lo que sí falta, y quién lo puede hacer
+>
+> | Qué | Quién | Nota |
+> |---|---|---|
+> | **Auditar los descartes** — 80 de 82 sin `veredicto` | Majo | 🚀 **Se le pidió por WhatsApp el 29/08.** Sin esto `falsos_negativos` da 0 siempre y se lee como *"el gate está perfecto"* |
+> | ~~El badge de `degradaria` nunca se pintó~~ | — | ✅ **CERRADO el 30/08** (ADR-080 §Enmienda): no era "sin ver", era un bug — se pintaba como texto gris atenuado, indistinguible del `"limpio"` de al lado. Ahora es un badge `outline`, visto andar con su único caso |
+> | ~~Disparar una corrida del motor y correr `--verificar`~~ | — | ✅ **CERRADO el 31/08** (ADR-082, cierre 124). Corrida `04:30` cerrada `ok`: volvieron 82 de 337 (24%) y **28 de los 32 candidatos entregados (88%) son rescatados**. El 24% es tasa de colección pura, verificado leyendo la ejecución de n8n nodo por nodo: entran 82 al scrape y llegan **los mismos 82** a `Transcribir` |
+> | **Podar los referentes de cola** — 24 de 40 aportan 1-3 videos cada uno | Majo / Mani | 📌 **Hallazgo del cierre 124, y explica el *"trae pocos videos"* mejor que la ráfaga.** 11 cuentas ponen el **94%** del supply; varias de la cola (`tesco`, `virginradiouk`, `filmmakerzara`) ni son cuentas de contenido — entraron por el descubrimiento y nadie las podó |
+> | ~~**El margen de `cap_top_n` se gastó** — el presupuesto quema~~ | — | ✅ **DESACTIVADO el 31/08** (cierre 127, [ADR-084](../adr/ADR-084-la-memoria-guarda-lo-resuelto-no-lo-intentado.md)). El margen sigue siendo 374 vs 350 (7%), pero **ya no importa igual**: el presupuesto de transcripción **posterga en vez de quemar**, así que morder dejó de ser pérdida permanente y pasó a ser demora. La palanca sigue siendo subir `concurrencia_transcribir` midiendo los 429, no bajar el cap. *Lo que NO se hizo es la parte que ADR-030 §Enmienda pedía —que el motor calcule su propio margen y lo avise—; sí se hizo para el otro tope repartido entre dos dueños (ADR-016 §Enmienda), y el patrón queda escrito ahí para copiarlo* |
+> | ~~**La corrida de fuego**~~ | — | ✅ **CORRIDA Y MEDIDA el 31/08** (ejecución 156, cierre 129). **El Gate pasó de 492.7 s a 85.6 s con MÁS carga** (26 → 36 chunks): por chunk, de 18.95 s a 2.38 s = **7.97×**, o sea exactamente la concurrencia de 8 — el pool entró sin pérdida. `gate_sin_presupuesto` **0**, `pretrim_sin_juicio` **0**, `avisos` **vacío**, `registro_dedup` ok. Y **las 4 pantallas entregaron 20/20 con `razon_faltante: null`, por primera vez**: 80 candidatos contra 54 y 32 de las dos corridas previas |
+> | **Volumen: el siguiente escalón necesita UNA corrida primero** | Mani | 📌 *Resultados por cuenta de referente* está en **150** (era 50) y funcionó: 1.088 crudos, ~US$ 2,72 de Apify. La concurrencia ya está en **12 con arranque escalonado**, empujado. **Antes de ir a 300: correr una vez y leer `metricas.rechazos_supadata`** — 0 = hay aire para seguir subiendo, ≠0 = ése es el techo de Supadata. El presupuesto de 870 s **no puede subir** (roza el watchdog de 900), así que la única palanca real es la concurrencia, y ahora se puede medir |
+> | ~~**Pasos 3 y 4 del plan del 31/08**~~ | — | ✅ **HECHOS el 31/08** (cierre 128, ADR-044 §Enmienda + [ADR-029 §Enmienda 2](../adr/ADR-029-dedup-blindado-fail-closed-y-feed.md)). El pre-trim va en chunks de 100 con pool y `max_tokens` 2.000 (medido: el peor proyecto usaba el **47%** del techo de 1.000, a 2× el 94%, a 4× truncaba), y `Leer feed vivo` **pagina** con guard propio. 🔊 Y los dos fail-open dejaron de ser invisibles: `metricas.pretrim_sin_juicio` + `metricas.gate_sin_presupuesto`, cada uno con su aviso. ⚠️ **Falta empujarlos al live** — el push del cierre 127 fue antes de esto |
+> | ~~**Subir el volumen: el clic que falta**~~ | — | ✅ **YA ESTABA HECHO, y esta fila lo negaba.** Decía que *"Resultados por cuenta de referente"* **sigue en 50**; medido contra `app.ajustes` el 31/08 está en **150**, y lo movieron el **21/08**. La fila de arriba de esta misma tabla decía 150 al mismo tiempo: **el handoff se contradecía consigo mismo en dos renglones contiguos.** *Un valor de config no va en prosa: el dueño es `app.ajustes`.* |
+> | ~~**Punto ciego de `n8n:diff`**~~ | — | ✅ **CERRADO el 31/08** por la sesión del worktree ([ADR-053 §Enmienda 2](../adr/ADR-053-el-repo-es-la-forma-el-live-es-el-estado.md), commit `f6e2065`, mergeado a `main`). Lo benigno se decide por **clave + VALOR** contra una lista cerrada de 6 pares, y lo que no está grita en un balde propio `sin-empujar`. *Una lista de nombres de clave habría reproducido el bug un escalón más abajo: un `method: 'POST'` sin empujar contra un live en GET sería "benigno" por llamarse `method`* |
+> | **Una corrida que no encuentra nada nuevo se registra como `fallo`** | quien tome la sesión | 🐛 **Visto dos veces el 31/08.** `Heat-score v1` devuelve 0 items ⇒ nada río abajo corre, incluidos `Resumen del run` y `Cerrar run en el registro` ⇒ la fila queda `en_curso` y **el barredor de zombies la marca `fallo` a los 60 min**. En n8n la ejecución figura **success**. Pasó con la ejecución 155, que hizo exactamente lo correcto (miró 530 videos, ninguno era nuevo). Es pre-existente y ensucia las métricas de todo lo demás |
+> | **Soltar los 1.029 huérfanos restantes** por tandas | quien tome la sesión | Cuesta una corrida del script; lo que vuelva es upside. ⚠️ **Los 255 del primer lote que no volvieron NO cuentan**: están fuera del alcance del método, correr el motor otra vez colecta los mismos 520 |
+> | Los otros ⬜ de [verificaciones-humanas](../verificaciones-humanas.md) | §3 Jero · §4-bis 2 sesiones · §4-ter/§4-quater Majo · §10 Alejandro | Ninguno es de código |
+> | ~~Aplicar la `034` + push del motor~~ | — | ✅ **CERRADO el 31/08** (ADR-081). Migración aplicada por Mani y verificada por su efecto (`23503` de la FK), nodo empujado al live, y la faceta vista filtrar en el navegador con 6 candidatos de prueba **creados y borrados**. Solo queda deployar el dashboard |
+| ~~El repo quedó atrás del live en 2 nodos del motor~~ | — | ✅ **CERRADO el 31/08 por el merge** (`68b79df`). No hacía falta ningún porqué nuevo: los dos nodos eran los cambios de la otra sesión, ya argumentados en `491aa39` y ADR-030 §Enmienda. `n8n:diff` verde en los 5, y el live confirmado por lectura directa de la API (`RETRIES=4`, corte en sin-voz, jitter, `run_id`) |
+| Los **4 canarios** | — | A re-mirar el **2026-09-04** ([plan-modo-seleccion §Fase 4](./plan-modo-seleccion.md)) |
+| **La tanda 2 de ADR-083: que las corridas registren más** | quien tome la sesión | 📌 Decidido con Mani el 31/08 y **aplazado a propósito**. Son tres cosas: `descartes.run_id` (migración + ADR, para contestar *"qué videos mató esta corrida"*), **checkpoints parciales en el motor** (hoy un fallo deja `metricas` en NULL, medido: las 12), y los `Cerrar run` de archivado y descubrimiento enriquecidos. **Va después de la pantalla y no antes**: sin ella, verificar un checkpoint obliga a entrar a n8n a mano, que es lo que la pantalla elimina |
+| **Cargar `N8N_BASE_URL` + `N8N_WF_*` en Vercel** (opcional) | Mani | 📌 Sin ellas el link *"ver en n8n"* de una corrida **que salió bien** no aparece (solo lo ve `dev`). El de una corrida **fallida** funciona igual, sin configurar nada. Están en el `.env` de la raíz; el `.env.example` del dashboard ya las documenta |
+> | ~~La topología de n8n sigue siendo ritual manual~~ | — | ✅ **CERRADO el 30/08** (ADR-053 §Enmienda). `n8n:push` empuja nodos y conexiones; el re-import queda solo para crear un workflow de cero. El bloqueo no eran las credenciales sino que `cuerpoPut` mandaba las conexiones del live |
+> | Los **25 guiones viejos** de la colección + **2 fuera de toda colección** | Mani | ✅ **DESBLOQUEADO el 30/08** (ADR-074 §Enmienda): `guardarLimpio` ya no manda `creado_por` al rehacer, así que *Rehacer 25* **se puede apretar**. Verificado en prod con una colección de un video: la fila se reescribió (huella `97ff9195`→`72210da7`, voz derivada) y el conteo quedó **igual, Majo 58 · Mani 7** |
+
+> # ⛔ DECISIÓN ABIERTA — LEER ANTES DE TOCAR CUALQUIER ETAPA DE LINKEDIN
+> ## ¿Qué es un candidato de LinkedIn: material crudo para curar, o un post ya generado?
+>
+> *Abierta el 2026-08-12. **Bloquea `colectar` personal (Fase 1.4) y pone en duda dónde va `calidad`,
+> que ya está cableada.** No es una duda de implementación: es de producto, y la tiene que contestar
+> Alejandro. Mientras esté abierta, no se construye ninguna etapa de contenido nueva.*
+>
+> ### El hallazgo
+>
+> Alejandro eligió la opción **(a)** de la pregunta que venía abierta desde el cierre 107 —*"el
+> archivo propio entra **pegado por una persona**"*, como el `transcribir` de reels—. Diseñando la
+> migración apareció una contradicción **más profunda que la pregunta original**: los artefactos del
+> repo no se ponen de acuerdo sobre qué contiene `app.candidatos_linkedin`.
+>
+> | Fuente | Qué dice | Lectura |
+> |---|---|---|
+> | `workflow.yaml`, orden de `stages` | `… generar → calidad → entregar` | **post generado** |
+> | [ADR-055](../adr/ADR-055-linkedin-es-un-pipeline-de-este-repo.md) §5 | *"la máquina deja **el post listo** en una cola con estado"* | **post generado** |
+> | `curar/feed/mazo-linkedin.tsx` | *"Lo que la máquina trajo, **para decidir qué entra**"* · *"**Calificar acá todavía no genera el post**: marca la pieza y nada más"* | **material crudo** |
+> | `020` §4, columna `texto` | *"El post **o la idea**, tal cual vino"* | **hedgea las dos** |
+>
+> **El esquema mismo dejó la pregunta abierta con un "o".** Nunca se decidió.
+>
+> ### Por qué importa, y qué pone en duda
+>
+> **Lectura A — el candidato es un post generado.** `colectar` trae el archivo → `generar` lo
+> convierte en post → `calidad` lo valida → `entregar` lo pone en el Feed. El humano aprueba **posts
+> listos**.
+> ⇒ La espina del cierre 108 **está bien cableada**, y **`colectar` personal NO se puede construir
+> hasta que exista `generar`**: sin esa etapa en el medio, entregaría transcripciones crudas como si
+> fueran posts.
+>
+> **Lectura B — el candidato es material crudo.** `colectar → entregar` pone la anécdota en el Feed,
+> el humano decide *"esto merece un post"*, y **recién ahí** corren `generar` + `calidad` hacia
+> `outputs`.
+> ⇒ **`colectar` personal se puede construir ya**, hay que **mover `calidad` de lugar** (o sea
+> corregir el cableado del cierre 108), y **falta una etapa post-curación que ningún doc tiene**.
+>
+> 📌 **La B se parece más a reels**, donde `app.candidatos.script` es **la transcripción literal** y
+> el humano juzga material crudo. La A se parece más a lo que dice ADR-055.
+>
+> ### 🩸 Por qué esto no apareció antes: el stub emitía el artefacto equivocado
+>
+> `Colectar (stub personal)` emite una **pieza terminada** —gancho de 3 líneas, cuerpo, firma—, o sea
+> exactamente lo que la lectura A espera. Con eso la cadena `colectar → calidad → entregar` se ve
+> sana y **los 51 tests pasan**, porque prueban la cadena contra el artefacto que el stub eligió, no
+> contra el que va a llegar de verdad. Un transcript de podcast no tiene gancho: R-1 lo rechazaría
+> siempre, y el motor entregaría 0 en verde.
+>
+> 🔑 **La idea portable, y es cara: un stub no es neutral — CONTESTA la pregunta que el diseño dejó
+> abierta, y lo hace en silencio.** Al elegir qué forma tiene la pieza falsa, elegí (sin darme
+> cuenta) la lectura A, y la cadena entera se validó contra esa elección. *Un stub que emite el
+> artefacto equivocado hace que una tubería equivocada se vea correcta, con los tests en verde.*
+> Salió a la luz recién ahora porque `colectar` personal es lo primero que produce material **real**.
+>
+> ### ✅ Lo que vale en las dos lecturas, y se puede construir sin esperar
+>
+> La decisión (a) **sí quedó tomada** y su consecuencia de schema no depende de nada de lo anterior:
+> hoy una fila de `app.referentes_linkedin` con `fuente: archivo` **no tiene dónde guardar el texto**
+> (tiene `consulta`, `idioma`, `activo`, `notas` y nada más).
+>
+> **Propuesta ya diseñada, pendiente de ADR + migración `028`:**
+> - columna **`texto`** en `app.referentes_linkedin`. Para `fuente: archivo`, `consulta` es el
+>   **título** de la pieza —y su `unique (instance_id, fuente, consulta)` la dedupea— y `texto` es el
+>   contenido pegado.
+> - **El texto NO viaja en el run-plan.** Un transcript son 30–60 KB y el plan lo pide *todo*
+>   workflow que arranca. El plan sigue trayendo las filas `archivo` (filtradas por `activo`, con el
+>   `carril` resuelto — ese filtro es de la fachada y no se duplica en un code node) y `colectar` trae
+>   **sólo los textos de esos ids** por PostgREST.
+> - ✅ **Verificado que eso no contradice [ADR-035](../adr/ADR-035-contrato-de-escritura-por-postgrest.md):** su regla es sobre **config**. El motor de reels ya lee
+>   *datos* por PostgREST en `Leer procesados` y `Leer feed vivo`. **Config por la fachada, datos por
+>   PostgREST.**
+> - ✅ **La colisión que este renglón anticipaba OCURRIÓ el 2026-08-18, y no por donde se esperaba:**
+>   la `028` se la llevó **`028_grabado.sql`** (ADR-069, ya aplicada en prod), que no era ninguna de
+>   las dos candidatas. Las dos menciones de `plan-motor-linkedin.md` y `workflow.yaml` **ya están
+>   corregidas**, y con ellas la regla que evita la próxima: **el número se toma cuando el archivo
+>   existe, no cuando un doc lo reserva.** Esta propuesta y la Fase 4 toman la próxima libre de
+>   `core/schema/` el día que se escriban — no se pre-asignan acá.
+>
+> ### ⬜ Cómo se destraba
+>
+> 1. **Alejandro contesta A o B.** Es de producto: *¿el humano cura **ideas** o aprueba **posts
+>    terminados**?*
+> 2. Sale un **ADR** con la respuesta (y, si es B, con la etapa post-curación que falta nombrar).
+> 3. Si es **B**, además hay que **corregir el cableado del cierre 108** — `calidad` se mueve — y el
+>    stub deja de emitir posts terminados para emitir material crudo.
+> 4. Recién ahí: ADR + su migración (la próxima libre de `core/schema/`; la `028` ya se usó) +
+>    `colectar` personal.
+
+> ## 🔍 2026-08-31 (cierre 125) · EL MOTOR LLEVABA MESES CIEGO A UN TERCIO DE SU MEMORIA DE DEDUP (Claude, pedido de Mani)
+>
+> **En una línea:** preguntando *por qué el embudo entrega tan poco* apareció que `Leer procesados`
+> devolvía **1.000 filas de 1.547** y que el guard fail-closed de ADR-029 **nunca había disparado**;
+> ahora el nodo pagina y los guards son dos ([ADR-029 §Enmienda](../adr/ADR-029-dedup-blindado-fail-closed-y-feed.md)).
+>
+> ### 📏 El embudo, que era la pregunta original
+>
+> Mani preguntó por qué de 520 colectados quedan 336 y después 90. **La primera respuesta es que 336
+> y 90 no son dos cortes: son el mismo punto.** El motor reporta **items** (video × proyecto) y 336
+> items son 90 videos distintos. El embudo real, todo en distintos:
+>
+> | paso | videos | |
+> |---|---|---|
+> | colectados | **520** | de 35 cuentas |
+> | asignados a proyecto | **465** | 55 no matchean ninguna cuenta |
+> | **heat-score** | **90** | ⬅️ **acá se va el 81%** |
+> | pasan el gate | 56 | 18 vacíos + 16 rechazados |
+> | candidatos | **32** | corte por N de cada proyecto |
+>
+> **De los 465 que llegan al corte: 276 (59%) mueren por el umbral de vistas, 95 (20%) por dedup, 90
+> (20%) pasan.** Y el umbral estaba en 200.000 con la **mediana de la cosecha en 142.016**: por
+> diseño mataba a más de la mitad. **Mani lo bajó a 100.000** desde el dashboard (evento
+> `ajustes.editar` a las 04:53, con su autoría). Sobre el mismo lote eso lleva de 189 a **286**
+> videos por encima del umbral, y el techo de transcripción (350) no está mordiendo: se transcribían
+> 90.
+>
+> 🔑 **Y lo que el filtro mata NO queda quemado**: corre *antes* de escribir `processed_items`, así
+> que bajar el umbral los recupera solos en la corrida siguiente. No hay nada que rescatar.
+>
+> ### 🩸 El bug que apareció de paso, y es el más caro
+>
+> `Leer procesados` pedía `&limit=50000`. **PostgREST tiene `max-rows` en 1.000**, así que devolvía
+> 1.000 — sin error y sin aviso. Medido con dos señales: la URL exacta del nodo devuelve **1.000**, y
+> `Prefer: count=exact` dice **1.547**. **El motor veía el 65% de su memoria de dedup.**
+>
+> **Y el guard puesto justo para esto comparaba contra 50.000**, un número que la lectura no podía
+> alcanzar ni queriendo: `if (_proc.length >= 50000) throw`. *Un fail-closed que mide contra un techo
+> inexistente no protege de nada, solo tranquiliza.*
+>
+> **La causa estaba escrita en el `notes` del propio nodo:** *"Lectura completa: la tabla es chica
+> (~400 filas / 26 KB)"*. Era cierta al escribirla y **caducó sola, porque `processed_items` no se
+> barre nunca** — el archivado borra `candidatos`, no la memoria, y la tabla crece 80-250 filas por
+> corrida sin techo. *Una suposición sobre un tamaño se vence igual que un canario.*
+>
+> ### ✅ Cómo se arregló, y cómo se verificó antes de tocar un workflow activo
+>
+> `Leer procesados` **pagina por `offset`** (1.000 × 50 páginas) con la paginación nativa del nodo
+> HTTP. Los guards pasan a ser **dos**: el de 50.000 (que **recién ahora ES el techo real**) y el de
+> **1.000 exacto**, que es el que habría cazado esto.
+>
+> 🔒 **La config de paginación se probó en un workflow DESECHABLE antes de empujar al motor, que está
+> activo:** creado por API, disparado por webhook, borrado en el `finally` con 404 confirmado.
+> Devolvió **1.547 filas y 1.547 ids distintos** contra las 1.547 de `count=exact`. Recién con ese
+> número se empujó.
+>
+> Después: `test-nodos.mjs` verde con **3 casos nuevos sobre los guards** —incluido el
+> **contraejemplo de 999 y 1.001 que NO abortan**, sin el cual un guard tipo *"abortá si hay muchas
+> filas"* pasaría el test igual—, `auditar-workflows.mjs` sin hallazgos, `n8n:push` de los 2 nodos
+> con el workflow **activo**, `n8n:diff` **verde en los 5**, y la config releída de la API del live.
+>
+> ### 🩸 La medición final desmintió lo que este mismo cierre había escrito
+>
+> Al cerrar escribí *"el costo era plata: re-colectaba y re-transcribía lo ya visto"*. **Lo medí y en
+> la corrida del 31/08 es falso: la fuga fue CERO.** Sobre los 465 videos que llegaron al corte:
+>
+> | | |
+> |---|---|
+> | muertos por `processed_items` (la línea **fail-closed**) | **0** |
+> | muertos por `Leer feed vivo` (la línea **fail-open**) | **95** |
+> | ciegos: en la memoria pero invisibles al nodo | **95** |
+> | ¿mismo conjunto? | **sí, idéntico** |
+> | ciegos que el feed vivo no tapaba (la fuga real) | **0** |
+>
+> **La primaria aportó nada y la secundaria hizo todo el trabajo**, porque un candidato vivo está en
+> las dos tablas. **Y ese es el hallazgo, más grave que la plata:** ADR-029 eligió a propósito cuál
+> línea aborta el run (la memoria) y cuál puede caerse sin drama (el feed vivo). **Los roles se
+> dieron vuelta en silencio.** Un fail-open haciendo de único guardia se ve idéntico a un sistema
+> sano hasta el día que se cae.
+>
+> *Escribí la conclusión antes de medirla y la medición la dio vuelta. Queda la corrección al lado y
+> no encima — el commit `7167101` todavía dice la versión vieja.*
+>
+> ### 📌 Lo que queda anotado y no se resolvió
+>
+> - ⚠️ **Las dos líneas se cortan en el mismo 1.000.** `Leer feed vivo` va contra `app.candidatos`,
+>   hoy **274 filas**. El día que pase de 1.000 se trunca igual, **con la misma falla muda y sin
+>   guard propio**, y caen las dos a la vez. Hoy no urge; conviene no olvidarlo.
+> - **El costo en plata no está medido y no se afirma.** En esa corrida fue 0. Podría no serlo en
+>   otras (un video **archivado** sale de `candidatos` y queda solo en `processed_items`, o sea sin
+>   red de abajo), pero eso no se midió.
+> - 🔎 **Un cambio de perilla del 28/08 no tiene autor:** los eventos muestran *Mínimo de vistas*
+>   `0 → 600.000` y después `600.000 → 100.000`, pero el paso intermedio a **200.000 no dejó evento**,
+>   o sea que se escribió por script y no por la app. Es el mismo modo de falla que casi repito hoy:
+>   un PATCH por PostgREST cambia el valor **sin registrar quién**. (El mío terminó siendo un no-op:
+>   Mani ya lo había bajado por la UI.)
+> - **`Mínimo de vistas` es global, no por proyecto.** Un proyecto con referentes chicos nunca llena
+>   su N, y aflojarle el umbral se lo afloja a todos. Hacerlo por proyecto pide campo nuevo +
+>   migración: es una conversación, no una perilla.
+
+> ## 🔥 2026-08-31 (cierre 124) · EL 34% DE LA COSECHA HISTÓRICA ESTABA QUEMADA, Y 337 VIDEOS VOLVIERON A LA CANCHA (Claude, pedido de Mani)
+>
+> **En una línea:** Majo reportó *"unas corridas trajeron muy pocos videos"*; medido, no eran unas
+> corridas sino **593 videos quemados sobre 1.755 mandados a Supadata (34%)**, y se les borró la
+> memoria del dedup a **337** para que la próxima corrida los vuelva a mirar. Plan completo en
+> [plan-rescate-huerfanos.md](../archivo/plan-rescate-huerfanos.md).
+>
+> ### 📏 Los números, medidos contra prod
+>
+> `POST processed_items` corre **antes** de `Transcribir` (ADR-029 §2), así que un video que se comió
+> un `429` ya está en la memoria del dedup: vuelve sin transcript, el gate lo mata como `sin_guion`
+> (ADR-030) y **ninguna corrida futura lo vuelve a mirar**. No se perdía media cosecha por corrida:
+> se quemaba.
+>
+> | corrida | transcribió | quemó | % |
+> |---|---|---|---|
+> | 2026-08-24 13:00 (`a80d8d3`) | 219 | 88 | 40% |
+> | 2026-08-26 03:29 (`364905d`) | 250 | 159 | **64%** |
+> | 2026-08-26 04:25 (`0d45a26`) | 250 | 144 | **58%** |
+> | 2026-08-31 00:56 (`94ecb6d`) | 164 | 18 | **11%** ← ya con el arreglo de ADR-030 §Enmienda |
+>
+> ### 🩸 Dos cosas que la medición desmintió, y no estaban escritas en ningún lado
+>
+> **1. *"Las corridas que hizo Majo"* no es una consulta que se pueda escribir.** `runs` **no guarda
+> quién dispara una corrida**: las 29 figuran `on_demand` sin autor, y `app.eventos` tiene
+> `operar.archivar` y `sugeridos.buscar` pero **ningún evento de correr el motor**. La ventana del
+> rescate salió de **cuándo trabajó ella** (20, 21, 26 y 31 de agosto, 176 eventos), no de la corrida.
+> *El hueco queda abierto: hoy no hay forma de contestar quién pidió una corrida.*
+>
+> **2. Un video quemado por el 429 y uno que el gate rechazó de verdad SE VEN IDÉNTICOS.** Los dos
+> son una fila de `processed_items` que no llegó a candidato. De los **1.056 huérfanos**, ~593 son
+> quemados y ~460 rechazos legítimos, y **la base no los puede separar**. El rescate suelta a los dos
+> y deja que el gate re-decida: ~150 de los 337 van a volver a caer, y esa transcripción se paga dos
+> veces. Es el precio, y está aceptado a ojos abiertos.
+>
+> ### 🔑 La pieza que sostiene todo: el `external_id` de Instagram ES el shortcode
+>
+> `processed_items` guarda `platform + external_id` y nada más — la columna `url` se la llevó la
+> [`023`](../../core/schema/023_poda_write_only.sql). Pero `outputs` y `app.descartes` guardan **la
+> URL y no el id**, así que sin convertir uno en el otro no hay forma de saber que un video ya está
+> archivado o ya se auditó. **El id es el shortcode en base64** con el alfabeto `A-Za-z0-9-_`:
+> probado contra los **242 candidatos** de prod que tienen los dos campos al lado, **242/242**.
+>
+> **Sin ese cruce el borrado se llevaba la memoria de 111 videos ya resueltos** (61 archivados + 50
+> descartes) y la próxima corrida se los ponía a Majo en el feed para calificar lo que ya calificó.
+> El decodificado no es una optimización: es lo único que evita ese daño.
+>
+> ### ⚖️ Por qué borrar la memoria y no reconstruir los videos
+>
+> Se descartaron dos caminos con su porqué. **Reconstruir** (modo rescate en el motor, corriendo
+> sobre una lista de URLs) pedía una rama de colección nueva **y** re-comprarle a Apify la metadata
+> video por video, porque el huérfano viene desnudo: sin cuenta, sin vistas, sin miniatura. **Pegar
+> en *Transcribir*** costaba cero y no servía: la [`010`](../../core/schema/010_transcripciones.sql)
+> dice a propósito que un enlace pegado *"no pasó por el gate ni tiene heat-score, así que NO es un
+> Candidato: es una lista suelta"*.
+>
+> **Borrar la memoria cuesta cero código y cero Apify** — el scraper ya baja esos 50 videos por
+> cuenta en CADA corrida y hoy el dedup los tira — y los devuelve al feed por el camino de siempre.
+> Lo que lo volvió viable son knobs de esta semana: **Días de recencia 150** y **Resultados por
+> cuenta 50**, o sea que la antigüedad del video ya no es el límite; el único límite es que siga
+> entre los últimos 50 de su cuenta. *Ese es el supuesto del plan, y la Tarea 5 existe para medirlo.*
+>
+> ### ✅ Verificado por su efecto, con cuatro señales
+>
+> - `processed_items` **1.802 → 1.465**, que es 1.802 − 337 exacto
+> - quedan **237** filas en la ventana, y **las 237 son las ya resueltas**: ninguna huérfana
+>   sobrevivió y ningún resuelto se borró
+> - **0** de los 337 ids borrados sigue vivo
+> - el `DELETE` **devolvió** 337 filas (`Prefer: return=representation`), no "337 pedidas"
+>
+> ### 🔒 La regla que quedó escrita: la evidencia se guarda ANTES de borrar
+>
+> El borrado **destruye la única prueba de qué se rescató** — las filas dejan de existir y
+> `runs.metricas` guarda contadores, no ids. Por eso el script escribe
+> `rescate-20260831-0143.json` **antes** del `DELETE` y aborta si no puede; el archivo va **al repo**,
+> no al `.gitignore`. Sin él, `--verificar` no tiene contra qué medir y la pregunta *"¿volvieron?"*
+> deja de tener respuesta posible.
+>
+> Y el `DELETE` va por **PRIMARY KEY** y acotado por instancia, nunca por un filtro de fecha contra la
+> tabla: si el cálculo tuviera un bug, un filtro por fecha se llevaría también los vivos. Con la PK,
+> lo peor que puede pasar es borrar de menos.
+>
+> ### 🐛 Dos cosas que aparecieron construyendo
+>
+> - **`sb()` no paginaba.** PostgREST corta en 1.000 filas por defecto y `processed_items` tiene
+>   1.802: sin paginar, todo lo que no entraba en la primera página se veía como *"no es candidato"*
+>   y el cálculo daba huérfanos de más. **Un script que lee una tabla grande sin paginar no falla
+>   ruidoso: sobre-cuenta en silencio.**
+> - **El reporte avisó de 2 urls sin decodificar, y eran de TikTok.** Inofensivas para este rescate
+>   (corre con `--plataforma instagram`), pero `outputs` y `app.descartes` **mezclan las dos
+>   plataformas**, así que un archivado de TikTok quedaría sin proteger el día que alguien corra el
+>   rescate sobre TikTok. Cerrado ahí mismo: la URL de TikTok trae su `external_id` literal.
+>
+> ### ✅ CORRIDO Y MEDIDO — corrida `2026-08-31 04:30`, cerrada `ok` en 13 min
+>
+> | | |
+> |---|---|
+> | el motor los volvió a ver | **82 de 337 (24%)** |
+> | llegaron al feed | **28 (8% de los 337)** |
+> | **de lo que entregó la corrida entera** | **28 de 32 candidatos = 88%** |
+>
+> **El 8% es el número engañoso; el 88% es el que contesta el reclamo de Majo.** El rescate no aportó
+> al margen: **fue casi toda la cosecha** (el material nuevo puso 4 candidatos de 32).
+>
+> **Se descartó el confundido antes de leer el 24%.** `processed_items` se escribe **después** del
+> heat-score, así que un video colectado y matado por el filtro de vistas se vería igual que uno que
+> ni se colectó. Leída la ejecución de n8n nodo por nodo: `Normalizar IG` (scrape crudo) 520
+> distintos con **82** de los rescatados, y `Heat-score` y `Transcribir` **los mismos 82**. **Entran
+> 82 y llegan 82: cero rescatados se perdieron aguas abajo.** El 24% es tasa de colección pura.
+>
+> ### 🩸 Por qué es 24%, y por qué el criterio escrito antes leía mal la causa
+>
+> El criterio decía *20-60% ⇒ soltar por tandas y medir cada una*. **Acierta la acción y erra el
+> porqué:** sugiere que la tasa depende del tamaño de la tanda, y no depende. Depende de **qué
+> cuentas siguen listando el video**, y eso está medido: de 40 referentes activos, **35 devolvieron
+> algo y 11 ponen 490 de los 520 crudos (94%)**; las otras 24 ponen entre 1 y 3 cada una, y **solo 4
+> tocan el tope de 50**.
+>
+> ⇒ **Los 255 que no volvieron no están pendientes: están fuera del alcance de este método.** Correr
+> el motor otra vez colecta los mismos 520. **No cuentan como upside futuro.**
+>
+> *El criterio quedó escrito tal cual se redactó, con la corrección al lado y no encima — acomodarlo
+> después sería justo lo que ese criterio existía para impedir.*
+>
+> 🐤 **El canario de ADR-081 SE DESPERTÓ con esta corrida:** **32 candidatos con `run_id`, los 32
+> escritos por el motor.** Primera fila de uso real, ninguna de verificación — que es exactamente
+> para lo que nació en cero.
+>
+> ### 📌 El hallazgo lateral que vale más que el rescate: **el supply está concentrado en 11 cuentas**
+>
+> No es un bug del scraper, es la lista de referentes diluida. Las 24 cuentas de cola (`tesco`,
+> `virginradiouk`, `jamessmith`, `filmmakerzara`…) aportan **~30 videos entre todas, el 6%**, y varias
+> ni son cuentas de contenido: entraron por el descubrimiento y nadie las podó. **Esto explica el
+> *"trae pocos videos"* mejor que la ráfaga**, y no lo arregla ningún rescate. Queda anotado, no
+> resuelto acá.
+>
+> ### ⬜ Lo que sigue
+>
+> **Soltar los 1.029 huérfanos restantes por tandas**, midiendo cada una. Cuesta una corrida del
+> script y lo que vuelva es upside; lo que no vuelva ya se sabe que no vuelve.
+>
+> ```bash
+> set -a && source .env && set +a && node Workflows/workflow-short-form-content/rescatar-huerfanos.mjs --desde <fecha>
+> ```
+
+> ## 🧭 2026-08-30 (cierre 123) · EL FEED YA DICE DE QUÉ CORRIDA SALIÓ CADA VIDEO (Claude, pedido de Mani)
+>
+> **En una línea:** Operar decía *"hace X · entregó N"* y el Feed no decía nada; ahora el candidato
+> **lleva su corrida** ([ADR-081](../adr/ADR-081-el-candidato-sabe-de-que-corrida-salio.md) +
+> migración [`034`](../../core/schema/034_candidatos_run.sql)), se ve en la tarjeta y se filtra con
+> la barra de ADR-076.
+>
+> ### 📏 La medición que decidió el diseño, y descartó la opción barata
+>
+> La alternativa sin migración era derivar la corrida por rango: *el candidato es de la corrida cuya
+> ventana `[inicio, fin]` contiene su `creado_en`*. Se midió antes de descartarla, contra prod, sobre
+> los **168 candidatos vivos** y los **38 runs de motor**:
+>
+> | Caen en… | Cuántos |
+> |---|---|
+> | **1** ventana | 100 |
+> | **0** ventanas | **68 (40%)** |
+> | 2+ (ambiguos) | **0** |
+>
+> **Los 68 comparten `creado_en` AL MICROSEGUNDO** (`2026-08-22T02:35:28.3151`). No es estadística:
+> es un `INSERT` único — **el rescate manual del cierre 114**, cuando la corrida `f3fcf3e7` murió
+> quemando 814 transcripciones el 21/08 a las 20:24 y sus filas ya armadas se re-insertaron por
+> PostgREST para no volver a pagarlas. **Su `creado_en` es la hora del rescate, no la de la corrida.**
+>
+> 🔑 **La idea portable: la derivación no falla ruidosa, falla en silencio con la respuesta
+> equivocada.** Le diría *"sin corrida"* al 40% del feed, y la corrida **existe**, está en la tabla y
+> es justamente la interesante (la que se cayó). Un `null` honesto y una atribución perdida se
+> dibujan idénticos.
+>
+> 🔑 **Y los 0 ambiguos no salvan a la derivación: la condenan.** Son 0 porque el guard single-flight
+> impide corridas de motor solapadas, o sea que **el modo de falla que se temía —el solape— es el que
+> NO se materializó**. El que sí se materializó no estaba en la hipótesis. *Medir el riesgo que uno
+> imaginó no es medir el riesgo.*
+>
+> ### 🩸 Hallazgo de paso, y no era el que se buscaba
+>
+> **`outputs.run_id` es el run del ARCHIVADO, no el del motor.** `Armar filas archivado` hace
+> `$('Abrir run en el registro')` dentro de *su propio* workflow, así que **hoy la corrida que
+> produjo el guion se pierde para siempre al archivar** — y ninguna derivación puede rescatarla
+> después, porque el candidato ya no está. **Anotado, no resuelto**: llevarla a `outputs` cambia el
+> contrato del histórico y merece su ADR (ADR-081 §Lo que NO se decide acá).
+>
+> ### Qué se construyó
+>
+> | Dónde | Qué |
+> |---|---|
+> | `core/schema/034_candidatos_run.sql` | `app.candidatos.run_id` uuid **nullable** → `runs (id)`. Sin índice (la faceta vive en el cliente) y **sin backfill** |
+> | `Workflows/workflow-short-form-content/workflow.json` | `Preparar candidatos` manda `run_id`. **Solo ese nodo**, un `jsCode` |
+> | `test-nodos.mjs` | 3 checks nuevos: lleva el run · **con el registro caído sale con `null`** · un id vacío no viaja como `""` |
+> | `apps/dashboard` | `CandidatoFeed.corrida` (la etiqueta, no el uuid) · `etiquetasDeCorrida` en `lib/candidatos.ts` · faceta **Corrida** en el mazo · texto en la tarjeta |
+>
+> **Nullable no es una concesión:** `Abrir run en el registro` es **sumidero**
+> (`onError: continueRegularOutput`, invariante #1 de PLAN §2.5). Un `not null` convertiría el
+> registro en dependencia de ejecución. El nodo copia la forma que `Armar filas archivado` ya usa.
+>
+> **Sin backfill, y el porqué es un precedente de esta misma semana:** escribir un valor **derivado**
+> en una columna de registro lo vuelve indistinguible de uno **medido** — es el mecanismo que
+> contaminó el canario de ADR-074 el 30/08 (cierre 122). Las viejas quedan en `null`, el Feed lo
+> dibuja como falta, y el barrido de 20 días lo cura solo. 🔓 Las 68 del rescate son la excepción y
+> va **comentada y opt-in** en la `034`: su corrida **se sabe** por dos señales independientes
+> (`estado = 'fallo'` + `fin` = 20:24 del 21/08), así que atribuirlas es **recordar**, no derivar.
+>
+> ### ✅ Verificado / ⛔ lo que NO se pudo
+>
+> - ✅ `node Workflows/workflow-short-form-content/test-nodos.mjs` — **todo en verde**, con los 3 nuevos.
+> - ✅ `node Workflows/auditar-workflows.mjs` — **sin hallazgos** (6 workflows).
+> - ✅ `npm run validate` — **2479 checks, 0 errores**.
+> - ✅ dashboard: `npm run typecheck` limpio · `npm test` **442 pass / 0 fail** · `npm run build` OK.
+> ### ✅ EL GATE SE CERRÓ EL MISMO DÍA — migración, push y navegador
+>
+> **1) `034` aplicada por Mani** (00:5x del 31/08 UTC). Verificada **por su efecto** y con dos
+> señales: PostgREST devuelve `run_id` (no `42703`), y un uuid inventado rebota con **`23503 ·
+> candidatos_run_id_fkey → runs`**. **0 filas rellenadas**, o sea que el "sin backfill" es real y no
+> una intención.
+>
+> **2) `n8n:push -- motor --nodos "Preparar candidatos" --apply`** — 1 nodo, `jsCode` 2203b → 3039b,
+> workflow sigue activo. Verificado leyendo el live: manda `run_id` y lee `Abrir run en el registro`.
+> Snapshot: `.n8n-snapshots/motor-2026-08-31T00-57-05-477Z.json`.
+>
+> **3) Navegador, contra la base de producción.** El Feed abre sin 400, la consola sin errores, y
+> `sin corrida` se pinta en las 91 tarjetas del filtro abierto. **La faceta NO se dibujaba** — que es
+> lo correcto: con 0 valores `usarOrden` no monta un control que no hace nada.
+>
+> 🔬 **Para ver la faceta funcionando hizo falta datos, y se hicieron y se borraron** (mismo
+> procedimiento que verificó la `031`): `run_id` temporal a **6 candidatos**, repartidos en las dos
+> corridas reales del 30/08. Resultado: dos chips (`30 ago, 07:06 p. m. · 3` y `30 ago, 05:50 p. m.
+> · 2`), y al prender uno **quedan 3 tarjetas, todas de esa corrida, 0 de la otra y 0 sin corrida**
+> — los nulos afuera, como `filtrarPor` promete — con los grupos por proyecto intactos y el
+> *Limpiar* visible. **Revertido enseguida y verificado con dos señales: `run_id not.is.null` vuelve
+> a 0 y el total sigue en 168.**
+>
+> 🕐 **De paso quedó probada la zona horaria**, que en este repo ya se pagó una vez: el run de
+> `2026-08-31T00:06Z` se dibuja **`30 ago, 07:06 p. m.`** y no *31 ago*. Bogotá, vía `fechaHora`.
+>
+> ⬜ **Lo único que queda: deployar el dashboard.** El orden ya no importa — la columna existe.
+>
+> ### 🩸 Y de paso: `n8n:diff` NO estaba verde, y el handoff decía que sí
+>
+> Corriéndolo para separar mi drift del ajeno apareció **un segundo drift en el motor que no es
+> mío**: `Config · assignments`, y adentro **`concurrencia_transcribir` — el live corre `6`, el repo
+> dice `24`**. Confirmado contra `git show HEAD`: el repo tiene 24 desde antes de esta sesión, así
+> que el que cambió fue el live.
+>
+> **Qué significa, con el número que el propio dev-doc calcula:** con 24 en vuelo el presupuesto de
+> 840 s cubre **~745 videos**; con 6, **~186**. O sea que el nodo caro corre a **un cuarto** de lo
+> que [ADR-044](../adr/ADR-044-todo-nodo-caro-tiene-presupuesto.md) decidió, y el presupuesto **quema**
+> (`POST processed_items` corre antes), así que lo que no entra no se posterga: se pierde.
+>
+> ✅ **Contestado por Mani el 31/08: los cambios de n8n son de OTRA SESIÓN y no se descartan.** Así
+> que **gana el live** y lo que falta es que el repo se ponga al día — no al revés. **No se hizo acá
+> porque falta el porqué**, y este repo no acepta un número sin argumento: escribir `8` en el JSON
+> sin decir por qué bajó de 24 deja la misma trampa que ADR-044 vino a cerrar.
+>
+> 🔴 **Y creció mientras esta sesión corría:** a las 00:37 el live decía `6`, a las 00:57 decía **`8`**,
+> y apareció **un drift nuevo en `Transcribir (Supadata) · jsCode`** que antes no estaba. Al 31/08 el
+> motor tenía **2 drifts ajenos** (`Config` y `Transcribir`) más el mío ya empujado.
+>
+> ✅ **Se disolvieron en el merge, sin tocar n8n** (`68b79df`, 31/08). Los dos eran la otra sesión
+> escribiendo sobre `main`; este worktree salió de `a6b1f87` y por eso los veía como ajenos. Las dos
+> ramas tocaron nodos distintos (`Config`+`Transcribir` una, `Preparar candidatos` la otra), el merge
+> dio limpio y el repo alcanzó al live. **Moraleja para el próximo worktree: antes de leer un diff
+> contra el live, mirá si el repo está completo** — `n8n:diff` compara contra tu rama, no contra `main`.
+>
+> ✅ **Mi push NO pisó nada, y se puede probar:** el snapshot que tomó *antes* de escribir ya traía
+> `concurrencia_transcribir = 8` y `Transcribir` en 9036 bytes — **idénticos a lo que el live tiene
+> ahora**. Sus cambios entraron a las `00:51:34`, mi PUT a las `00:57:06`, y `n8n-sync` copia tal cual
+> (`if (!objetivo.includes(ln.name)) return ln;`) todo nodo que no esté en `--nodos`.
+>
+> ⚠️ **Pero el riesgo es real y conviene escribirlo: `n8n:push` es un read-modify-write del array
+> ENTERO de nodos, sin chequeo de versión.** Si la otra sesión hubiera guardado en la ventana de ~1 s
+> entre el GET y el PUT, su cambio se habría perdido **en silencio y con el push en verde**. Con dos
+> sesiones tocando el mismo workflow eso deja de ser teórico. *No es un bug de esta sesión: es una
+> propiedad del script que nadie había tenido motivo de mirar.*
+>
+> 🔑 **La lección se repite dos cierres seguidos:** el cierre 122 encontró tres docs que describían
+> mal lo que ya estaba, y este encontró un **`✓ verde` citado en vez de medido** — el estado del
+> 29/08 dice *"el live corre lo que dice el repo (`n8n:diff` verde, 5 workflows)"* y bastó correrlo
+> para verlo rojo. *Un `n8n:diff` verde se re-corre, no se cita.*
+
+> ## 🔧 2026-08-30 (cierre 122) · DOS CANARIOS Y UN OBSTÁCULO QUE MEDÍAN LO QUE NO ERA (Claude, pedido de Mani)
+>
+> **En una línea:** se arreglaron tres cosas que **los docs describían mal, no que faltara hacer** —
+> el canario de ADR-074 vivía en la columna que el propio botón pisa, el bloqueo de la topología de
+> n8n nunca fueron las credenciales, y el badge de `degradaria` no estaba "sin ver" sino roto.
+> **Migraciones: ninguna. n8n en producción: cero escrituras.** Commits `b5a3a4d`, `2502869`,
+> `c65a6bc` + el de este cierre.
+>
+> ### 1. `creado_por` — [ADR-074 §Enmienda](../adr/ADR-074-el-guion-limpio-es-un-artefacto-nuevo.md)
+>
+> `guardarLimpio` lo mandaba en **cada** upsert, y el upsert es `merge`: rehacer un guion le robaba
+> la autoría a quien lo limpió primero. Y esa columna **era** el canario de la `032`, o sea que
+> bajaba justo cuando alguien usaba el sistema — *Rehacer 25* habría leído como abandono.
+>
+> Ahora solo va en el INSERT. 🔑 **El corte no hubo que inventarlo:** el `motivo` de ADR-080 ya
+> particiona exacto por INSERT vs UPDATE (`faltantes` apunta a filas que no existen, `viejos` solo a
+> las que sí). El canario se mudó a `app.eventos`, que es append-only, y el evento pasa a guardar
+> **`claves`** — cuáles, no solo cuántos.
+>
+> ✅ **Verificado en prod**, colección de un video creada y borrada: la fila de Majo se reescribió
+> (`97ff9195`→`72210da7`, voz derivada, timestamp nuevo) y **el conteo quedó igual: Majo 58 · Mani
+> 7**. Antes habría sido 57 · 8. ***Rehacer 25* está desbloqueado.**
+>
+> 🩸 **Y el `61 · 4` que circulaba nunca fue un conteo de `creado_por`.** Se reproduce exacto desde
+> los eventos contando **escrituras por voz** e ignorando **quién** (Majo con voz `13+18+1 = 32`, más
+> las 2 con voz de Mani ⇒ 34; sin voz `15+12` ⇒ 27). Las filas de hoy por voz dan **33 · 32**. **El
+> delta de 3 filas que se creía perdido puede no haber existido nunca.** Lo que no se pudo cerrar
+> —qué línea de tiempo fue— estaba **subdeterminado por diseño**: el evento guardaba `limpiados` y
+> no cuáles. Por eso la decisión 2.
+>
+> ### 2. La topología de n8n — [ADR-053 §Enmienda](../adr/ADR-053-el-repo-es-la-forma-el-live-es-el-estado.md)
+>
+> 🔑 **El bloqueo nunca fueron las credenciales, aunque ADR-053 §Contexto y §14.2 lo dijeran 27
+> días:** `cuerpoPut()` mandaba `connections: live.connections`, **siempre**, así que aunque el push
+> supiera crear el nodo **llegaba huérfano**. Y el mapa nombre→id ya no tiene ni un caso — 4 nombres
+> en los 6 `workflow.json`, los 4 en la instancia, y `<<CREDENCIAL_GOOGLE_SHEETS>>` se fue con
+> ADR-057.
+>
+> Cuando el delta lleva topología, las conexiones vienen del **repo, enteras** (una conexión es un
+> par: "solo las aristas del nodo nombrado" dejaría el grafo a medio cablear). Un nodo nuevo viene
+> entero del repo **con su `position`** —en n8n v1 la posición *es* el orden de ejecución— más
+> credenciales resueltas y sin `webhookId`, que lo emite n8n.
+>
+> 🔒 **Cuatro redes, ninguna es un prompt** (siguen sirviendo sin TTY): `--nodos` obligatorio si crea
+> nodos · `--borrar "A,B"` nombrando lo que desaparece **o pierde cableado de salida** · fail-closed
+> en credenciales · y **se niega si dejaría un nodo inalcanzable** (pedido de Mani), con la
+> definición tomada de `auditar-workflows.mjs` §2 y no reinventada.
+> **Cada bandera nombra su propio acto**: pedir el mismo nombre en las dos dejaría pasar borrados
+> autorizados que no ocurren, en silencio.
+>
+> ✅ `npm run n8n:test` pasa de 17 a **38 checks**, y los 7 últimos son el *hecho cuando* de §14.2
+> literal, **sobre un workflow ACTIVO**. *Se copia el error handler y no el dispatcher por seguridad:
+> su `errorTrigger` solo corre si otro workflow lo declara, mientras que activar una copia del
+> dispatcher habría disparado corridas reales — una es "domingo 6pm".*
+>
+> ### 3. El badge de `degradaria` — [ADR-080 §Enmienda](../adr/ADR-080-la-limpieza-la-decide-el-video-no-quien-aprieta.md)
+>
+> No era "sin ver": **era un bug**. Se pintaba como texto gris atenuado, indistinguible del `"limpio"`
+> de al lado — **la falta exacta que el comentario tres líneas arriba advierte**. Ahora es
+> `<Badge variant="outline">sin voz propia</Badge>`. Visto andar con su único caso
+> (`instagram:3969563104307506409`), colección creada y borrada.
+> 🩸 Y la razón que ADR-080 le atribuía era falsa: **sí deriva voz (Milena Morales)**, lo que no tiene
+> es `perfil_limpieza`. Con eso el copy le negaba al equipo la salida real, que ahora dice.
+>
+> ### 4. Dos afirmaciones de docs que eran falsas
+>
+> - **`n8n:diff` compara 5 workflows, no 6.** Sin `N8N_WF_LINKEDIN` en el `.env` saltea LinkedIn con
+>   aviso (ADR-068). Con eso cae también *"diff grita por los 5 nodos que le faltan"*: avisa que **no
+>   puede** mirarlo.
+> - **El pipeline de LinkedIn NO está en uso** (Mani, 30/08): no corre y no se usa, así que **no haber nada que
+>   sincronizar es lo correcto, no una deuda**.
+>
+> ### 🧠 La idea portable, y es la misma tres veces
+>
+> **Un obstáculo escrito envejece igual que un canario, y se re-mide igual.** Los tres arreglos de
+> hoy no fueron trabajo pendiente: fueron docs que describían mal la realidad y mandaron a mirar el
+> lugar equivocado durante semanas. Y el corolario del §1: **un canario no puede vivir en algo que el
+> propio feature escribe.**
+>
+> 📏 **Van seis plurales rotos en dos días** (`"1 limpiados"` ×3, `"1 agregados"`, `"Otros 1"`,
+> `"1 se limpiaron"`/`"recuperarlos"`), **todos encontrados con una pantalla de n=1 y ninguno por un
+> test**. Con 484 tests en verde. *No hay assert que cace un plural; hay una pantalla con un solo
+> elemento.*
+>
+> ### Qué sigue
+>
+> Nada bloqueado por código. Mani puede **apretar *Rehacer 25*** cuando quiera. Lo que falta es
+> humano y está arriba en §Pendiente vivo (la auditoría de descartes de Majo, los ⬜ de
+> verificaciones-humanas, los 4 canarios a re-mirar el **2026-09-04**). El ⛔ de producto de LinkedIn
+> sigue esperando a Alejandro.
+> **Skills sugeridas:** `/grill-with-docs` antes de la próxima decisión de LinkedIn; `/diagnose` si
+> algo del push de topología muerde en un workflow real.
+
+> ## 🧹 2026-08-30 (cierre 121) · LOS GUIONES VIEJOS YA SE VEN — Y REHACERLOS LE ROBA LA AUTORÍA A MAJO (Claude, pedido de Mani)
+>
+> **En una línea:** se saldó la deuda que ADR-080 dejó aplazada —`estaAlDia` dejó de estar huérfana,
+> cada guion viejo lo dice en su tarjeta y hay botón propio con confirmación— y al verificarlo
+> apareció que **re-limpiar pisa `creado_por`**. **Migraciones: ninguna. `core/`: no se tocó. n8n:
+> cero.** Commit `337647f`.
+>
+> ### 🩸 Lo que hay que aprender de acá: la verificación tocó dos canarios, y uno era el mío
+>
+> El cierre 120 escribió *"una verificación que deja su propia fila contamina el canario"* y **lo
+> repetí al día siguiente**. El canario de ADR-074 está redefinido como `guiones_limpios where
+> actualizado_en > '2026-08-29'`: daba **0** y hoy da **1**, que es la prueba viva de esta sesión.
+> *Redefinir un canario por fecha no lo protege de quien lo mide: lo expone más, porque cualquier
+> escritura de verificación cae del lado nuevo.*
+>
+> 🔴 **Y el de abajo es peor, porque no es ruido sino pérdida.** `guardarLimpio` escribe
+> `creado_por: usuarioId` en **cada upsert**, así que **rehacer un guion le roba la autoría a quien
+> lo limpió primero**. Medido el 30/08: `creado_por` da **Majo 58 · Mani 7**; ADR-074 registró
+> **61 · 4** el 29/08. Mi re-limpiado explica **1** de esos 3 — **los otros 2 no se pudieron
+> reconstruir**, así que o el 61 estaba mal medido o hubo otro cambio en el medio. Queda como
+> incógnita escrita y no como conclusión.
+>
+> ⛔ **Consecuencia operativa: NO apretar *Rehacer 25* hasta decidir esto.** Convertiría 25 guiones
+> de Majo en guiones de Mani y **borraría la evidencia de adopción que cerró D3**. La decisión —si
+> `guardarLimpio` debe preservar `creado_por` en un re-limpiado, o si hace falta una columna de
+> *quién lo rehizo*— **no se tomó**, es de Mani.
+>
+> ### El hallazgo que ordenó el diseño: un guion viejo tiene DOS estados
+>
+> `estaAlDia` contestaba sí/no, y con eso el guion 28 —limpiado *con* Juan Pablo, cuyo video ya no
+> deriva voz— caía del mismo lado que los otros 27. **Rehacerlo lo dejaría neutro: peor de lo que
+> está, pagando por empeorarlo.** `estadoDelLimpio` devuelve `al-dia · viejo · degradaria`, y lo
+> tercero **se despeja de las huellas solas**: si la de hoy es la del prompt BASE y la guardada no lo
+> es, la pasada perdería el perfil. *No hace falta consultar voces ni saber de qué voz era.*
+>
+> ### 📏 La predicción falló, y por eso la medición sirvió
+>
+> Se escribió antes de mirar: *la pantalla debe decir 27 viejos y 1 degradaría*. **Dijo 26 y 0.**
+> Rehaciendo la fusión de `leerLoQueSeSabe` por fuera de la pantalla —desde `candidatos` y `outputs`,
+> con las mismas funciones de la app— la diferencia quedó explicada y medida:
+>
+> | | viejos | degradarían | al día |
+> |---|---|---|---|
+> | **Los 65 del cockpit** | **27** | **1** | **37** |
+> | En la colección *Test* (57) | **26** | 0 | 31 |
+> | Fuera de toda colección (8) | **1** | **1** | 6 |
+>
+> **Reproduce el 28 y el 37 de ADR-080 por un camino distinto al de la pantalla.** La pantalla dice
+> 26 porque solo clasifica lo que muestra: **2 de los 28 son inalcanzables con el alcance elegido**
+> (solo la colección, decisión de Mani), y eso quedó escrito en el ADR como decisión y no como bug.
+>
+> ### ✅ Verificado montando el caso, con una colección de UN video
+>
+> Cuatro chequeos solo miran texto. El que prueba el mecanismo fue armar una colección con **un solo
+> video viejo**, apretar *Rehacer* y borrarla. La huella pasó de `97ff9195` a `72210da7`, `voz_id`
+> quedó en **Juan Pablo derivado del video**, el evento registró `motivo: "viejos"` con `sin_voz: 0`,
+> y el conteo global cruzó **exactamente uno** (33/32 → 32/33). *Test* bajó de 26 a 25, con 25 + 32 = 57.
+>
+> 🩸 **Los dos defectos que salieron ahí no los podía ver ningún test:** *"1 guion quedó viejo: se
+> limpi**aron**"* y *"1 rehech**os**"*, con los **442 en verde**. *Un plural roto no tiene assert que
+> lo cace; tiene una pantalla con n=1.*
+>
+> ⚠️ **Y el tooling de click del browser falló dos veces**, abriendo el modal de un guion en vez de
+> apretar el botón: el ref cachea coordenadas de un layout anterior al scroll. Se resolvió midiendo
+> con `elementFromPoint` (que devolvía el `<p>` del guion encima) antes de acusar a la app. *Un botón
+> que no responde puede estar tapado, no roto.*
+>
+> ### Lo que se construyó
+>
+> | Qué | Dónde | Nota |
+> |---|---|---|
+> | Los dos estados del limpio | `domain/limpieza.ts` (`estadoDelLimpio`, `clasificarLimpios`) | 8 tests nuevos; `estaAlDia` dejó de estar huérfana |
+> | La huella sin el texto | `lib/guiones-limpios.ts` (`huellasDeLimpios`) | Reemplaza a `clavesConLimpio`, respetando la regla del payload |
+> | Una sola pasada para los dos actos | `colecciones/actions.ts` | `limpiarFaltantes` y `relimpiarViejos` comparten presupuesto, orden serial y evento |
+> | El registro no se partió | `colecciones.limpiar` + `motivo` | Precedente de `origen: pegote \| seleccion` |
+> | El badge y el botón | `[id]/detalle.tsx` | `destructive` y no `default`: al lado de «✓ Grabado» dos badges fuertes compiten |
+>
+> ⬜ **Lo que NO se probó, y no se declara probado:** el badge de `degradaria` **nunca se pintó** — su
+> único caso vive fuera de toda colección. La rama existe y está testeada en dominio; en pantalla no
+> la vio nadie.
+>
+> ### 🧭 Para la próxima sesión
+>
+> **Leer primero:** el §Pendiente vivo y **ADR-080 §Enmienda**.
+>
+> 1. **Decidir lo de `creado_por`** (arriba). Bloquea apretar *Rehacer 25*, que es el arreglo real.
+> 2. **La revisión mensual de costos** — §5.3, sigue igual: falta el hábito, no el código.
+> 3. **La topología por `n8n:push`** — §14.2, `/grill-with-docs` primero.
+> 4. **La capa de producto (Three.js)** — `/grill-me` antes que código.
+>
+> ⛔ **Lo que NO hay que tocar:** el peso del heat (0.7, probado el 29/08) y ninguna etapa de
+> contenido de LinkedIn mientras la decisión de producto siga abierta.
+
+> ## 🧼 2026-08-29 (cierre 120) · D3 LA CERRÓ MAJO SIN SABERLO, Y EL SELECTOR DE VOZ ERA UNA TRAMPA (Claude, pedido de Mani)
+>
+> **En una línea:** se cerró **D3** —la verificación más vieja del repo— con la medición en vez de la
+> demo, se re-midieron los **4 canarios** (dos estaban mal) y la limpieza de guiones dejó de pedir
+> que alguien elija la voz (**ADR-080**). **Migraciones: ninguna. `core/`: no se tocó. n8n: cero.**
+>
+> ### 🩸 Lo que hay que aprender de acá: el sistema tenía la respuesta y le preguntaba a una persona
+>
+> Limpiar un guion aplica **los criterios de la casa** + **cómo habla la voz**. Los primeros ya se
+> aplicaban siempre (`armarPrompt` los pone de base y el perfil se **suma**), así que la pregunta de
+> Mani —*"¿los criterios base valen también cuando pongo voz?"*— **ya estaba contestada por el
+> código**. Lo que estaba mal era el **selector**: una sola voz para toda la tanda, elegida a mano.
+>
+> 📏 **Y los dos modos de falla ya estaban en juego, medidos contra prod:**
+> 1. **El que ya ocurrió:** de los 57 videos de la única colección, **26 se limpiaron *sin voz*
+>    cuando su voz sí tenía perfil cargado**. Salieron neutros y **nadie podía notarlo**, porque la
+>    pantalla no decía con qué criterios había salido cada guion.
+> 2. **El que iba a ocurrir:** el feed tiene **209 candidatos de las 3 voces** (96 · 61 · 52). La
+>    primera colección mezclada recibía la voz de una aplicada a los videos de la otra. No pasó
+>    todavía **por casualidad**: la única colección viva resultó ser de una sola voz.
+>
+> 🔑 **El video sabe de quién es** (`candidatos.voz_id`, `outputs.metadata.voz` para lo archivado:
+> **57 de 57** resuelven). *La decisión se le estaba pidiendo a una persona teniendo el dato en la
+> fila.*
+>
+> 🔴 **Y la primera intuición —"atar la colección a una voz"— era la trampa.** Resuelve el fallo #2
+> rompiendo lo que la colección **es** (*"lo que vas a trabajar junto, venga de donde venga"*) y **no
+> resuelve el #1**, que es el que ya ocurrió 26 veces. Está escrito como alternativa descartada en
+> ADR-080 para que no vuelva.
+>
+> ### ✅ D3 se cerró con `app.eventos`, no con una demo
+>
+> Era la verificación más vieja abierta del repo y la última condición del *"MVP declarado cuando"*
+> (ROADMAP §4): *el equipo de redes usa el sistema un día completo sin ayuda de un dev*.
+> **Majo Duarte, 26/08, sola: 80 calificaciones · 61 guiones limpiados · 13 referentes · 12 ediciones
+> de voces y proyectos · 5 altas y 5 limpiezas en Colecciones · 3 descargas.**
+>
+> 🔑 *Una demo de 10 minutos con Mani al lado habría probado que el sistema se puede usar
+> **acompañado**. El criterio pedía otra cosa. **Cuando una verificación pide provocar algo que ya
+> ocurrió solo, se cierra con la evidencia — no se descarta.***
+>
+> ⚠️ **Lo que ese cierre NO cubre: Jero.** 81 eventos el 07/08 —el día más productivo de
+> cualquiera— y **no volvió nunca**. Juan José igual (23, mismo día). La pregunta del producto pasó
+> de *"¿vuelven?"* a **"¿por qué vuelve una y no los otros?"**.
+>
+> ### 📏 Los 4 canarios, re-medidos (dos estaban mal, y uno lo rompí yo)
+>
+> | Canario | Decía | Da |
+> |---|---|---|
+> | `grabados > '2026-08-21'` | 2 | **2** ✅ |
+> | `guiones_limpios` | *"4, todas de Mani"* | 🟢 **65, y 61 son de Majo** — despierto hace 3 días |
+> | `videos_meta` | *"5, adopción = la 6"* | **5** ✅ |
+> | `colecciones` | *"hoy CERO"* | **1**, y ya no mide adopción (Majo las usó) |
+>
+> 🩸 **Tres formas distintas de medir mal en una sola sesión, y las tres se veían como un resultado:**
+> 1. **`videos_meta` dio 4** porque le pedí una columna que no existe. *Un canario mal consultado
+>    miente igual que uno mal escrito.*
+> 2. **Un loop se murió imprimiendo un `usuario_id` nulo** y dejó una lista **parcial** que parecía
+>    completa: Juan José desaparecía del conteo de días.
+> 3. **Después sospeché que PostgREST truncaba a 1000 filas** — también falso, son 374.
+>
+> **Lo que cerró la medición no fue mirar de nuevo: fue que la suma por persona diera el total exacto
+> de la tabla.** Días distintos por persona, al 29/08: Mani 15 · **Majo 3** · **Manuel 30X 2** ·
+> Jero 1 · Juan José 1 · Alejo 1 · Alejandro Dávila 1. **Volvieron DOS, no una.**
+>
+> ### Lo que se construyó
+>
+> | Qué | Dónde | Nota |
+> |---|---|---|
+> | El video sabe su voz | `domain/video.ts` (`vozId` + `CAMPOS`) · `lib/videos.ts` | Sale de la **misma fusión que pinta la grilla**: la voz con la que se limpia es la que la tarjeta muestra |
+> | Limpiar sin elegir voz | `limpiarFaltantes` | Perfil **y huella por video**, no por tanda: si no, `estaAlDia` compararía un guion contra el criterio de otro |
+> | Los criterios de la casa, a la vista | `<CriteriosDeLaCasa>` en el detalle | `<details>` nativo, **solo lectura** — la decisión de que vivan en código sigue en pie |
+> | Cada guion dice con qué salió | `guiones.tsx` | *"criterios de la casa + cómo habla X"* / *"solo criterios de la casa"*. Es lo que vuelve visible el fallo #1 |
+>
+> ⏳ **Aplazado a propósito: hacer editables los criterios de la casa.** Se pidió en la misma
+> conversación. La decisión de que vivan en código está escrita en `domain/limpieza.ts` y el punto 4
+> del prompt tiene una trampa que costó descubrir (está en voseo, con un párrafo explicándole al
+> modelo que **no lo copie**). **Se reabre cuando alguien choque contra un criterio** — y nadie chocó:
+> 27 de las 61 limpiezas de Majo salieron con los criterios de la casa puros, sin queja.
+>
+> ### ✅ VERIFICADO EN PANTALLA, con la prueba que importaba (§14 cerrada)
+>
+> Cuatro de los cinco pasos sólo miran texto. **El que prueba el mecanismo fue montar el modo de
+> falla #2 a propósito:** se agregó a la colección *Test* —**57 videos, los 57 de Juan Pablo
+> Vieira**— un video de `@susieinthiran` que pertenece a un proyecto de **Rosario Gomez**, y se
+> apretó *Limpiar 1*.
+>
+> **`guiones_limpios.voz_id` quedó en Rosario Gomez.** No en Juan Pablo, no en `null`. El evento lo
+> confirma por otro lado: `colecciones.limpiar` con **`sin_voz: 0`**. *Con el código de ayer ese
+> guion se habría limpiado con lo que dijera el selector — que es el error entero de la ADR, ahora
+> medido en vez de argumentado.*
+>
+> **Segunda señal:** la huella guardada (`97ff9195`) es idéntica a `huellaDeCriterios(null)`
+> calculado aparte — correcto, porque Rosario **no tiene perfil**, así que su prompt *es* el BASE.
+> La voz quedó registrada igual: **`voz_id` dice de quién es el video, la huella dice con qué
+> criterios salió, y son dos cosas distintas.**
+>
+> Los otros cuatro: el selector no está · «Ver los criterios» despliega los 3.492 caracteres del
+> prompt · un guion con voz dice *"+ cómo habla Juan Pablo Vieira"* · uno de los 26 sin voz dice
+> *"solo con los criterios de la casa"*.
+>
+> 🧹 **Prod quedó como estaba:** el video salió de la colección (57) y su limpio se borró (65).
+> *Una verificación que deja su propia fila contamina el canario.*
+>
+> ⚠️ **Dato operativo que costó tiempo:** `npm run build` con el dev server levantado **mata el dev
+> server** (le pisa `.next`); la pantalla queda en blanco con el HMR reintentando y parece un bug de
+> la app. No lo es.
+>
+> ### 🅿️ La deuda que ADR-080 deja, medida y aplazada por Mani
+>
+> 📏 **28 de los 65 guiones quedaron viejos** (37 al día), cruzando `criterios_hash` contra la huella
+> que hoy le tocaría a cada video: **27** se limpiaron *sin voz* aunque su video es de Juan Pablo
+> Vieira —que sí tiene perfil, o sea salieron neutros pudiendo sonar a él— y **1** se limpió *con*
+> Juan Pablo pero su video ya no tiene voz derivable (su candidato se archivó).
+>
+> 🩸 **Y ADR-080 se atribuyó de más:** su consecuencia decía *"lo que sí cambia es que ahora se
+> ve"*. **Falso.** Cada guion dice **con qué voz** salió; **ninguno dice que quedó viejo**.
+> `estaAlDia()` existe, está testeada y **no la llama nadie**. *La consecuencia de una decisión no se
+> declara resuelta por el mecanismo que la haría resoluble.* Corregido en el ADR.
+>
+> **Mani decidió aplazarlo** (29/08). Cuando se retome: conectar `estaAlDia` a la pantalla y darle
+> **botón propio con confirmación** — nunca meterlo dentro de *Limpiar*, que gastaría de nuevo en
+> cada click.
+>
+> ### 🟢 Cerrar D3 habilitó el §5 del ROADMAP — y tres de sus cinco puntos eran ficción
+>
+> El §5 se titulaba *"no arrancar antes de declarar el MVP"*. **El MVP quedó declarado hoy**, así que
+> se leyó por primera vez como una lista accionable, y contra prod:
+>
+> | Punto | Decía | Es |
+> |---|---|---|
+> | 1. Dashboard de métricas | *"interfaces de Airtable + el Sheet Histórico"* | 🪦 **las dos cosas están muertas** (Airtable purgado el 03/08, el Sheet con ADR-057). Lo que pedía **ya existe y es propio**: la zona *Entender* |
+> | 3. Costo por corrida | *"`runs.costo_estimado` real"* | ⚠️ **esa columna NO EXISTE** (`42703`). El costo ya se calcula por `app.tarifas` × `runs.metricas` → `v_costos_semana`. Lo que falta es **la revisión mensual**, que nadie hace |
+> | 5. Descubrimiento | *"falta importar en n8n y la 1ª corrida"* | ✅ **corriendo hace semanas** (24/08 `ok` en 1 m 46 s) y con gate por voz desde ayer |
+>
+> Y en §6 murieron 3 riesgos: la cuota de Airtable, **el OAuth de Google** (ADR-057 se llevó la
+> última dependencia de Google) y *"D3: demo obligatoria"*. 🔴 **El de adopción mutó y sigue vivo,
+> con otra forma:** ya no es *"¿la adoptan?"* sino **Jero, 81 eventos el 07/08 y nunca más**.
+>
+> 🎯 **El único punto del §5 con el dato ya acumulado es el 2, calibrar el heat-score:**
+> `public.v_senal_seleccion` (vive en `public`, no en `app`) tiene **21 referentes con tasa medida**
+> y hoy el `0.7` de `heat = 0.7 × score_Haiku + 0.3 × percentil(métrico)` **se eligió sin datos**.
+>
+> ### 🔬 LA HIPÓTESIS DEL PESO SE PROBÓ Y QUEDÓ REFUTADA — el 0.7 se queda
+>
+> **Conclusión: no se toca el motor.** El barrido sobre 217 videos etiquetados (87 aprobados · 130
+> descartados) da el AUC máximo **en el peso que ya está puesto**:
+>
+> | peso rel | 0.0 | 0.3 | 0.5 | **0.7 (hoy)** | 0.8 | 1.0 |
+> |---|---|---|---|---|---|---|
+> | AUC | 0.671 | 0.681 | 0.692 | **0.706** | 0.709 | 0.639 |
+>
+> **Bootstrap (300 remuestreos):** el óptimo cae en 0.7–0.8 el **84 %** de las veces y
+> `AUC(0.8) − AUC(0.7)` da **IC95 % [−0.013, +0.019]**, que incluye el 0. Subirlo a 0.8 sería
+> cambiar el motor por ruido.
+>
+> 🩸 **Y lo que hay que aprender es POR QUÉ la hipótesis parecía buena.** Salió de comparar señales
+> **sueltas** —`views` 0.690 vs `relevancia_score` 0.639— y concluir que el 70 % estaba mal gastado.
+> **Contrafáctico equivocado:** la pregunta no era *qué señal sola gana* sino *qué mezcla gana*, y la
+> mezcla al 0.7 (**0.706**) le gana **a las dos por separado**. *Dos señales mediocres y poco
+> correlacionadas combinan mejor que la buena sola; comparar los ingredientes entre sí no dice nada
+> sobre la receta.* La hipótesis vivió tres commits antes de morir.
+>
+> 🔑 **Dos cosas del método, para reusar:**
+> 1. **La fórmula estaba en otro nodo del que yo decía.** `Heat-score v1` calcula el prescore
+>    **métrico** y `Gate de relevancia` lo **pisa** con el compuesto. Leer el nodo antes de barrer
+>    fue lo que evitó medir una fórmula inventada.
+> 2. **El percentil métrico no se persiste, pero se despeja:** `pctM = (heat − 0.7·rel)/0.3`. **Y el
+>    despeje se validó antes de usarlo:** las 228 filas caen dentro de [0,1] y su mediana da
+>    **exactamente 0.500**, que es lo que debe dar una distribución de percentiles. Con otro `PESO`
+>    en alguna corrida habrían salido valores imposibles.
+>
+> 📉 **Lo que deja:** con estas señales el techo es **AUC ≈ 0.71**. Las mejoras no van a venir de
+> re-pesar lo que hay sino de **señales nuevas**. Y sigue el hueco que no es de código: **de 82
+> descartes, 80 sin `veredicto` humano** — sin eso no se puede calibrar el **gate**, que es distinto
+> del orden.
+>
+> <details><summary>La medición previa que originó la hipótesis (queda como registro)</summary>
+>
+> ### 📊 Primera medición del heat-score (§5.2), y sale contraintuitiva
+>
+> Es el único punto del §5 con dato acumulado, así que se midió — **sin cambiar nada**: mover el peso
+> toca el motor y es decisión de Mani. **237 videos con etiqueta humana** (100 👍/🔥 · 137 👎).
+> AUC = probabilidad de que un aprobado puntúe más alto que un descartado (0.50 = no distingue):
+>
+> | Señal | AUC | Peso hoy |
+> |---|---|---|
+> | `heat_score` (el combinado) | **0.692** | es el resultado |
+> | **`views` sola** | **0.690** | ninguno |
+> | `engagement` | 0.645 | insumo |
+> | `relevancia_score` (Haiku) | **0.639** | **0.7** |
+> | `seguidores` | 0.582 | insumo |
+>
+> 🔑 **Entre los videos que llegan al equipo, las vistas solas ordenan tan bien como la fórmula
+> entera y mejor que el score de Haiku que se lleva el 70 %.**
+>
+> 🩸 **Pero el matiz es lo que lo vuelve usable, y casi lo reporto sin él.** `relevancia_score` está
+> **truncado**: los descartados por el gate van de **0.00 a 0.45** y los que pasan de **0.50 a
+> 0.96**, sin solaparse. Su AUC se mide sobre la mitad de arriba nada más. *Y el AUC de **1.000** que
+> da separar esas dos poblaciones **no es evidencia de nada**: el gate ES un umbral sobre esa
+> variable, así que separarlas es su definición. Un número perfecto es la señal de que se está
+> midiendo una tautología.*
+>
+> **Hipótesis que queda:** `relevancia_score` se gana el sueldo **como filtro, no como ordenador**, y
+> la fórmula lo usa de ordenador al 70 %. Bajar ese peso a favor de las vistas es la prueba barata.
+> **Límites:** las etiquetas son casi todas de **una persona** (Majo), son 237, y `heat_score`
+> **contiene** a `relevancia_score` (las dos filas no son independientes).
+>
+> 🔴 **Y el hueco que impide calibrar el GATE: nadie audita los descartes.** De los **82**
+> descartados por la máquina, **80 sin `veredicto` humano** — y de los 2 revisados, **uno dice *"era
+> bueno"***. Sin eso no hay forma de medir cuánto se tira de más. La pantalla existe; falta que
+> alguien la use.
+>
+> </details>
+>
+> ### 📨 Y lo único que salió del repo: un WhatsApp a Majo
+>
+> El hueco de los descartes no se arregla con código, así que se le pidió a ella directamente
+> (29/08, aprobado por Mani antes de mandarlo): *"en Curar → Descartes hay 80 videos que la máquina
+> botó sola y nadie los ha revisado…"*. 🔑 **El número a mirar si ella audita es
+> `falsos_negativos`**: hoy da **0 siempre**, y no porque el gate sea perfecto sino porque nadie
+> marcó nunca. La pantalla los ordena **sin veredicto primero y por score descendente**, así que los
+> de arriba son los que casi pasan — por eso el pedido fue *"los primeros"* y no *"los 80"*.
+>
+> ### 🔴 Lo que sigue faltando
+>
+> ✅ **§13 CERRADA el 2026-08-30, en producción** (era lo único que quedaba de esta tanda). El
+> renombrado lo prueba `colecciones.renombrar` a las **03:41:13Z**, posterior al deploy de `8507cd3`
+> (29/08 19:32:49Z); el aviso *sin trabajo* lo miró Mani, y sus números se re-midieron contra prod
+> (**13 de 28**, con `@jefferson_fisher`, `@markmanson` y `@susieinthiran` adentro).
+>
+> 🩸 **Y el primer intento no contaba:** los dos `renombrar` del 29/08 (19:27 y 19:28) son de
+> **cuatro minutos antes** de que su propio código estuviera desplegado ⇒ `localhost`. Tercera vez
+> con el mismo patrón. **Un evento anterior al deploy de su código es de localhost, sin excepción.**
+> *(Lo que Mani confirmó en prod el 29/08 eran los criterios de limpieza y el botón de limpiar —
+> eso es ADR-080/§14, no el §13.)*
+>
+> ### 🧭 Para la próxima sesión
+>
+> **Leer primero:** el §Pendiente vivo de arriba, y **ADR-080** + **§5.2 del ROADMAP** si se va a
+> tocar limpieza o heat.
+>
+> **Lo que está listo para tomar, en orden de barato a caro:**
+> 1. **Conectar `estaAlDia` a la pantalla** (los 28 guiones viejos) — la deuda de ADR-080, con su
+>    diseño ya escrito. `/tdd`: el dominio ya existe y está testeado, falta la UI y su botón propio.
+> 2. **La revisión mensual de costos** — §5.3: la maquinaria existe (`app.tarifas` × `runs.metricas`
+>    → `v_costos_semana`) y lo que falta es el hábito, no el código.
+> 3. **La topología por `n8n:push`** — §14.2, enmienda de ADR-053. `/grill-with-docs` primero: la
+>    pregunta abierta no es técnica sino la red de seguridad (`nodes` **reemplaza**, así que un push
+>    que crea nodos también puede borrarlos).
+> 4. **La capa de producto (Three.js)** — iniciativa de Mani, todavía sin plan escrito: animaciones,
+>    transiciones, *ver cómo piensa el workflow mientras corre*. Es de cara a **vender esto**, no
+>    cosmética suelta; hoy está en `someday` como "Three.js" a secas, que se lee como un capricho
+>    técnico. Pide `/grill-me` antes que código.
+>
+> ⛔ **Lo que NO hay que tocar:** el peso del heat (probado el 29/08, el 0.7 es el óptimo) y ninguna
+> etapa de contenido de LinkedIn mientras el ⛔ de arriba siga abierto.
+
+> ## 🧾 2026-08-29 (cierre 119) · LAS DOS QUE ESTABAN "BLOQUEADAS POR UN HUMANO", Y UNA ERA UN MALENTENDIDO (Claude, pedido de Mani)
+>
+> **En una línea:** se cerraron las **2 tasks abiertas** del onboarding a Dani. Ninguna necesitaba lo
+> que el handoff decía que necesitaba. **Migraciones: ninguna. `core/`: no se tocó. n8n: cero
+> cambios.** ADRs: **079 ampliada** (una consecuencia medida), **5 docs corregidas**.
+>
+> ### 🩸 Lo que hay que aprender de acá: el cierre 118 dejó 5 docs afirmando lo contrario del sistema
+>
+> ADR-079 cambió conducta en producción y **cinco documentos siguieron diciendo la conducta vieja**,
+> uno de ellos con un ***"no lo arregles"*** explícito dirigido al próximo agente
+> (`refactor-voces-proyectos.md` §Descubrimiento). El más caro era
+> [`onboarding-equipo-redes.md`](../onboarding-equipo-redes.md) §5.2: es **el doc que lee Majo**, y
+> le estaba prometiendo que apagar una voz no frenaba las propuestas.
+>
+> ⚠️ **Y ese párrafo prometía además que el fix era "1 línea con el patrón de C.2". No lo era:**
+> copiar el filtro del motor significa pedir `?ambito=motor`, que también filtra los referentes y
+> **rompe el dedup**. *La estimación de una decisión aplazada envejece peor que la decisión.*
+>
+> ### 🔴 La task de "Colecciones" no era la que el handoff decía
+>
+> Dos cierres seguidos escribieron *"cambiar el nombre de «Colecciones» — falta que Mani elija el
+> nombre"*, y la sesión llegó a ofrecerle tres nombres. **El pedido de Majo era poder renombrar
+> **cada colección**, no la sección.** El bloqueo humano no existía: era un resumen mal hecho que se
+> copió de un cierre al siguiente sin volver a la fuente.
+>
+> *Lo mismo casi pasa con la otra: «alcance sin confirmar, hay que preguntarle a Majo». La task de
+> Notion **ya listaba las tres lecturas posibles** (duplicadas / permisos / cuáles siguen activas), y
+> las tres se miden contra prod en un minuto. **Preguntar era más caro que medir.***
+>
+> ### 📏 Lo que apareció al medir el registro de cuentas (29/08, contra prod)
+>
+> - **29 cuentas, 0 duplicadas, 0 huérfanas, todas de Instagram.** Estructuralmente sano: las dos
+>   primeras lecturas de la task no tenían nada.
+> - 🔴 **13 de las 28 activas (46%) no alimentan nada que corra.** Sus proyectos cuelgan de Milena y
+>   Rosario, las dos voces apagadas. **Entre ellas `@jefferson_fisher` (49%) y `@howtoconvince`
+>   (62%), las dos de mejor tasa del sistema entero.** La pantalla las mostraba *Activa*, con el
+>   número bueno al lado, produciendo cero.
+> - **0 cuentas de TikTok** ⇒ los dos toggles de TikTok corren vacíos (ya estaba escrito en §5.3).
+> - 5 propuestas esperando en Sugeridos.
+>
+> 🔑 **Y el 46% es consecuencia de ADR-079, de ayer.** Antes esas cuentas al menos sembraban el
+> buscador; desde el gate no hacen nada. *Una decisión que apaga algo tiene que dejar visible lo que
+> apagó, o el ahorro se cobra en confusión.* Quedó escrito como el (−) medido de esa ADR.
+>
+> ### Lo que se construyó
+>
+> | Qué | Dónde | Nota |
+> |---|---|---|
+> | Renombrar una colección | `curar/colecciones/indice.tsx` + `renombrar` + `renombrarColeccion` | Reusa `validarNombre` (no una copia) y el `23505` que `crearColeccion` ya traducía |
+> | El aviso «sin trabajo» | `domain/referentes.ts` `noAlimentaNada` + 4 tests | El alcance **se pide prestado** a `proyectosDelPlan(armarVistaOperar(…))`: un tercer cruce escrito a mano sería la versión que nadie actualiza |
+> | Las 5 docs al día | onboarding · README descubrimiento · dev-doc · refactor · mapa-campos ×2 | La de onboarding es la que lee el equipo |
+>
+> ### ✅ Verificado en vivo (localhost + login de Mani, base de PRODUCCIÓN)
+>
+> - **Referentes dice «13 de 28»**, el mismo número que dio la query independiente, y el badge *sin
+>   trabajo* sale en `@jefferson_fisher`, `@markmanson` y `@susieinthiran`.
+> - **Renombrar, los dos caminos:** el choque de nombre (*«Ya tenés una colección que se llama
+>   "Test"»*, mostrado adentro de la tarjeta y **sin escribir evento**) y el camino feliz
+>   (`Test2 → "Grabar semana del 1"`, tarjeta actualizada, 6 videos intactos, `colecciones.renombrar`
+>   en `app.eventos` a las 19:27:38Z). **Se restauró a `Test2`.**
+> - typecheck · **434 tests** (+4) · build · validador, los cuatro en verde. Consola sin errores.
+>
+> ⚠️ **Ojo con el canario:** esas pruebas dejaron **2 eventos `colecciones.renombrar` de Mani** en
+> `app.eventos`. Es el mismo costo que ya se pagó con `videos_meta` y con `bajar_videos`: **el dev
+> server local escribe contra prod.** El primer dato de adopción del renombrado es el **tercero**.
+>
+> ### 🚀 Pusheado y desplegado (29/08 19:32 UTC)
+>
+> Dos commits: **`23f629a`** (el cierre 118, que llevaba desde ayer sin commitear) y **`8507cd3`**
+> (éste). Verificado por **dos señales independientes**, y consultado en vez de heredado —que es la
+> corrección que este mismo handoff se hizo ayer—: el commit status de Vercel para `8507cd3` dice
+> **`success`**, y hay un **deployment `Production` del mismo sha** a las **19:32:49Z**. Prod
+> responde 200.
+>
+> 🔴 **Lo que eso NO prueba: nadie hizo clic en producción.** Las dos features se verificaron desde
+> `localhost` **contra la base de prod**, que es otra cosa. Anotado como
+> [§13 de verificaciones-humanas](../verificaciones-humanas.md).
+>
+> ### ⏳ Qué queda
+>
+> De los 8 pedidos del onboarding, **cero abiertas** — las dos últimas quedaron en `done` en Notion,
+> y la de Colecciones **se renombró** (*"Renombrar una colección desde el cockpit"*) para que el
+> título no vuelva a hacer creer que faltaba elegir un nombre. Sigue en `someday` Three.js y sigue la
+> `waiting` del audio de Majo.
+>
+> **Lo abierto del repo no cambió y ninguno es de esta sesión:** la decisión de producto de LinkedIn
+> (espera a Alejandro), el ritual manual de topología en n8n
+> ([plan-multi-tenant §14.2](./plan-multi-tenant.md)), la demo D3 con Majo y Jero (§9), V6
+> (§8, hay que rediseñarla), los items ⬜ de `verificaciones-humanas` (§3, §4-bis, §4-ter,
+> §4-quater, §10) y **los cuatro canarios a re-mirar el 2026-09-04**.
+
+> ## 🎛️ 2026-08-29 (cierre 118) · EL SELECTOR YA EXISTÍA Y UNA DE LAS DOS MÁQUINAS LO IGNORABA (Claude, pedido de Mani)
+>
+> **En una línea:** se retomó la herramienta tras el onboarding a Dani. Se cerró el **§4-quinquies**
+> (el mp4 en Vercel), se documentó **cómo el 🔥 y el 👎 mueven el heat** (§7.1 del onboarding), y el
+> pedido *"agregar insights a Buscar Referentes"* resultó ser **un interruptor roto, no una métrica
+> faltante**: `Voces.activo` gobernaba el motor y **no** el buscador. **Migraciones: ninguna.
+> `core/`: no se tocó. n8n: 1 nodo por `push`.** ADRs: **079 nuevo**, **078 corregido**.
+>
+> ### 🩸 Lo que hay que aprender de acá: el reclamo no era el problema
+>
+> Majo pidió *"poder delimitar para quién quiero que traiga"* y se leía como *falta un selector*.
+> **El selector ya existía y el buscador lo obedecía a medias.** El motor pide el plan con
+> `?ambito=motor` —que filtra las voces por `activo`— y saltea los proyectos de voz apagada; el
+> descubrimiento pide `?ambito=completo`, que **no filtra nada**, y su nodo solo miraba
+> `proyecto.activo`. Las voces las leía nada más que para sacarles los criterios.
+>
+> 📏 **Medido contra prod, y mordía:** 3 voces con **1 sola activa**, 6 proyectos todos activos ⇒ el
+> motor atendía **2** y el buscador **6**, cuatro de ellos de voces apagadas. Apagar una voz no
+> frenaba el descubrimiento, y se pagaban Apify y Haiku proponiendo cuentas para proyectos que no
+> corren. *Un interruptor que gobierna un workflow y no el otro no se lee como un bug: se lee como
+> que el interruptor no sirve.*
+>
+> 🔑 **Y el reflejo obvio estaba mal, por eso hay ADR:** cambiar el descubrimiento a `?ambito=motor`
+> arreglaría el alcance **rompiendo el dedup** — ese ámbito también filtra los referentes por
+> `activo`, y el buscador necesita los **inactivos** para no re-proponer una cuenta ya existente
+> pero apagada. La regla se queda en el nodo, explícita.
+>
+> ### ✅ La verificación en vivo, otra vez, encontró lo que el verde no
+>
+> Con `typecheck` + **430 tests** + `build` en verde, **la fila de dos botones se rompía en el primer
+> click**: al abrir la confirmación, «▶ Correr ahora» saltaba de línea, «Sí, buscar» se iba al
+> extremo derecho y «Cancelar» caía suelto. Arreglado (el aviso va en su propia línea) y
+> re-verificado en pantalla. **Es la segunda sesión seguida en que el trabajo real aparece en el
+> primer click y no en la suite.**
+>
+> 🟢 **Y una verificación que salió gratis:** en Sugeridos las 8 semillas son todas de trading, y
+> **`jefferson_fisher` (49%) y `howtoconvince` (62%) no aparecen** aunque son las de mejor tasa del
+> sistema entero — porque sus voces están apagadas. ADR-079 funcionando, visible sin leer código.
+>
+> ### 🔴 Dos afirmaciones falsas que se corrigieron
+>
+> 1. **El cierre 117 decía "los commits están en `main` local sin push".** Falso al retomar: estaban
+>    pusheados y **desplegados** (commit status de Vercel `success` para `40d6663`, 29/08 18:32:12Z,
+>    y un deployment `Production` del mismo sha). *El estado del deploy se consulta, no se hereda.*
+> 2. **El §4-quinquies se dio por cerrado una vez de más.** El primer *"bajó bien, se ve completo"*
+>    era el archivo que ya estaba en disco desde la bajada por `localhost` de las 18:19. Se detectó
+>    porque **no había ningún evento posterior al deploy**, y la ausencia es concluyente por diseño:
+>    ADR-078 compra la URL firmada cada vez y no la persiste ⇒ sin evento no hubo compra. El cierre
+>    real tiene su prueba: `bajar_videos` a las **18:44:05Z** (12 min post-deploy) y sobre **otra
+>    colección** que las pruebas locales. *Un `.mp4` que reproduce no dice de dónde vino.*
+>
+> ⚠️ **Y eso corrió el canario de ADR-078 un número:** el primer dato de adopción de la descarga de
+> video pasa a ser el **CUARTO** `bajar_videos`, no el tercero. Es la tercera vez que este repo paga
+> lo mismo (las 5 filas de `videos_meta`, "el tercero", ahora "el cuarto"). **El número del canario
+> no se escribe: se consulta antes de afirmarlo.**
+>
+> ### Lo que se construyó
+>
+> | Qué | Dónde | Nota |
+> |---|---|---|
+> | El gate por voz del buscador | `Armar plan de descubrimiento` | Aplicado al live por `n8n:push` (1 nodo, sigue activo), verificado con `n8n:diff` |
+> | El plan del buscador, calculable en el cockpit | `domain/buscador.ts` + 8 tests | Función pura, **espejo del nodo**: es una 2ª implementación asumida, con el mismo precedente que `techoDeCrudos` |
+> | La card «Qué va a buscar» | `curar/sugeridos/` | Las 8 semillas por nombre con su tasa, el tope, la afinidad y las que quedan afuera |
+> | Operar con una sola card de alcance | `operar/page.tsx` | Los dos botones juntos y con el mismo formato; Archivar sigue aparte porque **no lee esta configuración** |
+> | El heat en cristiano | `onboarding-equipo-redes.md` §7.1 | Los dos caminos: el número (30%) y los criterios (70%) |
+>
+> 🔑 **`proyectosDelPlan()` es lo que vuelve honesta la card compartida:** el alcance sale de la
+> vista que Operar ya pinta, así que la lista de Operar y las semillas de Sugeridos **no pueden
+> discrepar**. Sin eso, "una sola card para las dos máquinas" habría sido una promesa de diseño sin
+> nada que la sostenga.
+>
+> ### 📏 El heat, medido (para no volver a investigarlo)
+>
+> - **🔥 y 👍 pesan IGUAL en el número:** `estadoDe()` los colapsa en `aprobado` y la diferencia se
+>   pierde. Se distinguen **solo** en `Destilar criterios`, que prioriza los 🔥 como ejemplos ideales.
+> - **El 👎 no resta nunca.** El piso es `tasa = 0` ⇒ `×1`. Solo diluye el ratio de esa cuenta.
+> - **El camino fuerte es el texto, no el número:** `heat = 0.7 × score_Haiku + 0.3 × percentil(heat_métrico)`
+>   (`Peso de relevancia = 0.7`, leído de prod). Y el efecto más fuerte del 👎 es la **eliminación**:
+>   un `relevante:false` cae del embudo antes de rankear.
+> - **`min_muestra_destilar = 4`:** un proyecto con menos de 4 calificados esa semana no aprende nada.
+> - **El eje "tema" de ADR-012 NO es un hueco:** ADR-019 lo borró a propósito (2/60 aprobables, 58%
+>   del gasto). Ni el nodo `Leer señal tema` ni la vista `v_senal_tema` existen. *Se verificó antes
+>   de reportarlo como trabajo faltante.*
+>
+> ### ⏳ Lo que queda de los 8 pedidos del onboarding
+>
+> **2 abiertas**, las dos bloqueadas por una respuesta humana, no por código:
+> - *Cambiar el nombre de "Colecciones"* — falta que Mani elija el nombre.
+> - *Revisar el registro de cuentas* — **alcance sin confirmar**: hay que preguntarle a Majo qué está
+>   mal antes de tocar nada.
+>
+> *(Three.js sigue en `someday`. Y hay una `waiting`: recibir de Majo el audio con lo último que pidió.)*
+>
+> ✅ **Decisión de Mani sobre la consecuencia de ADR-079:** que el buscador deje de proponer para
+> voces apagadas es lo deseado — *"los de redes activan/desactivan cuando necesiten"*. El (−) del ADR
+> queda contestado.
+
+> ## 🎞️ 2026-08-29 (cierre 117) · LAS TRES DEL ONBOARDING DE DANI, Y UN 500 QUE SOLO APARECIÓ AL CLICKEAR (Claude, pedido de Mani)
+>
+> **En una línea:** salieron **8 pedidos** del onboarding a Dani (28/08, con Majo). Se cerraron
+> **3**, las tres verificadas **en vivo contra producción** desde `localhost` con Mani logueado:
+> el documento baja lo que se ve, el mp4 se baja desde la colección, y la marca de grabado llegó a
+> Colecciones. **Migraciones: ninguna. `core/`: no se tocó. n8n: cero cambios.** ADRs: **078 nuevo**,
+> **076 enmendado**, **070 extendido**.
+>
+> ### 🩸 Lo único que hay que aprender de acá: el verde no alcanzaba
+>
+> `typecheck` + **422 tests** + `build` + `validate` estaban en verde **y las dos fallas aparecieron
+> en el primer click real**:
+>
+> 1. **500 por un emoji.** El nombre del archivo sale del caption del video, y el caption traía 📈.
+>    Las cabeceras HTTP son **ByteStrings latin-1**: `new Headers()` tira
+>    `character at index 94 has a value of 55357`. Los tests usaban títulos ASCII y pasaban. Vive
+>    arreglado en `cabeceraDeDescarga()` (`domain/cdn.ts`) con las dos formas de la RFC 6266 y cinco
+>    tests de regresión.
+> 2. **El `<a>` navegaba y se llevaba la pantalla.** Un `<a href="/api/video?…">` sin `download`
+>    **navega**, así que el 500 reemplazó la colección entera por el texto del error y se perdió la
+>    selección de 57 tarjetas. Se pasó a `fetch` → blob, que es **el patrón que ese mismo componente
+>    ya usaba para el Word**.
+>
+> *Ninguna de las dos es de lógica y ninguna la iba a encontrar un test. La verificación en el
+> browser no fue una formalidad: fue donde apareció el trabajo.*
+>
+> ### 🔴 Y una afirmación falsa que se escribió y se corrigió el mismo día
+>
+> ADR-078 decía que su canario *"nace limpio, porque probar esto no escribe eventos desde el server
+> local"*. **Es falso: el dev server local escribe contra la base de PRODUCCIÓN.** Verificar dejó en
+> `app.eventos` **2 `colecciones.bajar_videos` + 1 `colecciones.descargar` + 2 `colecciones.grabado`,
+> todos de Mani el 29/08**. Es el mismo error que ya se había pagado con las 5 filas de
+> `app.videos_meta`, cometido de nuevo doce líneas más abajo en el mismo archivo. Corregido en el ADR.
+> **El primer dato de adopción de la descarga de video es el tercer `bajar_videos`.**
+>
+> ### Lo que se construyó, con lo que decidió cada cosa
+>
+> | Pedido (textual de Majo) | Qué se hizo | Qué lo decidió |
+> |---|---|---|
+> | *"Poner de mayor a menor vistas en el documento que se descarga de colecciones"* | Colecciones **abre en Vistas ↓** y la descarga viaja con las claves de `orden.visibles`: el criterio **y** los chips de filtro llegan al Word y al Excel | El orden se aplica **en el server, antes del corte por presupuesto**. Reordenando al volver, un doc truncado traería *los primeros agregados ordenados por vistas* y diría en silencio que son los más vistos |
+> | *"Revisar como poner la opción de descargar videos de gráficas en colección para editores"* | Botón **Descargar videos** en la barra de selección: compra el `videoUrl` a Apify y baja el mp4 por `/api/video` | **3 medidas** (ADR-078): `videoUrl` ya vuelve del actor que ya se paga · la firma **vence en ~38 h** ⇒ no se persiste ⇒ **sin migración** · **33 MB por video** ⇒ no hay ZIP posible |
+> | *"que desde colecciones se pueda marcar como grabado, que se vea esa marca"* | Toggle por tarjeta, badge **✓ Grabado** en el pie, chips *falta grabar / grabados / todos* y marcar en lote | **Nada de datos cambió**: la marca ya era por video (ADR-070). Es lo que esa decisión compró |
+>
+> ### 📏 Medido contra prod el 29/08 (números para no volver a adivinar)
+>
+> - **`videoUrl` existe** en `apify~instagram-scraper`, al lado de los 9 campos que ADR-072
+>   documentó. Devuelve `200`, `video/mp4`, **32.981.910 bytes** para un reel de 93 s.
+> - **La firma vence en ~38 h** (`oe=6A94F4CF` → 31/08 03:28 UTC). La miniatura dura ~5 días.
+> - **El CDN de los mp4 manda `cross-origin-resource-policy: cross-origin`**, al revés que las
+>   imágenes (`same-origin`). El proxy de video **no existe por la razón del de miniaturas**.
+> - **33 MB tardan 13,8 s** por el dev server local. Bajar 50 no es instantáneo.
+> - La colección *"Test"* tiene **57/57 con vistas**; el orden por vistas va de **629.497 a 2.456**.
+> - **`app.grabados` con `grabado_en > '2026-08-21'` = 2**, las dos del **22/08** y con el mismo
+>   timestamp. La marca de la verificación de hoy **se revirtió a propósito** para no ensuciarlo.
+>
+> ### ⏳ Lo que queda de esos 8 pedidos
+>
+> **5 abiertas**, todas en Notion con `owner: retia`: *insights en Buscar Referentes* · *investigar
+> cómo el 🔥 y el 👎 influyen en el heat* · *cambiar el nombre de "Colecciones"* (necesita que Mani
+> elija el nombre) · *revisar el registro de cuentas* (**alcance sin confirmar en su propio cuerpo**:
+> hay que preguntarle a Majo qué está mal antes de tocar nada) · *Three.js* (`someday`).
+>
+> ✅ **El mp4 se abrió y reproduce** (Mani, 29/08), o sea que el proxy arma un archivo completo y
+> válido, no un stream cortado. La task de Notion quedó en `done`.
+>
+> 🔴 **Y lo único que falta de las 3 cerradas: nada de esto está desplegado.** Los commits están en
+> `main` local **sin push**. Se verificó contra la base de prod pero **corriendo desde `localhost`**,
+> y ésa es justo la diferencia que importa para la descarga de video: 33 MB por una función de Vercel
+> es otro entorno. Sigue abierto el §4-quinquies de `verificaciones-humanas.md`.
+
+> ## 🔌 2026-08-24 (cierre 116) · LOS DOS BOTONES QUE NO ANDABAN, Y NINGUNO ERA n8n (Claude, pedido de Mani)
+>
+> **En una línea:** *Buscar cuentas nuevas* daba **404** y *Archivar lo calificado* decía **falta
+> configurar el webhook**; los dos workflows de n8n estaban **activos y sanos**, y la falla entera
+> vivía en las env vars de Vercel. Se arreglaron (Mani las cargó), se **probaron los dos en
+> producción** y andan. De yapa: el botón *Seleccionar* se ve, y la colección se baja en Excel.
+> **Migraciones: ninguna. n8n: cero cambios.**
+>
+> ### 🩸 El diagnóstico, que es lo único que vale de acá
+>
+> **Los dos errores tenían causas distintas, y ninguna era la que el mensaje sugería.**
+>
+> | Botón | Lo que decía | Lo que era |
+> |---|---|---|
+> | Buscar | `El buscador respondió 404` | Vercel tenía la URL **vieja**. La del `.env` funciona |
+> | Archivar | `Falta configurar ARCHIVADO_WEBHOOK_URL` | **La var nunca existió en la app**: faltaba en `.env.example` Y en `.env.local` |
+>
+> 🔑 **La idea portable: una env var que no está en `.env.example` no existe para quien despliega.**
+> El botón *Archivar ahora* se construyó con ADR-062, su variable se escribió **solo en el `.env` de
+> la raíz** —que Next.js no lee— y nadie la cargó nunca en Vercel. El botón estuvo roto desde que
+> nació y el mensaje de error, que estaba bien escrito, apuntaba a un dev que no tenía dónde mirar.
+> `APIFY_TOKEN` tenía el mismo hueco (está en Vercel de casualidad, cargado a mano en el cierre 113).
+> **Los dos ya están en `.env.example` y en el README.**
+>
+> ### 🔬 Cómo se midió que n8n estaba sano, sin disparar nada
+>
+> Un `GET` a un webhook de n8n distingue dos cosas que un 404 pelado confunde:
+>
+> ```
+> path registrado   → "This webhook is not registered for GET requests. Did you mean POST?"
+> path inexistente  → "The requested webhook GET <x> is not registered." + hint de activar
+> ```
+>
+> Los dos webhooks dieron **la primera**, o sea que su ruta POST existe. Segunda señal independiente:
+> la API de n8n dice `active=true` y el `path` de cada nodo **coincide con el `.env`**. Con eso el
+> lado de n8n quedó descartado **sin gastar una corrida**.
+>
+> ### ✅ Probados en producción (24/08 ~03:43 UTC)
+>
+> | | Respuesta | Efecto medido en `public.runs` |
+> |---|---|---|
+> | **Archivar** | *"Archivando…"* | run `archivado` **ok** en 4 s · calificados **1 → 0** · los 116 sin calificar **intactos** |
+> | **Buscar** | *"Buscando…"* | run `descubrimiento` **ok** en 1 m 46 s · **0 propuestas nuevas** |
+>
+> La confirmación del archivado dijo *"manda 1 y borra 0"*, que es **exactamente** lo que se había
+> contado por separado contra la base antes de apretar. Dos mediciones independientes que coinciden.
+>
+> ⚠️ **El buscador cerró `ok` y no propuso nada.** Las 5 propuestas que hay siguen siendo las del
+> **2026-07-20**. El workflow tiene un `IF — hay propuestas`, así que cero es un camino legítimo y
+> no un error — pero **no se midió si miró y no encontró, o si cortó antes**. Queda para mirar:
+> el botón anda, lo que el botón produce no está verificado.
+>
+> ### ✅ Lo otro que se hizo
+>
+> - **`BotonSeleccionar` se ve** (pedido de Mani: el equipo no lo encontraba). Pasa a `secondary`
+>   —relleno sólido— y a **"Seleccionar varios"**. En las 4 pantallas vivía rodeado de `outline`
+>   (filtros, Descargar, Archivar) y se leía como mobiliario. No se le puso `default`: ese lugar es
+>   de la acción principal de cada pantalla.
+> - **La colección se baja en Excel**, al lado del Word. `tablaDeColeccion()` en
+>   `domain/colecciones.ts` + 6 tests. Columnas `# · TITULO · REFERENTE · LINK · GUION · LIMPIEZA`.
+>   🔑 **Reusa la MISMA acción del server que el Word** (`descargar`): ese viaje ya trae todo lo que
+>   la planilla necesita y es la parte cara (un `leerCrudo` por video). Una acción propia pagaría dos
+>   veces lo mismo y dejaría que los dos archivos digan cosas distintas de la misma colección.
+>   **La numeración es la misma en los dos**, y un video sin guion ocupa su número igual, para que
+>   *"grabá del 3 al 7"* signifique lo mismo mirando cualquiera de los dos.
+>
+> Verde: `typecheck` · **374 tests** · `build` · `validate` **2407 checks**.
+>
+> ### 🟢 Y un pendiente que ya estaba cerrado sin que nadie lo anotara
+>
+> **La corrida real del motor con el fix del emoji adentro YA PASÓ:** 24/08 13:00, **29 minutos, 44
+> candidatos, `ok`**. El cierre 115 la dejaba como *"lo que queda"*. Se leyó de `public.runs`, no del
+> recuerdo.
+>
+> ### ⬜ Lo que queda
+>
+> 1. ⬜ **El botón nuevo y el Excel, mirados en pantalla.** Se verificaron con `typecheck`, 374 tests,
+>    `build`, y el `.xlsx` generado con el código nuevo **abierto y leído de vuelta con openpyxl**
+>    (acentos y emoji intactos, el `#` como número, la celda sin guion **ausente** y no vacía). Nadie
+>    los vio todavía en el navegador: la sesión de localhost no se pudo abrir.
+> 2. ⬜ **El `.xlsx` de una colección, abierto en el Excel de Mani.** `file` y openpyxl son dos
+>    señales; ninguna es Excel. Mismo argumento que el paso 7 de §4-quater.
+> 3. ⬜ **Por qué el buscador propuso 0** (ver arriba).
+> 4. 🐤 Los canarios siguen al **2026-09-04**, sin cambios.
+> 5. 💰 **Gasto de esta sesión:** una corrida del descubrimiento (créditos de Apify), autorizada por
+>    Mani. El archivado no gasta.
+>
+> ---
+
+> ## 🚑 2026-08-21 (cierre 115) · EL MODO SELECCIÓN ENTERO, Y UNA CORRIDA DE MAJO RESCATADA DE LA BASURA (Claude, pedido de Mani)
+>
+> **En una línea:** se construyó y verificó el **modo selección** en las 4 pantallas —lo que el plan
+> de colecciones prometía y nadie había anotado como faltante— y en el medio apareció una corrida
+> real de Majo que había muerto tirando 33 minutos de gasto: **se encontró la causa, se arregló y se
+> rescataron sus 70 candidatos sin volver a pagar nada.** `main` = **`13a528e`**, pusheado.
+> **Migraciones: ninguna. n8n: el fix está en el repo y NO se pudo empujar (ver abajo).**
+>
+> El plan entero vive en [plan-modo-seleccion.md](./plan-modo-seleccion.md); acá va el estado.
+>
+> ### 🟢 Lo primero, porque cambia prioridades: MAJO ESTÁ USANDO LA HERRAMIENTA
+>
+> El canario de ADR-069/070 **se despertó**, y no por poco:
+>
+> | Cuándo | Qué hizo Majo |
+> |---|---|
+> | 20/08 23:10 | **288 grabados** en dos tandas (166 + 122) |
+> | 21/08 (todo el día) | **37 calificaciones + 6 referentes**, último evento 20:52 |
+>
+> Es **la primera persona fuera de Mani con dos días distintos** en `app.eventos`. Los demás siguen
+> en uno solo (Jero 81 eventos el 07/08, Juan José 23 ese mismo día).
+>
+> 🩸 **Y este cierre midió mal esa conclusión dos veces en tres horas.** A las 18:55 el veredicto fue
+> *"la adopción es una ráfaga, nadie vuelve"*; a las 21:20 era falso porque Majo estaba adentro
+> mientras se escribía. *Un canario se re-mide, no se cita — y el mío duró tres horas.*
+>
+> ### 🚑 La corrida que se cayó, y por qué importa el mecanismo
+>
+> Ejecución **136** (21/08, botón ▶ de Majo): **`400 Bad request` en `POST Candidatos` a los 33
+> minutos**, después de transcribir 814 videos con Supadata y traducirlos con Haiku.
+>
+> **La causa, leída de los datos de la ejecución y no deducida:**
+>
+> ```
+> titulo se corta con .slice(0, 80)  → JS corta por code units UTF-16
+> la fila 26 cayó justo en la mitad de un emoji
+> quedó "\ud83d" suelto → no es UTF-8 válido → PostgREST: "Empty or invalid json"
+> ```
+>
+> 44 de las 70 filas medían **exactamente 80**, así que el borde se toca seguido; que explotara
+> dependía de que ahí hubiera un emoji. **El mismo `slice` estaba en `Preparar descartes`** y nunca
+> explotó por suerte, no por diseño. Los dos usan `_cortar()` ahora, que corta por puntos de código.
+>
+> 💀 **Lo que costó:** 814 transcripciones + 814 traducciones + 33 min, **70 candidatos** y **~250
+> videos quemados** en `processed_items` —que se escribe ANTES— así que el motor no los va a proponer
+> nunca más. Es literalmente el modo de falla que el comentario del nodo advierte: *"el presupuesto
+> no posterga, QUEMA"*.
+>
+> ✅ **Rescatado:** las 70 filas ya armadas estaban en los datos de la ejecución. Se les sacó el
+> surrogate y se insertaron por PostgREST — **`app.candidatos` 101 → 171**, las 70 con proyecto, voz,
+> guion y miniatura, cero tripwires de *SIN GUION*. **No se volvió a pagar nada.** El Feed pasó a 96
+> sin calificar repartidas en los 5 proyectos.
+>
+> ✅ **EMPUJADO Y VERIFICADO.** n8n estuvo caído un rato (502 de nginx en `/`, `/healthz` y
+> `/api/v1` — el contenedor, no la API) y volvió a las 02:45 UTC del 22/08. El fix se aplicó con
+> `n8n:push` a los dos nodos y **`n8n:diff` da los 5 workflows en verde**. El motor ya no puede
+> morir por un emoji partido.
+> *Rollback, por si aparece algo: `.n8n-snapshots/motor-2026-08-22T02-47-30-975Z.json`.*
+> *¿La caída tiene que ver con la corrida? Es hipótesis y nada más:* la 136 dejó un payload de 37 MB
+> y murió 20:24; el 502 se midió 21:50. **No se midió nada que las conecte** — hace falta el log del pod.
+>
+> ### ✅ El modo selección, las 6 fases
+>
+> | Fase | Qué | Verificado |
+> |---|---|---|
+> | 0 | Los 6 docs que mentían (la `033` sí estaba aplicada, el índice de ADRs iba hasta la 069, el CSV del ROADMAP) | `validate` 2407 checks |
+> | 1 | `components/video/seleccion.tsx` + la prop `seleccion` de `TarjetaVideo` + `AgregarAColeccion`, en **las 4 pantallas** | navegador, con la base como segunda señal |
+> | 2 | **`Archivar ahora` en el Feed** + la confirmación con los números contados al apretar | dijo *"manda 44 y borra 34"* |
+> | 3 | Marcar grabados en lote · calificar en lote · sacar de la colección | los 4 botones, uno por pantalla |
+> | 4 | Los canarios redefinidos **por fecha y autor** | — |
+> | 5 | Verificación en navegador + §4-quater pasos 1–6 + **celular** | ver abajo |
+>
+> **[ADR-075](../adr/ADR-075-agrupar-es-aprobar.md) — agrupar es aprobar**, y quedó verificada en sus
+> **dos** direcciones: aprueba lo que estaba en `nuevo` (evento `aprobados: 1`, con los tres campos
+> escritos juntos) y **no toca** lo que ya tenía juicio (`aprobados: 0`). Tapa un hueco que se
+> descubre a los 20 días: un video sin calificar metido a una colección **perdía su guion crudo**
+> cuando el barrido borraba su fila, porque nunca pasó por `outputs`.
+>
+> ### 🩸 Cinco cosas que solo aparecieron mirando, no leyendo
+>
+> 1. **El detalle de la colección tampoco tenía selección múltiple.** El plan prometía *"Quitar
+>    seleccionados"* y lo construido era un `Sacar` por tarjeta. **Mismo hueco que dejó afuera el modo
+>    selección entero** — se encuentra releyendo el plan, no mirando la pantalla.
+> 2. **Dos botones con el mismo texto en Históricos**, haciendo cosas distintas. Renombrado a
+>    *"Marcar los seleccionados como grabados"*.
+> 3. **Un cartel mal conjugado en Transcribir:** *"1 de estos 1 no hace falta transcribirlos. 1 ya se
+>    grabaron."* Los cinco ítems de esa revisión concordaban siempre en plural. *Un cartel mal
+>    conjugado se lee como que la herramienta contó mal, justo cuando le pide a alguien que le crea un
+>    número.*
+> 4. **Los números que este cierre publicó en `verificaciones-humanas` estaban mal.** Se escribió
+>    `411 · 294 · 117` cruzando `grabados` contra `outputs` con un regex de shortcodes; **la pantalla
+>    dice `382 · 294 · 88`**. *El cruce cerraba consigo mismo y estaba errado por 29 — un cálculo
+>    aproximado que cuadra se lee igual de convincente que uno correcto.*
+> 5. **El paso 4 de §4-quater tenía un paso más que el doc no mencionaba:** `Marcar como grabados`
+>    está gateado detrás de `Revisar`, que muestra el estado link por link **antes** de tocar nada. Es
+>    mejor de lo que pedía el doc.
+>
+> ### 📐 Decisiones que vale no re-litigar
+>
+> - **La selección en Transcribir es POR TANDA**, no de la pantalla. Las filas bajan al expandir, así
+>   que una selección global tendría marcadas claves que no están en memoria.
+> - **`agregarSeleccionados` recibe URLS, no llaves.** La identidad se deriva en el server con
+>   `parsearEnlaces`; una segunda derivación en el browser es un bug mudo esperando.
+> - **`queHariaArchivar` duplica a propósito el `days: 20` del nodo `Barrer candidatos sin calificar`.**
+>   Es la única forma de anticipar a n8n desde la app. **Quien cambie uno tiene que cambiar el otro**,
+>   o el botón pasa a mentir con precisión.
+> - **Los eventos del modo selección llevan `origen`** y calificar en lote tiene su propio tipo. Sin
+>   eso, `app.eventos` deja de distinguir uso de backfill — que es lo único que hoy contesta *¿alguien
+>   usa esto?*.
+>
+> ### ⬜ Lo que queda
+>
+> 1. ✅ ~~n8n caído + el push del fix~~ — **resuelto el 22/08 02:47**, `n8n:diff` verde en los 5.
+> 2. ⬜ **El paso 7 de §4-quater**: bajar los dos `.xlsx` y abrirlos en el Excel de Mani. `file` y
+>    `openpyxl` son dos señales; ninguna es Excel.
+> 3. ⬜ **El `.docx` de una colección, abierto en Word.** Mismo argumento.
+> 4. 🐤 **Los canarios, al 2026-09-04.** `colecciones` = 0 (el más limpio, nace sin ruido),
+>    `guiones_limpios` = 4 (todas de Mani), `videos_meta` = 5 (las 5 son verificaciones),
+>    `grabados > '2026-08-21'`. Y la pregunta que ninguno contesta se lee de `app.eventos`: **días
+>    distintos por persona**.
+> 5. 💰 **Gasto de esta sesión: cero.** `app.videos_meta` valía 5 antes y 5 después; las dos
+>    colecciones de prueba y la huérfana del paso 5 se borraron.
+>
+> **Para la próxima sesión:** ya no hay bloqueante. Lo que queda es **una corrida real del motor**
+> con el fix adentro (la 136 fue la última y murió), y `/grill-with-docs` si aparece funcionalidad
+> nueva antes de construirla.
+>
+> ---
+
+> ## 🃏 2026-08-21 (cierre 114) · LA TARJETA ÚNICA LLEGA A LAS TRES PANTALLAS, Y LA COLECCIÓN SE BAJA EN WORD (Claude, pedido de Mani)
+>
+> **En una línea:** cerró lo que el cierre 113 dejó abierto — **2b, 2c y la Fase 5** — más la
+> enmienda del ROADMAP y los 5 términos del glosario. `main` = **`a2479ea`**, pusheado y deployando.
+> **Migraciones: ninguna. n8n: cero cambios.**
+>
+> ### ✅ Lo que quedó hecho
+>
+> | Fase | Qué | Verificado |
+> |---|---|---|
+> | 2b | Transcribir: la tanda abierta pasa de `<ul>` de `<Fila>` a `GrillaVideos` + `TarjetaCola`; el guion sale del `<details>` a **un** modal por tanda. Muere `transcribir/copiar.tsx` | 15 tarjetas en una tanda real, badge ✓, cero desborde, el modal trae el guion |
+> | 2c | Históricos agrupa por proyecto con `agrupar()`; las **huérfanas entran por la misma tarjeta** que el resto | 6 proyectos + `(sin proyecto)` (327), plegado y filtros recalculando (4+3+10+12+265 = 294) |
+> | 5 | `domain/zip.ts` (extraído de `xlsx.ts`) + `domain/docx.ts` + el botón `Descargar (Word)` en la colección | Blob `PK`, MIME correcto, los 4 guiones con "Guion limpio"; `file` dice *Microsoft Word 2007+* y `textutil` lo lee entero |
+> | 5b | **Los videos van numerados** (`1. Título`), pedido de Mani mirando el primer archivo | Test: un video sin guion **no se saltea el número** |
+> | — | **`core/schema/033_grabado_en.sql`**: el paso *contract* de ADR-070 | ✅ **aplicada** (Mani, 21/08). Medida por su efecto: PostgREST da `42703` sobre `grabado_en`, y `grabados` + el resto de `transcripciones` siguen respondiendo — se fue la columna, no la tabla |
+>
+> Más: **enmienda de ADR-074 en ROADMAP §1 punto 1** (dice qué del norte sigue en pie y qué se suma)
+> y los 5 términos en `context.md` — **colección · guion limpio · perfil de limpieza · llave de video
+> · tarjeta de video**.
+>
+> Verde: `typecheck` · **367 tests** · `build` · `validate` **2380 checks**.
+>
+> ### 🩸 El bucle infinito que solo se veía en el log del server
+>
+> `curar/colecciones/[id]/detalle.tsx` pedía **`vocesParaLimpiar` una vez por segundo, para siempre**.
+> `usarCockpit()` arma `{cliente, pipeline}` nuevo en cada render y el efecto lo tenía como
+> dependencia: pedir → `setVoces` → render → objeto nuevo → pedir. Arreglado (deps = los dos strings)
+> y **medido: de ~15 fetches en 15 s a 1**.
+>
+> 🔑 **La forma del error, que es lo que vale:** *un bucle de render no se ve en la pantalla* — la
+> pantalla se veía perfecta, y por eso pasó la verificación de la Fase 4 sin que nadie lo notara. Lo
+> cazó mirar el log del dev server mientras se probaba otra cosa. Era además el **único**
+> `useEffect` del cockpit con un objeto en las dependencias (`grep "\[cockpit\]"` da uno solo, y ya
+> no está).
+>
+> ### 🔬 Dos mediciones que cambiaron una decisión cada una
+>
+> 1. **`agrupar()` se reusa tal cual, pero el orden de adentro se restaura por fecha.** De las 301
+>    filas de `outputs`, **las 172 del Feed traen heat y proyecto; las 129 de Transcribir no traen
+>    ninguno de los dos**. Ordenar por heat dejaba `(sin proyecto)` —donde caen esas 129 más las ~291
+>    huérfanas— desempatando por uuid, o sea un orden sin significado. El histórico se lee por lo
+>    último que pasó.
+> 2. **La colección de prueba (4 videos ya con metadata) no disparó una sola llamada a Apify.** La PK
+>    de `videos_meta` es la guardia y funciona. De paso quedó probado lo que promete ADR-073: **se
+>    borró la colección y los 4 guiones limpios sobrevivieron** — la bolsa es descartable, lo que se
+>    pagó no.
+>
+> ### ⬜ Lo que queda
+>
+> 1. ✅ **El enriquecimiento CORRE EN PRODUCCIÓN** (verificado el 21/08, 18:27 UTC). Se pegó en el
+>    prod deployado un link **sin** metadata (`instagram.com/p/DOgcUZ4DG6D/`, uno de los 130 de
+>    Transcribir) y volvió completo: miniatura, *"The words you choose shape the respect you
+>    receive."*, `@tanimzamanofficial`, 2.090.840 vistas, 63.070 likes. Confirmado por los dos lados
+>    —la tarjeta en pantalla y la fila en `app.videos_meta` con `fuente: apify`— y con la colección
+>    de prueba borrada después: **la fila de metadata sobrevivió**, otra vez.
+>    ⚠️ **Y con eso el canario de `videos_meta` se corrió de número:** ahora hay **5 filas y las 5
+>    son de verificaciones**, así que **el primer dato de adopción es la fila 6**. *El número del
+>    canario hay que moverlo cada vez que uno mismo lo toca, o el doc empieza a contar sus propias
+>    pruebas como uso.*
+
+> 1b. 🔴 **HUECO ENTRE EL PLAN Y LO CONSTRUIDO, encontrado el 21/08 por una pregunta de Mani:
+>    NO se puede agregar a una colección desde el Feed, Transcribir ni Históricos.** La única puerta
+>    es **pegar links** en el detalle de la colección. El plan sí lo tenía (§Diseño de UI, punto 2:
+>    un botón `Seleccionar` en las tres pantallas + una barra fija con *Agregar a colección*), y
+>    **no se construyó en la Fase 3 ni lo registró ningún doc como faltante** — el cierre 113 lo dio
+>    por cerrado. Medido: `grep` de checkbox/`Seleccionar` en las tres pantallas da cero, y las
+>    acciones de colecciones las importa **un solo archivo**, el detalle de la colección.
+>    *La consecuencia práctica:* para agrupar un video que ya está en pantalla hay que abrirlo,
+>    copiar la url, ir a Colecciones y pegarla — cuatro pasos para lo que el plan resolvía con un
+>    click. Y el lugar natural ya existe: la tarjeta compartida tiene su slot de acciones, vacío en
+>    esas tres pantallas.
+>    🔑 **La forma del error:** *una fase se dio por cerrada porque su pantalla nueva funcionaba, sin
+>    volver a leer qué prometía el plan para las pantallas viejas.* Lo caro no fue no construirlo:
+>    fue que nadie lo anotó como deuda.
+> 2. 🔴 **El canario de ADR-074 nace hoy y hay que contarlo bien.** `app.guiones_limpios` tiene **4
+>    filas y son las 4 de esta verificación**, hechas por quien construyó el botón. Igual que
+>    `videos_meta` y `grabados`: **el primer dato de adopción es la fila 5**. A dos semanas:
+>    `select count(*) from app.guiones_limpios where creado_por <> '<mani>'`.
+> 3. ✅ **La `033` quedó aplicada** el 21/08. Falta el paso 3 de su verificación: abrir Transcribir y ver que los badges *"✓ Grabado"* siguen ahí.
+> 4. 🩹 **ROADMAP §1 punto 7 todavía dice "Descargar CSV"** y desde ADR-071 son dos `.xlsx`. No se
+>    tocó: es de otro cierre y no había que arrastrarlo acá.
+> 5. ⬜ **Abrir el `.docx` en Word con los ojos.** `file` y `textutil` son dos señales de que el
+>    paquete es válido, pero ninguna es Word.
+>
+> ### 🧹 La `033`, y por qué el drop no es un drop a ciegas
+>
+> Dropea `app.transcripciones.grabado_en`. **Medido contra prod antes de escribir una línea:** 130
+> transcripciones, **1 sola** con `grabado_en`, y esa 1 **está** en `app.grabados` ⇒ **0 marcas viven
+> solo en la columna**. (La única que había es del canario del 18/08, o sea Mani probando el botón.)
+>
+> 🔒 **Y aun así el `alter table` es condicional.** El §1 rehace esa misma cuenta **en el momento de
+> correr** y solo borra si da cero; si aparece una huérfana **no borra y avisa**, con el insert de
+> rescate comentado al lado. *Medir el martes no autoriza a borrar el jueves* — la medición vale
+> para el día que se hizo, y quien aprieta Run es otro momento y a veces otra base.
+>
+> Va con gate humano al SQL Editor, como todas. Su verificación está al pie del archivo, y el paso 3
+> es el que importa: **abrir Transcribir y ver que los badges "✓ Grabado" siguen ahí** — la prueba de
+> que nadie leía la columna, medida donde se ve y no en el código.
+>
+> > ### ⚠️ Cosas que el próximo tiene que saber
+>
+> - **`Fila` de Transcribir sigue viva**, y a propósito: la dibujan las tarjetas de *fallidas* y
+>   *sueltas* de `page.tsx`, que son listas de "esto necesita tu atención" y no una tanda. Lo que se
+>   comparte con la tarjeta son sus dos mapas de estado, exportados desde ahí.
+> - **`Grabado` tiene un prop `compacto`** y solo acorta la etiqueta de sacar la marca: los botones
+>   son `whitespace-nowrap` y "Sacar la marca de grabado" se desborda de una tarjeta de grilla.
+> - **El panel del navegador puede quedar oculto** y ahí `computer` (clicks, screenshots) tira
+>   timeout. `tabs_select` lo trae al frente; mientras tanto, verificar por DOM con `javascript_tool`
+>   funciona igual y es más barato.
+>
+> ---
+>
+> ## 🧺 2026-08-21 (cierre 113) · COLECCIONES, LA TARJETA ÚNICA Y EL GUION LIMPIO (Claude, pedido de Mani)
+>
+> **En una línea:** entró el primitivo que faltaba —la **colección**— más la compra de metadata a
+> Apify y la **limpieza de guiones** (ADR-072, 073, 074; migraciones `030`, `031`, `032`, las tres
+> aplicadas y verificadas). Falta la tarjeta única en Transcribir/Históricos (2b, 2c) y la descarga
+> en `.docx` (Fase 5).
+>
+> **El plan completo vive en `~/.claude/plans/bueno-entonces-pues-como-cryptic-cupcake.md`** y sigue
+> siendo la fuente: acá va el estado, no el diseño.
+>
+> ### De dónde salió
+>
+> Pedido de Majo Duarte por WhatsApp el 21/08, con dos cosas adentro: **limpiar el guion** (urgente,
+> para su corrida del día) y **bajar un documento con los guiones que elige** (ella dijo "el
+> martes"). En la reunión del 20/08 se había acordado lo contrario —la adaptación a la voz seguía
+> siendo manual— así que esto **enmienda el norte** y por eso lleva ADR.
+>
+> ### 🔬 Lo medido, que es lo que ordenó todo
+>
+> El plan arrancó asumiendo que *"la metadata que falta ya está en el sistema, es un join"*. **Falso:**
+>
+> | Origen | Videos | Título real | Miniatura |
+> |---|---|---|---|
+> | Feed (`app.candidatos`) | 101 | 101 | **34** |
+> | Históricos · `guion_reel` | 55 | 55 | **0** |
+> | Históricos · `transcripcion_a_pedido` | 129 | **0** | 0 |
+> | Transcribir | 130 | **0** | 0 |
+> | Marcas cargadas a mano | 294 | **3** | 3 |
+>
+> 🩸 **El primer cruce dio 129/130 y era un falso positivo:** las transcripciones matcheaban
+> **consigo mismas**, porque `outputs` guarda **la url en el campo `titulo`** en esas 129 filas. De
+> ahí salió `esTituloDeVerdad()` en `domain/video.ts`. *Se contó el match y se concluyó sobre el
+> contenido* — hermana de la lección de ADR-070.
+>
+> Causas verificadas: Supadata devuelve solo `content`/`lang`/`availableLangs`; Instagram bloquea las
+> `og:` tags sin login; TikTok sí tiene oEmbed gratis pero es **2 videos de 424**. La única fuente que
+> sirve es `apify~instagram-scraper`, que ya está en el motor.
+>
+> ### 🔀 El plan se reordenó por esto (y hay que respetarlo)
+>
+> El orden original ponía las tarjetas (2b, 2c) **antes** del dato que las llena, y eso habría
+> shippeado dos pantallas **más vacías que hoy**. Orden nuevo, acordado con Mani:
+> **2a ✅ → Fase 3 ✅ → Fase 4 ✅ → 2b + 2c ⬜ → Fase 5 ⬜.**
+>
+> ### ✅ Lo que quedó hecho
+>
+> | Fase | Qué | Estado |
+> |---|---|---|
+> | 0 | `docs/prompts/limpieza-guion.md` — el prompt para que Majo limpiara a mano ese día | ✅ entregado |
+> | 1 | ADR-072 · migración `030` (`app.videos_meta`) · `domain/video.ts` · fuga de miniaturas tapada en el archivado | ✅ |
+> | 2a | `components/video/tarjeta.tsx` + `grupos.tsx` extraídos del Feed, sin cambio visible | ✅ |
+> | 3 | ADR-073 · `031` (`colecciones` + `colecciones_videos`) · `lib/apify.ts` · pantalla `curar/colecciones` | ✅ verificado en navegador |
+> | 4 | ADR-074 · `032` (`guiones_limpios` + `voces.perfil_limpieza`) · interruptor Crudo/Limpio | ✅ verificado en navegador |
+>
+> **Las tres migraciones están aplicadas y medidas por su efecto** (detalle en CLAUDE.md). Lo que más
+> importa de la `031`: el **FK compuesto rechaza con `23503`** un video cuyo `instance_id` es de otra
+> empresa, o sea que el aislamiento **ya no depende de que el código lo haga bien**.
+>
+> ### 🩸 Tres bugs que solo aparecieron corriéndolo
+>
+> 1. **`videoViewCount` de Apify vuelve `null`; las reproducciones están en `videoPlayCount`.** El
+>    nombre obvio es el vacío. Se midió con una llamada real antes de escribir el mapeo.
+> 2. **Enriquecer dentro de la acción de agregar era una carrera contra Vercel.** Una llamada al
+>    actor tarda **~45 s con dos links** (arrancar el actor domina, no los items) contra
+>    `maxDuration = 60`. Se movió a `<Identificador>`, el mismo componente en pasadas que vacía la
+>    cola de Transcribir.
+> 3. **El prompt de limpieza contaminaba el guion con su propio voseo.** Crudo: *"lo que **dices**"*.
+>    Limpio: *"lo que **decís**"*. Está escrito en voseo rioplatense porque así escribe el equipo, y
+>    el modelo copiaba el registro. Milena y Rochi son colombianas: empeoraba el guion **justo en el
+>    criterio número uno de Majo**. Arreglado y reverificado.
+>
+> ### ⬜ Lo que falta, en orden
+>
+> 1. **Fase 2b — Transcribir adopta la tarjeta.** Dentro de la tanda, el `<ul>` de `<Fila>`
+>    (`transcribir/tanda.tsx:198`) pasa a `<GrillaVideos>` + `<TarjetaVideo>`; las acciones
+>    (Reintentar · Abandonar · Grabado) entran por el slot `pie`; el guion sale del `<details>` al
+>    modal. **De paso:** matar el `Copiar` duplicado (`transcribir/copiar.tsx:6` es la versión vieja
+>    sin manejo de fallo del clipboard).
+> 2. **Fase 2c — Históricos agrupa por proyecto** con `agrupar()` de `domain/feed.ts:238`, que ya es
+>    genérica. Las huérfanas caen en `(sin proyecto)`, que va último a propósito.
+> 3. **Fase 5 — la descarga.** Majo pidió **Word o PDF**, no Excel. `domain/xlsx.ts` ya tiene escrito
+>    a mano el contenedor ZIP con CRC32, y **un `.docx` es el mismo ZIP con otro XML**: se extrae el
+>    escritor a `domain/zip.ts` y `domain/docx.ts` lo reusa. Cero dependencias, que es el criterio de
+>    ADR-071.
+> 4. **Enmendar ROADMAP §1.1** con la nota de ADR-074, igual que la enmienda del 2026-07-15.
+> 5. **`docs/agents/context.md`**: faltan **colección**, **guion limpio**, **perfil de limpieza**,
+>    **llave de video**, **tarjeta de video**.
+>
+> ### ⚠️ Cosas que el próximo tiene que saber
+>
+> - **`app.videos_meta` tiene 4 filas y las 4 son de la verificación**, no uso. Se dejaron para no
+>   pagarlas dos veces. **El primer dato de adopción es la fila 5** (la lección del canario de
+>   ADR-069: una marca puesta por quien construyó el botón no es evidencia de adopción).
+> - **`APIFY_TOKEN` está en los dos lados: `apps/dashboard/.env.local` y Vercel** (Mani, 21/08).
+>   Next no lee el `.env` de la raíz, y ese fue el primer motivo por el que el enriquecimiento
+>   devolvió cero en silencio. ⬜ **Sin verificar en producción todavía**: lo único medido es el
+>   local.
+> - **El slug del pipeline en la URL es `reels`**, no `short-form-content`.
+> - **Ningún guion es editable** en ninguna pantalla, y el limpio tampoco. Fuera de alcance a
+>   propósito.
+> - **La `033` (contract de ADR-070, dropear `transcripciones.grabado_en`) sigue pendiente** y se
+>   corrió de número dos veces: *el número se toma cuando el archivo existe*.
+>
+> ---
+>
+> ## 🔀 2026-08-20 (cierre 112) · UN PR "MERGEABLE" NO ES UN PR QUE COMPILA (Claude, pedido de Mani)
+>
+> **En una línea:** merge del [PR #4](https://github.com/Agencia-Dani/pipeline-creacion-contenido/pull/4)
+> (`d27d063`), el arreglo de Reintentar/Abandonar del cierre 110. Abierto el 18/08, sin tocar desde
+> entonces mientras el cierre 111 (ADR-070) le movía el piso a uno de los archivos que toca.
+>
+> ### 🩸 El hallazgo: GitHub decía "mergeable, clean" y el merge no compilaba
+>
+> El PR arregla que `Fila` no repintaba su badge de "grabado" cuando `tanda.tsx` recargaba filas
+> (la `key` es `t.id` y React no remonta), con la guardia *"gana el prop más nuevo"* mirando
+> `t.grabado_en`. Entre que se abrió y se auditó, ADR-070 (cierre 111) mudó esa marca a
+> `app.grabados` y **sacó `grabado_en` del tipo `Transcripcion` por completo**. El diff del PR
+> tocaba una línea que seguía existiendo, así que el merge de texto era limpio — pero
+> `t.grabado_en` ya no existe, y `tsc --noEmit` sobre el merge real daba 4 `TS2339`.
+>
+> 🔑 **La lección:** "mergeable" en GitHub es solo ausencia de conflicto de texto. Un campo que un
+> commit intermedio saca de un tipo no deja marca en el diff — hay que compilar el merge, no solo
+> mirar si aplica. Se verificó armando el merge en un worktree descartable (`git merge` + `tsc`)
+> antes de tocar nada del PR real.
+>
+> ### ✅ El arreglo, y por qué no cambia la decisión del PR
+>
+> La guardia pasa a mirar `grabadaInicial` (el prop que ADR-070 ya le agregó a `Fila` para el mismo
+> propósito) en vez de `t.grabado_en`. Mismo patrón —ajustar estado durante el render, más barato
+> que un efecto—, apuntado a la fuente que se movió. Nada del diseño original del PR cambió.
+>
+> **Verde sobre el merge real:** `typecheck` limpio · **484 tests** · `build` · `validate`
+> **2317 checks** · Vercel preview OK. Rama remota borrada, worktree local (`.claude/worktrees/
+> fix-reintentar-abandonar`) removido.
+>
+> 🩹 **Nota operativa:** `gh pr merge` intentó hacer checkout local de `main`, que ya estaba en uso
+> por el checkout principal del repo (`fatal: 'main' is already used by worktree`). Se mergeó por
+> la API (`gh api .../pulls/4/merge -X PUT`), que no toca ningún checkout local.
+
+> ## 📕 2026-08-20 (cierre 111) · LA MARCA DE GRABADO SE MUDA AL VIDEO, Y EL HISTÓRICO PASA DE ARCHIVO A TABLERO
+>
+> **En una línea:** `main` = **`ec92ad1`**. Sale **ADR-070** (`app.grabados`, migración `029`
+> aplicada) + **ADR-071** (el export es un `.xlsx` de verdad). Todo deployado. **n8n: cero cambios**
+> (`n8n:diff` limpio en los 5, verificado dos veces).
+>
+> ### 🩸 El pedido, y el hueco que destapó
+>
+> Alejo Carvajal pidió por audio poder **subir una lista de links ya grabados**, incluidos los que no
+> salieron de la herramienta. Midiendo contra prod apareció que ADR-069 —de dos días antes— no
+> llegaba:
+>
+> | | |
+> |---|---|
+> | Guiones en el histórico (`outputs` aprobados) | **183** |
+> | De Transcribir → tenían dónde marcarse | 128 |
+> | Del Feed/motor → **sin botón en ninguna pantalla** | **55** |
+> | Solapamiento entre carriles | **0** |
+>
+> Y un link traído de afuera **no tiene fila en ninguna tabla**, así que ninguna columna podía
+> representarlo. Ese caso solo ya obliga a una clave por video.
+>
+> ### 🔑 La medición que destrabó todo, y la forma del error
+>
+> ADR-069 §3 dijo *"outputs no tiene clave por video"* mirando la **columna** `external_id`, que está
+> sobrecargada (uuid del candidato en un carril, id del video en el otro). **Cierto de la columna,
+> falso de la fila**: `metadata.url_referente` está poblado **300/300** y `domain/enlace.ts` deriva
+> la clave de ahí en **300/300**, con la función que ADR-031 ya verificó (381/381 IG · 27/27 TT).
+>
+> 🩸 **Se midió la columna y se concluyó sobre la fila.** La segunda señal no compartía mecanismo con
+> la primera y daba lo contrario. *Una columna sobrecargada no prueba que la fila no sea
+> identificable.*
+>
+> ### ✅ Lo que quedó en producción
+>
+> - **`app.grabados`** (`029`, aplicada y verificada por efecto): clave `(instance_id, plataforma,
+>   external_id)`. **La presencia de la fila ES la marca**; desmarcar borra. Cubre los tres carriles.
+> - **`/curar/historicos` dejó de ser solo lectura**: toggle en los 183, filtros
+>   `Sin grabar · Grabados · Todos`, etiqueta de procedencia, filas **huérfanas** (links cargados a
+>   mano, sin guion, dibujadas distinto), y un cuadro de **Revisar / Marcar**.
+> - **Revisar no escribe ni cobra**, y esa es la razón de que exista: preguntar *"¿ya está?"* obligaba
+>   a usar el cuadro de Transcribir, que está a un clic de pagarle a Supadata. El cruce sale de lo que
+>   la pantalla ya tiene en memoria; solo la memoria del motor va al servidor.
+> - **Los dos export son `.xlsx`** (ADR-071), **18 columnas**: `GRABADO` (SÍ/NO) y `GRABADO EN` al
+>   final. Las 16 de siempre **no se movieron** (ADR-057). Números como números, fechas legibles.
+> - **Transcribir** sigue igual de cara al equipo pero escribe en el mismo lugar, así que su aviso
+>   mejoró solo: ahora avisa por videos grabados que vinieron del Feed o se cargaron a mano.
+>
+> ### 🔬 ADR-071 — el CSV murió, y el diagnóstico vale más que el arreglo
+>
+> Mani reportó *"una línea vacía entre cada fila"*. **El archivo no estaba roto**: de los 183 guiones,
+> **0 traen saltos de línea y 0 traen tabs**. La línea vacía es leer los bytes UTF-16LE como si fueran
+> de un byte — cada carácter queda `X\0` y ese `\0` **es** la línea en blanco.
+> 🔑 **El síntoma no dependía del archivo sino de quién lo abría**, y por eso no se arregla escapando
+> mejor. ADR-057 había escrito ese costo el día uno (*"si aparece un lector que no es Excel, es el
+> momento de discutir un `.xlsx` de verdad"*). *Un costo que se escribe cuando se acepta es el que
+> después se puede cobrar sin discutir de nuevo.*
+> `domain/xlsx.ts` no tiene dependencias: 5 XML en un ZIP store. Sus tests **leen el ZIP de verdad**
+> con `node:zlib`, porque acá el modo de falla es binario — un xlsx roto **no abre**, no se ve mal.
+>
+> ### 🩸 Tres bugs de forma encontrados apretando botones (ninguno lo cazaba un test)
+>
+> 1. **El botón de grabado escribía y no repintaba** (ya conocido del 18/08): el estado vive en `Fila`,
+>    el ancestro común de badge y botón. `router.refresh()` no toca estado de cliente.
+> 2. **El acuse de recibo de la carga masiva estaba 183 tarjetas más abajo** del botón. *Un acto sin
+>    acuse de recibo se lee igual que uno roto*, y acá volver a apretar **desmarca**.
+> 3. **El modal se buscaba en `visibles`**, así que *"Ver el guion"* no hacía nada si el filtro
+>    escondía esa fila. Se busca en el registro entero.
+>
+> ### ⏳ Lo que queda
+>
+> - ⬜ **La `030`**: dropear `app.transcripciones.grabado_en`, que ya **no la lee ni la escribe nadie**.
+>   Paso *contract* del expand/contract; va después de que ADR-070 lleve tiempo en prod.
+> - ⬜ **[verificaciones-humanas §4-quater](../verificaciones-humanas.md)** — Mani corrió las pruebas
+>   y de ahí salieron los 4 comentarios; **falta re-verificar sobre el build nuevo**, sobre todo el
+>   paso 6 (marcar en Históricos → Transcribir dice *"1 ya se grabó"*) y abrir los dos `.xlsx`.
+> - 🔴 **El canario sigue en CERO.** Las **6** marcas de `app.grabados` son todas de Mani probando.
+>   *Una marca puesta por quien construyó el botón no es evidencia de adopción.* A un mes:
+>   `select count(*) from app.grabados`, contando marcas **de otras personas**.
+> - ⏳ **El domingo 23/08 se borran solos 85 candidatos** sin calificar (los del 01, 02 y 03/08).
+>   🩸 **Este renglón decía 74 y estaba mal** (re-medido el 20/08 16:30, contra prod y contra el
+>   `workflow.json`): hay **100** `nuevo`, y el corte del barrido es la hora de la corrida menos
+>   20 días ⇒ **03/08 18:00**, que se lleva los 12 del 03/08 enteros. El 74 salió de cortar en el
+>   **día** y no en la **hora**. *El predicado del barrido es `creado_en < now-20d`, no "los de
+>   antes de tal fecha": el que cuenta candidatos por día cuenta de menos.*
+> - 🔴 **El cockpit de Retia sigue frío**: cero eventos humanos del equipo desde el 07/08.
+>   **La reunión de onboarding con Majo y Alejo era hoy 4:30pm** — es de hecho el **D3** del ROADMAP.
+>
+> ### 🧭 Nota de método para el próximo
+>
+> Todo lo que se afirmó acá se midió contra prod antes de escribirlo, y **dos afirmaciones del repo
+> cayeron en el camino**: el CLAUDE.md decía que la marca del 18/08 era *"primera señal de que el
+> equipo usa el botón"* (son los 4 eventos de Mani sobre la misma fila en 9 minutos), y el reporte de
+> IDIOMA vacío resultó ser el build anterior. **Medir la afirmación antes de creerla** siguió siendo
+> el loop que más rindió.
+
+> ## 🎬 2026-08-18 (cierre 110) · LA QUEJA MÁS RUIDOSA ERA FALSA, Y ADENTRO HABÍA UN HECHO VERDADERO QUE EL SISTEMA NO PODÍA SABER
+>
+> **En una línea:** Majo reportó que la herramienta *"saca repetidos y devuelve links rotos"*. Se
+> midió contra prod: **las dos afirmaciones son falsas sobre la herramienta**, pero adentro había un
+> hecho cierto que nadie podía ver — el equipo grababa videos y **el sistema no tenía dónde
+> anotarlo**. Sale ADR-069 + la `028` (aplicada) + el botón *Marcar como grabado*.
+>
+> ### 📏 Lo que se midió antes de escribir una línea de código
+>
+> | Afirmación | Medición | Veredicto |
+> |---|---|---|
+> | *"saca repetidos"* | `processed_items`: **977 filas / 977 `external_id` distintos**. Los 12 eventos `transcribir.pegar`: **`ya_estaban: 0` en los 12**. Los 50 links del doc de Mile: `primera_vez` = 07/08, todos | **falso** |
+> | *"los reels 30·31·33·39·41 no tienen link que sirva"* | Apify (el actor del propio motor): **30, 31, 33 y 39 borrados** (`not_found`), **41 VIVO** — es el duplicado del #11 | **4 de 5, y por borrado del autor** |
+> | *"la herramienta rompe los links"* | De los **64** links que la herramienta entregó en los dos docs, **1 caído**. Los otros 6 están en el carril pegado a mano | **falso** |
+>
+> ### 🔬 El método, que es lo que hay que llevarse
+>
+> La hipótesis fácil era el **formato de URL**: la herramienta emite siempre `/p/<shortcode>/`
+> (429/429 filas) y los rotos venían con `/reel/…?igsh=`. **Mani la falsificó bien:** *"si alguien
+> abre el link y lo re-copia, queda igual"*. Cierto, y por eso el formato es hipótesis y no prueba.
+> Lo que la cerró fueron **tres pruebas independientes que no dependen del formato**:
+>
+> 1. 🧬 **El guion.** Comparados los 45 transcripts del doc contra los **509 scripts guardados**
+>    (`candidatos.script` + `outputs.contenido_o_link` + `transcripciones.script`): los 14 del carril
+>    herramienta dan **0.99–1.00** contra el script **del mismo shortcode**; los 31 restantes dan
+>    **0.03–0.16**, ruido. Si la herramienta los hubiera producido, su guion estaría guardado.
+> 2. 👤 **El dueño.** **18 de esos 31** son de cuentas que **ni siquiera son referentes**
+>    (`swingtradinglab`, `andreacimi.trading`, `elliotrades`, `jdub_trades`…). El motor solo scrapea
+>    los 17 registrados.
+> 3. 🗃️ **`processed_items` está probadamente completa** — el hueco que Mani señalaba. Los **298**
+>    videos alguna vez entregados tienen su marca, **298/298**, en las 7 fechas de entrega. Cero
+>    huecos, así que la ausencia de esos 31 no es un fallo de registro.
+>
+> **Generalizable: cuando la partición "obvia" acierta 45/45, buscá una segunda señal que no comparta
+> su mecanismo.** El formato y la membresía en la base coincidían perfecto, y aun así el formato solo
+> no probaba nada.
+>
+> ### 🩸 El hecho verdadero que estaba adentro de la queja falsa
+>
+> `outputs.estado` admite `'publicado'` desde la `001` y tiene **0 filas**. `candidatos.estado` llega
+> hasta `aprobado`. **El ciclo se corta en la calificación:** un guion sale hacia un Google Doc, se
+> graba, y nada vuelve. `revisarPegote` no tenía un bug — contestó bien; **le faltaba un hecho que
+> nadie le contó nunca.**
+>
+> ### 🔑 Tres decisiones de ADR-069, y las tres las cambió medir
+>
+> - **Columna y no valor de `estado`.** Ahí `estado` es el ciclo del *trabajo de transcribir*; grabar
+>   es ortogonal (un `listo` puede estar grabado o no). Pisarlo perdería el resultado ya pagado y
+>   haría mentir a `reclamarPendientes`, `reencolar` y `abandonar`.
+> - **Solo en `app.transcripciones`, NO en `candidatos`.** Empezó queriendo las dos por simetría y
+>   medir lo tumbó: **el motor no puede proponer dos veces el mismo video** (298/298), así que esa
+>   columna nacía **sin escritor** — justo lo que la `023` acaba de podar. El pegote es el único
+>   carril donde un humano re-introduce un video.
+> - **No se reusó `outputs.estado = 'publicado'`**, que era la opción de cero columnas. Se cae
+>   midiendo: **`outputs.external_id` significa dos cosas distintas según el carril** (uuid del
+>   candidato en 93, record id de Airtable en 79, id del video en 128) ⇒ no hay clave por video. Y
+>   `leerAprobados` filtra `aprobado`: mover la fila **la borraría del histórico que lee Dani**.
+>
+> ### ✅ Estado
+>
+> **La `028` está APLICADA y verificada por su efecto** (Mani, 18/08): 129 filas / **0 grabadas**;
+> `estado` intacto (**128 `listo` + 1 `abandonado`**, idéntico a antes); y un PATCH con la forma
+> exacta del toggle e id falso da **`200 []`** donde antes daba `PGRST204` — **sin escribir ninguna
+> fila**. El código está deployado.
+>
+> 🔢 **Se llevó puesto un número reservado:** la `028` estaba apalabrada para la Fase 4 de LinkedIn.
+> Las menciones ya se corrigieron en `plan-motor-linkedin.md`, `workflow.yaml` y ADR-068, con la
+> regla que evita la próxima: **el número se toma cuando el archivo existe, no cuando un doc lo
+> reserva.**
+>
+> ⬜ **Falta el ojo humano:** [verificaciones-humanas §4-ter](../verificaciones-humanas.md). Los pasos
+> 1 y 2 solo confirman que el botón guarda; **el 3 es toda la prueba** — pegar el link de una fila ya
+> marcada tiene que decir *"1 ya se grabó"* y **no** *"1 ya lo pediste antes"*, que es lo que decía
+> hasta hoy. Eso confirma la precedencia sobre `enCola`, que es donde estaba el riesgo.
+>
+> 🔴 **Y la mitad que ningún test cierra: es el primer botón de Transcribir que NO es automático.**
+> Si el equipo no marca, el aviso no aparece nunca y la columna es peso muerto. **Canario a un mes:**
+> `select count(*) from app.transcripciones where grabado_en is not null`. Si da 0, la decisión
+> estaba equivocada y lo que falta es otra cosa.
+>
+> ### 🚨 Hallazgo lateral que NO es de esta tarea y urge más
+>
+> **El cockpit de Retia está frío hace 11 días.** Cero eventos humanos desde el **07/08 23:40**, y
+> **101 de 101 candidatos sin calificar** (el más viejo del 01/08). El motor sigue corriendo solo (4
+> el 10/08, 5 el 17/08) y el aviso de la corrida del 17/08 —*"posible caida de Supadata: 76% de
+> transcripciones vacias esta corrida"*— **no lo vio nadie**.
+> ⏳ **Con fecha:** el nodo `Barrer candidatos sin calificar` del archivado borra los `nuevo` de más
+> de 20 días, y el archivado corre los domingos **18:00** (`0 18 * * 0`; este renglón dijo 23:00) ⇒ **en la corrida del ~23/08 se borran solos
+> unos 86 candidatos** (los del 01, 02 y 03 de agosto) sin que nadie los haya mirado. Calificar antes,
+> o pausar ese nodo.
+> **Esto importa para el onboarding:** mandarle un botón nuevo a un equipo que no abre la herramienta
+> hace 11 días probablemente no mueva nada. Primero la conversación de por qué dejaron de entrar.
+>
+> ### 🖥️ Y después de deployar aparecieron DOS bugs más, los dos de pantalla, los dos encontrados apretando el botón
+>
+> Ninguno de los dos lo habría cazado un test: el dominio estaba verde en las tres versiones.
+>
+> **1. El botón escribía bien y no repintaba** (`2cc59c6`). Mani apretó *Marcar como grabado* en prod
+> y no pasó nada visible. **La marca SÍ entraba** (`grabado_en` escrito en `DYn0DWFx6VK`, verificado
+> por query). Las filas de una tanda abierta viven en el `useState` de `tanda.tsx` —bajan una vez por
+> `cargarTanda`, y `abrir()` tiene un `if (filas) return`— así que **`router.refresh()` no puede
+> repintarlas**: solo re-renderiza server components. El patrón correcto estaba **40 líneas más
+> arriba en ese mismo archivo** (el `titulo` optimista, con el mismo comentario) y no se aplicó.
+> Arreglado subiendo el estado a `Fila`, que es el ancestro común del badge y del botón.
+> 🩸 **Un botón que escribe bien y no repinta se lee igual que un botón roto**, y el operador vuelve
+> a apretarlo — que acá significa **desmarcar sin saberlo**.
+>
+> **2. El cue existía en el DOM y no existía para el ojo** (`4c979fa`). Con el estado ya andando,
+> Mani volvió a reportar *"no hay manera de saber si se marcó"*, **y tenía razón**: el badge se había
+> puesto en `variant="secondary"`… que es **exactamente el que usa `listo`** (`BADGE_POR_ESTADO`, 20
+> líneas más arriba). Quedaban **dos pastillas grises idénticas pegadas**. Y el botón pasaba de
+> `outline` a `secondary`, imperceptible en un `sm`. El error de fondo: el botón intentaba ser **la
+> acción y el indicador a la vez**. Separados — badge `default` con `✓ Grabado` (el estado, fuerte) y
+> botón `ghost` diciendo *"Sacar la marca de grabado"* (la acción, callada).
+> 🩸 **Un indicador nuevo se elige contra los que YA están en esa línea, no en abstracto.**
+>
+> ⚠️ **`Reintentar` y `Abandonar` tienen el bug 1 y SIGUE VIVO.** Los dos hacen `router.refresh()`.
+> No se nota porque esos botones también salen en la **tarjeta de fallidas**, que sí es
+> server-rendered; **dentro de una tanda abierta no acusan recibo**. Señalado, no arreglado: es otra
+> semántica (cambian `estado`, que además hace desaparecer los botones) y la decisión de tocarlo
+> quedó para Mani.
+>
+> **Verde:** `typecheck` · **292 tests** (+4) · `build` · `validate` **2290 checks** · **0 workflows
+> de n8n tocados** (nada de `n8n:push` ni re-import).
+> **3 commits pusheados:** `8d46295` (ADR-069 + `028` + la pantalla) · `2cc59c6` (el repintado) ·
+> `4c979fa` (el cue). ✅ **Verificado con los ojos por Mani en producción.**
+> **Qué sigue:** **D3** sigue siendo el único item sin marcar del ROADMAP §3, y ahora arrastra el
+> problema de uso de arriba. **Skills sugeridas:** `/diagnose` si vuelve a llegar un *"la herramienta
+> hace X"* — el loop de esta sesión (medir la afirmación antes de creerla, buscar una segunda señal
+> que no comparta mecanismo con la primera) es exactamente el suyo.
+
+> ## 🔀 2026-08-12 (cierre 109) · EL SELECTOR DE PIPELINE NO HABÍA QUE CONSTRUIRLO, Y PRENDER `retia/linkedin` FUE EL PRIMER TEST REAL DE ADR-068
+>
+> **En una línea:** `retia/linkedin` pasó de `draft` a **`active`** (1 fila, cero código). Con eso el
+> **selector de pipeline de ADR-056 se dibuja por primera vez en producción**, y la fachada quedó
+> medida contra la única instancia donde la afirmación de ADR-068 se podía probar.
+>
+> ### 🩸 El pedido era "creemos el selector de pipeline", y no había nada que crear
+>
+> Alejandro no lo encontraba en el cockpit. **Está construido, cableado y correcto** desde ADR-056:
+> `SelectorPipeline` (`components/selector-cockpit.tsx`), montado en `(zonas)/layout.tsx` bajo
+> `pipelinesDelEquipo > 1`. No se dibujaba por una **condición de datos**: `leerInstancias()` filtra
+> `.eq("estado","active")` y **ninguna empresa tenía más de un cockpit activo** — `30x` y `estadox`
+> uno cada una (linkedin), `retia` uno (reels) más linkedin en `draft`.
+>
+> *La forma del error vale más que el caso: "no veo el control" se lee como código faltante, y era
+> una fila de la base. Un control condicionado por datos es invisible de la misma manera que uno que
+> no existe.*
+>
+> ### ✅ El test de ADR-068, que hasta hoy no se podía hacer
+>
+> `30x/linkedin` y `estadox/linkedin` tienen **0 de todo**, así que su plan vacío **no distingue
+> "derivó bien el pipeline" de "no hay datos"**. `retia` es la única instancia con datos de reels
+> detrás. Medido contra prod, mismo momento:
+>
+> | | `retia/linkedin` | `retia/reels` |
+> |---|---|---|
+> | `pipeline` | **`linkedin`** | `short-form-content` |
+> | claves del plan | `voces`, `referentes` | + `proyectos`, `ajustes` |
+> | `ambito=motor` | **0 voces · 0 referentes** | 1 · 2 · 17 · 18 (**intacto**) |
+> | `ambito=completo` | **3 voces**, las 3 `configurada: false` | — |
+>
+> 🔑 **La fila de `completo` es la que cierra el argumento:** la fachada **sí encuentra** las 3 voces
+> de la empresa, así que el 0 de `motor` es **el filtro de ADR-067 corriendo** —manda la existencia
+> del perfil, jamás `voces.activo`— y no una consulta vacía. Misma empresa, dos instancias, dos
+> planes distintos: el pipeline sale de `instances.workflow_id` y no de quien pregunta.
+>
+> 🔴 **Y falsifica una predicción que estaba escrita en el cierre 107 de este mismo handoff**
+> (*"200 con 3 voces, 6 proyectos y 17 referentes de REELS"*). Esa celda describía el problema
+> **antes** de que ADR-068 lo arreglara y nadie la tocó al arreglarlo; ya quedó corregida abajo.
+> *Una predicción escrita antes del fix no es un pronóstico, es un residuo — y se lee igual que un
+> hecho.*
+>
+> ### 📏 Lo que se verificó ANTES de tocar, y por qué no rompe nada
+>
+> - **Ningún cron lo agarra:** el `Config` del dispatcher tiene `pipeline: "short-form-content"`
+>   **hardcodeado** y los **dos** crons pasan por ese nodo ⇒ una instancia con
+>   `workflow_id = linkedin` no puede salir de `/api/engine/instancias?workflow=…`.
+> - **No hay botón ▶** (ADR-066 le sacó `operar`, con guarda por pipeline además de por zona).
+> - **RLS cubierto** desde la `024`, grano instancia.
+> - El costo **no es rotura, es timing**: los 9 usuarios de Retia ven un control nuevo y un pipeline
+>   casi vacío antes de D3. Alejandro lo decidió sabiéndolo.
+>
+> **Rollback**: `update instances set estado='draft' where client_id='retia' and slug='linkedin';`
+>
+> ### 🧭 Dos correcciones a afirmaciones mías de la misma sesión
+>
+> 1. 🔴 **`es_dueno` NO necesita membresía.** `puedeVerCliente` es `esDueno || membresías.some(…)` y
+>    `ROL_DE_DUENO = "dev"`. Dije que la cuenta de dueño sólo alcanzaba `retia`: **alcanza las tres
+>    empresas, como `dev`**. O sea que `/30x/linkedin` ya era accesible sin este cambio y sin la
+>    segunda cuenta.
+> 2. Dicté un paso —*"selector de pipeline → LinkedIn"*— **que no podía ocurrir**. Ese control no se
+>    montaba para nadie.
+>
+> ### ✅ Y de rebote se cerró la verificación #4 — la única 🔴 que bloqueaba dar de alta a Retia
+>
+> Alejandro pidió darle a `Alejandro 30X` (su segunda cuenta, `es_dueno: false`, ya operador de `30x`
+> y `estadox`) una membresía **`operador` en `retia`**. Eso creó, sin querer, exactamente lo que la
+> verificación #4 llevaba días esperando de Mani: **un `operador` real con acceso a Retia**.
+> Verificado en `/retia/reels/entender`: la tarjeta *"Costos de la semana"* **no aparece** con el
+> operador y **sí** con el dev. *La prueba que falta a veces no espera trabajo: espera un dato.*
+>
+> 🩸 **Salió mal en el primer intento, por dos cosas que este repo ya tenía escritas:**
+>
+> 1. **Las dos pestañas eran la misma sesión** —una cookie por dominio **y por perfil de navegador**,
+>    así que el segundo login borró el primero—, y los dos veían costos. Era el resultado correcto de
+>    una prueba mal montada. Es literalmente la trampa que `verificaciones-humanas.md` §4-bis
+>    documenta y que ya había trabado esta misma prueba antes.
+> 2. 🔧 **La bajada de `entender` decía *"y costos de la semana"* SIN gate**, mientras la tarjeta sí
+>    lo tenía. No era fuga —`leerCostos` ni se llama— pero hacía que *"¿ves costos?"* tuviera dos
+>    respuestas según si mirabas la frase o la tabla. **Arreglado**: la frase se corta con el mismo
+>    `puedeVerCostos`. *Una prueba de fuga que se puede contestar mal por una frase decorativa es una
+>    prueba rota.*
+>
+> 🔑 **Y el método que evitó un falso positivo caro:** con las dos capas —el gate de la UI y
+> `app.ve_costos()` en la base— afirmando que un operador no puede, la hipótesis correcta no era
+> *"encontramos una fuga"* sino *"la prueba está mal montada"*. Se pidió la evidencia que las separa
+> (¿la tabla o la frase?, ¿qué nombre dice cada pestaña?) **antes** de tocar una línea.
+>
+> ### ⬜ Lo que sigue
+>
+> 1️⃣ **Cargar la voz** (Fase 0.3) en `/retia/linkedin/curar/voces`. **Medido: sigue sin hacerse** —
+>    las 4 tablas de LinkedIn están en 0 filas. Retia ya tiene 3 voces ⇒ es
+>    **"Configurar"**, no "Nueva voz". Gate: `run-plan` de `retia/linkedin` devuelve **`voces: 1`**.
+>    *Configurar una voz existente escribe **sólo** `app.voces_linkedin` y jamás `voces.activo`
+>    (`lib/voces-linkedin.ts`), así que no hay forma de tocar reels desde ahí.*
+> 2️⃣ **Aplicar la topología a n8n** — el ritual manual de ADR-053, sigue pendiente.
+> 3️⃣ 🔬 **Y ahora sí se puede hacer la prueba de plan-multi-tenant §14.6**: las policies de LinkedIn
+>    **con filas**. Estaba trabada porque las 4 tablas estaban vacías; la primera fila de
+>    `app.voces_linkedin` la destraba.
+
+> ## 🦴 2026-08-11 (cierre 108) · LA ESPINA DEL CARRIL PERSONAL EXISTE EN EL REPO, `calidad` ESTÁ ENTERA, Y EL DUEÑO DE LOS FEW-SHOT NO ERA FERNANDO
+>
+> **En una línea:** `main` = **`ec7aace`** (+ `a93555b`). `Workflows/workflow-linkedin/workflow.json`
+> pasó de **11 a 16 nodos** con las **fases 1.1 y 1.2** de
+> [plan-motor-linkedin.md](./plan-motor-linkedin.md). ⛔ **En n8n vive todavía el esqueleto de 11**:
+> los 5 nuevos son topología y no se aplicaron. **Nada de esto tocó producción** — ni deploy, ni
+> migración, ni un solo escritura contra la base.
+>
+> ```
+> Leer plan → Verificar plan (ADR-068) → Colectar (stub personal) → Calidad (R-1 + R-2) ─┬─→ Preparar candidatos → POST Candidatos
+>                                                                                        └─→ Resumen del run → Cerrar run
+> ```
+>
+> ### 🎯 Por qué esto y no `calidad` sola
+>
+> `calidad` era el único item del plan que no dependía de ningún insumo humano, pero **no se puede
+> cablear sola**: un nodo que no cuelga de nadie es *inalcanzable* y `auditar-workflows.mjs` lo marca.
+> La unidad mínima que compila es la espina — 1.1 (`colectar` de mentira + `entregar`) **más** 1.2.
+>
+> ### 🔴 La decisión que hace que el run cierre siempre, y casi se me pasa
+>
+> `Preparar candidatos` devuelve `[]` cuando no hay nada que escribir, y en n8n **un `[]` corta la
+> rama entera**. Puesto en serie —que es lo intuitivo—, el cierre del run queda detrás de ese corte
+> ⇒ **toda corrida sin piezas deja la fila `en_curso`** hasta el barrido de la siguiente. Y hoy, con
+> **0 voces con perfil en las tres marcas, esas son TODAS las corridas**: un zombie por disparo,
+> silencioso. Por eso `Resumen del run` cuelga de `Calidad` en la **rama hermana**, y la de entrega
+> corre primero por tener **Y menor en el canvas** (320 < 480) — reordenar `connections` no haría
+> nada. *La contracara está escrita en el nodo: desde el resumen NO se ve si el POST entró, porque no
+> se puede referenciar un nodo de la rama hermana. No hace falta — `POST Candidatos` es fail-closed y
+> el error handler global marca el run `fallo` por `params.execution_id` (ADR-054).*
+>
+> ### 🩸 El stub emite DOS piezas, y una está rota a propósito
+>
+> `Colectar (stub personal)` no lee ninguna fila: emite piezas **fijas** (con `external_id` fijo, así
+> que correrlo dos veces deja **una** fila). La segunda **viola R-1** — un gancho de una sola línea —
+> y tiene que quedar afuera. **Es la única forma de que una corrida real pruebe que `Calidad` está
+> CABLEADA y no solamente presente**, que es la lección que este repo ya pagó dos veces (el guard de
+> ADR-029 que nunca entró en vigor, la captura de setteo que era código muerto). Si alguna vez aparece
+> en el Feed, el bug es de cableado y se ve a simple vista. `Resumen del run` además **avisa** si el
+> stub entró entero.
+>
+> ### 🔑 Las dos reglas de ADR-055 §4 no se tratan igual, y lo decide quién es dueño del texto
+>
+> | | Qué hace | Por qué |
+> |---|---|---|
+> | **R-1** (gancho de 2–3 líneas sin `\n\n`) | **rechaza** | el gancho es contenido; código no puede inventar uno |
+> | **R-2** (firma al cierre) | **repara**: se la agrega | la firma es texto de **la casa**, guardado por voz (`020` §3). Ponerla no es escribir |
+>
+> Tres bordes que no se leen de la regla y tienen test: **el gancho es el primer bloque** (hasta la
+> primera línea en blanco) y lo que se mide es cuántas líneas quedaron de ese lado; **si la firma
+> aparece en el medio se rechaza** (agregarla la duplica, moverla es reescribir), y reparar es
+> idempotente; y **un rechazo de calidad NO va a `app.descartes_linkedin`** —esa tabla es para
+> near-miss del *gate* (ADR-036)— sino a `runs.metricas`: es una falla de generación, no un falso
+> negativo de curación.
+>
+> **Los 5 code nodes, y qué hace cada uno** (`node Workflows/workflow-linkedin/test-nodos.mjs` los
+> ejercita a los 5 fuera de n8n, con `$` y `$input` mockeados):
+>
+> | Nodo | Qué hace | Nota |
+> |---|---|---|
+> | `Verificar plan (ADR-068)` | afirma `pipeline === 'linkedin'` y cuenta insumos | **es el `Resumen del run` viejo, renombrado**. El nombre mentía en cuanto dejó de ser el último nodo. Va primero para verificar **antes** de que nada gaste |
+> | `Colectar (stub personal)` | emite 2 piezas **fijas**, `external_id` fijo | correrlo dos veces deja **una** fila (unique + `ignore-duplicates`). **No inventa la firma**: sale de `voces[].fields.firma` |
+> | `Calidad (R-1 + R-2)` | valida y repara | lo único con reglas de negocio |
+> | `Preparar candidatos` | filas planas para PostgREST | devuelve `[]` si no hay nada — ver arriba por qué eso es seguro |
+> | `Resumen del run` | el embudo a `runs.metricas` | **nuevo**, al final de la rama hermana |
+>
+> ⚠️ **Límite conocido de R-1, escrito en el nodo:** cuenta **saltos de línea, no líneas visuales**.
+> Una línea larga que envuelve en el teléfono cuenta como una. No hay forma de saber el ancho del
+> viewport desde un code node, y la regla de la entrevista habla de `\n\n`, que sí se puede medir.
+>
+> ### 🧪 Verde, y las guardas se verificaron PONIÉNDOLAS ROJAS
+>
+> **51 checks** en `Workflows/workflow-linkedin/test-nodos.mjs` (nuevo) · `auditar-workflows`
+> **6 de 7, sin hallazgos** · `validate` **2272 checks / 7 workflows** · `n8n:diff` **5 de 6 verdes**
+> y linkedin en `[topologia]`, que es lo correcto.
+>
+> Tres controles negativos, cada uno rompiendo una guarda a mano: R-1 aceptando un gancho de 1 línea
+> → **8 fallos**; `Colectar` devolviendo `[]` → **2**; R-2 sin la rama de firma-en-el-medio → **2**.
+>
+> 🩸 **Y el primer control encontró un defecto EN EL TEST, no en el código: la suite reventaba con un
+> `TypeError` en vez de reportar**, y se llevaba puesto todo lo que venía después — o sea que **romper
+> una guarda escondía el resto de las guardas**. Se arregló haciendo que el helper devuelva `{}` y
+> nunca `null`. *Un test que no sobrevive a la implementación rota no es una red: es una linterna que
+> se apaga justo cuando hay que mirar.*
+>
+> ### 🔴 La corrección de Alejandro, que cambia de quién es un pendiente
+>
+> Este handoff, el plan, el manifest y el README venían diciendo *"pedirle a **Fernando** 3–4 posts
+> que sienta perfectos"*, tratándolo como el dueño del criterio. **No lo es: Fernando dio la idea general de cómo
+> funciona la máquina, no el molde que hay que copiar.** Los few-shot anclan la voz de **una cuenta**,
+> así que el pedido es de quien manda esa cuenta — y para el carril personal el material *ya está en
+> la casa*. **`generar` sigue bloqueada por los few-shot; lo que dejó de ser cierto es que haya que
+> esperar a una sola persona para tenerlos.** Corregido en `plan-motor-linkedin.md` §0.4, en el
+> manifest (`stages.generar`) y en el README del workflow — los tres decían lo mismo mal, que es la
+> forma en que un supuesto se endurece: **se copia, no se re-verifica**. ADR-055 no hace falta
+> tocarla: nunca le atribuyó el criterio, sólo el *"no tengo el listado"*, que sigue siendo suyo y
+> sigue siendo cierto.
+>
+> ### ⬜ Lo que sigue
+>
+> 1️⃣ **Aplicar la topología a n8n.** Es el ritual manual de ADR-053 y **no** va por `n8n:push` (el
+>    push la detecta y se niega). Nadie vio todavía una pieza en el Feed: **ese sigue siendo el gate
+>    real de la Fase 1**, y necesita además **0.3** (una voz con perfil) — sin ella el stub emite 0
+>    piezas a propósito. ⚠️ Distinto del cron en el dispatcher, que sí es tocar un workflow **activo**.
+> 2️⃣ **Fase 0** (Alejandro), sin cambios salvo el dueño de la 0.4.
+> 3️⃣ **1.3 `generar`** — lo único que falta para que la espina sea un motor del carril personal.
+> 4️⃣ **1.4 `colectar` personal**, con su pregunta de diseño abierta (el archivo propio es audio y
+>    `enriquecer` es `n/a`: ¿pega texto una persona, se guarda URL, o se reabre `enriquecer`?).
+
+> ## 🔌 2026-08-09 (cierre 107) · LA FACHADA SABE QUE LINKEDIN EXISTE, EL ESQUELETO DEL MOTOR ESTÁ EN n8n, Y EL 400 QUE LO TAPABA NO PROTEGÍA NADA
+>
+> **Leelo antes de tocar LinkedIn.** El cierre 106 dejó 8 huecos de tooling medidos entre el cockpit
+> y su motor en n8n. Esta sesión cerró los 6 que no dependen de que el workflow exista, creó el
+> **esqueleto del workflow por API** y dejó el plan de las fases que faltan. El primer hueco resultó
+> más grande de lo que decía el renglón.
+>
+> **En una línea:** `main` = `ca587d7`, deployado y verificado en prod. **ADR-068** + el esqueleto de
+> 11 nodos **inactivo** en n8n + [plan-motor-linkedin.md](./plan-motor-linkedin.md). El motor **sigue
+> sin tener una sola etapa de contenido**, y eso es lo correcto: lo que falta no es plomería.
+>
+> 🧭 **Las tres correcciones que se hicieron a afirmaciones propias, porque el patrón importa más que
+> cada una:** (1) *"se abre la ventana por lo que tarde Vercel"* sonaba a fuga viva y **no lo es** —
+> se midió quién puede pedir ese plan y no hay caller automático; (2) la ADR decía *"la primera pieza
+> de motor que existe de verdad"* y **no es una pieza del motor**, es la fachada que el motor va a
+> leer; (3) el handoff listaba *"los 3 bloqueos no técnicos"* como un bloque y **los dos carriles no
+> los comparten**. Las tres salieron de que Alejandro preguntó, no de un review.
+>
+> ### 🩸 El 400 era el síntoma barato; abajo había un 200
+>
+> El handoff decía: *"`?ambito=linkedin` da 400 hoy, es lo primero que se va a chocar"*. Cierto, y
+> **arreglarlo de la forma obvia —agregar `linkedin` a la lista de ámbitos— habría empeorado la
+> cosa**, porque el otro renglón (*"`leerRunPlanCrudo` no tiene rama por pipeline"*) es el que muerde:
+> el plan se llena siempre desde las tablas de reels.
+>
+> 🔴 **Y el 400 no protege de nada aunque lo parezca: SACAR el parámetro devuelve 200.** Un nodo
+> copiado de reels no manda `ambito`, así que cae en el default `motor` y recibe el plan de reels.
+>
+> 📏 **Medido contra prod, sin escribir nada:**
+>
+> | | Hoy | Cuando se prenda `retia/linkedin` |
+> |---|---|---|
+> | `30x/linkedin` · `estadox/linkedin` | **200 con el plan de reels VACÍO** (las dos empresas tienen 0 voces / 0 proyectos / 0 referentes) | igual |
+> | `retia/linkedin` | **403** — está en `draft`, y `leerInstancias()` solo trae las `active` | ~~**200 con 3 voces, 6 proyectos y 17 referentes de REELS**~~ 🔴 **FALSO, medido el 2026-08-11** — ver cierre 109. Da **200 con el plan de LINKEDIN**: 0 voces, 0 referentes y sin `proyectos` ni `ajustes`. Esta celda describe el problema **antes** de que ADR-068 lo arreglara, y no se actualizó al arreglarlo |
+>
+> **El vacío de hoy es el peor de los dos**: una corrida que termina en verde sin entregar nada se
+> lee como *"todavía no cargamos referentes"*. Y lo que le pone datos adentro es **el paso 2 de la
+> lista de abajo**, o sea lo próximo que se iba a hacer.
+>
+> ### 📏 Pero la ventana es LATENTE, no está viva — y esto también se midió
+>
+> **La respuesta equivocada existe; hoy nadie la pide.** Vale la pena tenerlo claro para no tratar
+> esto como una fuga en producción, que no lo es:
+>
+> - Los **3 workflows que consumen `run-plan`** (motor, descubrimiento, archivado) **no inventan el
+>   uuid**: se lo pasa el dispatcher en el payload del webhook.
+> - El **dispatcher tiene exactamente 2 crons** (motor lunes 8:00, archivado domingo 18:00) y
+>   pregunta `instancias?workflow=<su propio pipeline>`, que filtra por `workflow_id` ⇒ **un uuid de
+>   LinkedIn no sale nunca de ahí**.
+> - **No existe workflow de LinkedIn en n8n ni cron suyo**, y el botón ▶ lo cerró ADR-066 dos veces
+>   (sacar la zona + la guarda por pipeline de `operar/actions.ts`).
+>
+> ⇒ Para cobrarse algo, alguien tiene que llamar a la fachada **a mano** con ese uuid y el header
+> compartido. **No hay camino automático.**
+>
+> ⚠️ **El orden igual se respeta, y la razón es la asimetría, no el riesgo: este deploy va ANTES de
+> prender `retia/linkedin`.** Invertirlo no abre una fuga alcanzable, **deja el arma cargada para el
+> primero que sondee la fachada** — que es literalmente el primer movimiento de quien se siente a
+> construir el motor (el `curl` para ver qué contesta), con la diferencia de que la respuesta sería
+> una **mentira plausible**: 17 referentes de Instagram en un plan de LinkedIn. Y respetar el orden
+> cuesta **cero**: es un `UPDATE` después de un deploy en vez de antes.
+>
+> ### ✅ Lo que entró — [ADR-068](../adr/ADR-068-el-pipeline-lo-dice-la-instancia-no-el-que-pregunta.md)
+>
+> **Son dos ejes y se separaron: QUÉ pipeline lo deriva la fachada de `instances.workflow_id` (nunca
+> se pide), CUÁN filtrado (`?ambito=motor|completo`) lo sigue pidiendo quien llama.** Dejar que el
+> llamante declare su pipeline habilita que contradiga a la base sobre algo que la base sabe, y ese
+> desacuerdo devuelve **200**.
+>
+> | Hueco del cierre 106 | Estado |
+> |---|---|
+> | `run-plan?ambito=linkedin` daba 400 | ✅ el pipeline sale de la instancia; un pipeline sin plan da **400 fail-closed** con su nombre en la respuesta |
+> | `leerRunPlanCrudo` sin rama por pipeline | ✅ `leerRunPlanCrudoLinkedin` + `armarRunPlanLinkedin` |
+> | `validate.mjs` no exigía `workflow.json` | ✅ lo exige si el manifest se declara `active`/`paused` con `engine: n8n`. `draft` (LinkedIn) e `inactive` (Substack) siguen legítimos — **la guarda se verificó poniéndola roja** |
+> | `n8n-sync.mjs` con la lista de 5 hardcodeada | ✅ los 5 apodos se escriben (`motor` no se deriva de `workflow-short-form-content`), el resto **se descubre** de los dirs con `workflow.json`. Verificado: con un `workflow.json` de prueba, `linkedin` aparece solo |
+> | `auditar-workflows.mjs` salteaba en silencio | ✅ dice **"auditados 5 de 7"** y nombra los saltados. *"✓ Sin hallazgos"* habiendo mirado 5 de 7 afirma más de lo que midió |
+> | `clients/<cliente>/linkedin.yaml` declarado y sin existir | ✅ el manifest decía la verdad al revés: **ese archivo no va a existir** (desde ADR-035 la config sale de la fachada). Queda `n/a`, como el dispatcher y errores |
+> | cron en el dispatcher | ⬜ **no se puede**: necesita el workflow en n8n |
+>
+> ⚠️ **`short-form-content`, `descubrimiento-referentes` y `archivado` declaran un `client_config` que
+> tampoco existe.** Misma herencia pre-fachada, sin consecuencia (nadie los lee) y **no se tocaron**.
+>
+> ### 🔑 Tres cosas del plan de LinkedIn que no son obvias
+>
+> 1. 🔴 **Filtra las voces por LA EXISTENCIA DEL PERFIL, jamás por `voces.activo`** (ADR-067). Ese
+>    flag significa de facto *"corre en reels"* y la pantalla de LinkedIn crea las voces con
+>    `activo: false` **a propósito** ⇒ filtrar por él le daría al motor **cero voces en las 3 marcas**,
+>    en verde. Que `VozConPerfil` ni siquiera tenga un campo `activo` es la mitad estructural de la
+>    garantía: el filtro equivocado **no compila**. El test cubre la otra mitad.
+> 2. **No trae `proyectos` ni `ajustes`, y la segunda ausencia es la decisión.** `app.ajustes` es de
+>    grano instancia y LinkedIn no tiene una sola fila; `ajustes: []` sería la lista siempre vacía que
+>    se lee como *"todavía no lo configuraron"* (la familia de la `015`). Llega con la Fase 4 y su `028`.
+> 3. **Todo plan trae ahora `pipeline`** (aditivo ⇒ `version` sigue en **2**, reels no se entera). Es
+>    lo único que el motor puede **afirmar** contra un fallo cuyo síntoma es un documento bien formado.
+>    ⚠️ **Y es la única prueba observable de que esto hizo algo** hasta que haya filas: las listas
+>    siguen vacías, lo que cambia es que `pipeline` dice `linkedin`.
+>
+> ### 🔧 Y después: el ESQUELETO del motor existe en n8n (11 nodos, INACTIVO)
+>
+> Salió de una pregunta de Alejandro —*"¿con la API de n8n no podrías generar el motor?"*— y la
+> respuesta medida es **sí, y no había límite de API**:
+>
+> | | |
+> |---|---|
+> | `POST /workflows` | ✅ probado (es lo que hace `n8n:test` cada vez) |
+> | `GET /credentials` | ✅ **200**, devuelve `id · name · type` ⇒ el mapa nombre→id se resuelve solo |
+> | `POST /workflows/{id}/activate` | ✅ existe |
+>
+> 🔑 **Y una distinción que CLAUDE.md no hacía:** el miedo escrito ahí —*"`nodes` reemplaza: un push
+> que crea nodos también puede borrarlos"*— es sobre un **`PUT` a un workflow vivo**. Crear uno que
+> no existe es un `POST` **sin nada que destruir**: es más seguro que el `n8n:push --apply` de rutina.
+> Eso no cierra §14.2 de plan-multi-tenant (la topología sobre workflows vivos sigue pendiente), pero
+> le saca de encima el caso "workflow nuevo".
+>
+> **Qué se creó, y qué NO.** 11 nodos de **pura infraestructura**, calcados de los otros 4: 2 triggers,
+> `Config`, barrido de zombies, guard single-flight, abrir/cerrar run, y `Leer plan (fachada)`
+> fail-closed. **Entre el plan y el cierre no hay NADA** — las 8 etapas siguen sin existir y el
+> esqueleto no adivina ninguna (ni el actor de Apify, ni la generación sin few-shot).
+>
+> El único nodo propio es **`Resumen del run`**, que **afirma que el plan dice `pipeline: linkedin`**
+> y aborta si no. Es el primer consumidor del campo de ADR-068 y el único lugar donde ese fallo se
+> caza, porque su síntoma es un plan **bien formado del pipeline equivocado**. Deja en
+> `runs.metricas` cuántas voces con perfil y cuántos referentes activos vinieron: **hoy 0 y 0**.
+>
+> **Cómo se hizo (repo primero, ADR-053):** el `workflow.json` se escribió en el repo, pasó
+> `auditar-workflows.mjs` (11 nodos, 4 continue-on-fail + 1 fail-closed con su porqué, el code node
+> compila) y recién ahí se hizo el `POST`. Las 5 credenciales se resolvieron **por id** desde
+> `GET /credentials` — que es exactamente lo que falló dos veces en el re-import a mano del
+> multi-tenant, cuando se elegían de un desplegable.
+>
+> ✅ **`n8n:diff`: 6 de 6 corren lo que dice el repo**, `linkedin` incluido — y el alias **se
+> autodescubrió**, sin tocar el script, que era el punto del cambio de esta misma sesión.
+>
+> 🔑 **En el `.env` (local, gitignored) quedaron `N8N_WF_LINKEDIN` y `WEBHOOK_PATH_LINKEDIN`.** El
+> path del webhook **hay que copiarlo al gestor de contraseñas compartido**: es la mitad secreta de
+> la URL de disparo y hoy solo existe en la máquina de Alejandro y en n8n.
+>
+> ⛔ **NO se activó, y no se activa todavía.** Un workflow activo con webhook vivo y sin etapas abre
+> runs que no entregan nada. Tampoco tiene cron en el dispatcher, por lo mismo.
+>
+> 🕐 **Y le faltaba la `timezone`, que salió de compararlo contra sus hermanos en vez de darlo por
+> bueno:** nacía heredando la del servidor mientras motor y archivado tienen `America/Bogota`
+> explícita. Se la puso por API (`PUT` devolviendo lo mismo que vino + el campo), `n8n:diff` verde
+> después. Hoy es casi inofensivo —`$now.toISO()` lleva offset y `timestamptz` normaliza— pero este
+> repo ya se comió un incidente de TZ, y **el día que tenga cron pasa a ser semántico**. La
+> `timezone` vive solo en el live, igual que en los otros 5: el `settings` del repo no la trae.
+>
+> ### ⬜ Lo que le falta al workflow, además de las 8 etapas
+>
+> | | |
+> |---|---|
+> | **Cron en el dispatcher** | Los crons no viven en el workflow (ADR-050): el dispatcher tiene **2** (motor lunes 8:00, archivado domingo 18:00) y falta el tercero. ⚠️ **Esto SÍ es tocar topología de un workflow vivo y activo** — el caso de riesgo que sigue pendiente en plan-multi-tenant §14.2, y que **no** es lo mismo que crear uno nuevo |
+> | **El botón ▶** | No existe: ADR-066 le sacó `operar` a LinkedIn. El día que vuelva, **la guarda por pipeline de `operar/actions.ts` NO se saca** (está escrito ahí el porqué), y hace falta una `LINKEDIN_WEBHOOK_URL` en Vercel, hermana de las otras tres |
+> | **`workflows.estado`** | Sigue en `draft` en la base. Según la nota de la `020` pasa a `active` cuando esté importado **y activo** en n8n: hoy es lo primero, no lo segundo |
+>
+> ⬜ **Lo que falta para que sea un motor:** las 8 etapas. `normalizar`, `filtrar_scorear`, `entregar`
+> y el validador `calidad` (R-1 + R-2, que ya tiene su insumo: la `firma` viaja en el plan) son
+> construibles hoy. `colectar` pide elegir actor de Apify para Pinterest. **`generar` sigue bloqueada
+> por los few-shot.**
+>
+> ### 🧪 Verde
+>
+> **289 tests** (280 antes) · typecheck · build · `validate` **2254 checks / 7 workflows** ·
+> `auditar-workflows` **6 de 7 auditados, sin hallazgos** · `test-nodos` del motor verde ·
+> **`n8n:test` 15/15** · **`n8n:diff` 6/6: todos corren lo que dice el repo**. Para reels la respuesta
+> de la fachada es byte-idéntica salvo el campo `pipeline` agregado ⇒ **no hubo re-import ni push**.
+>
+> ✅ **Deployado y verificado en prod** (`f90a751`): `30x/linkedin` → `pipeline: linkedin`, claves
+> `version,pipeline,generado_en,voces,referentes` · `retia/reels` motor → `short-form-content` con
+> 1 voz / 2 proyectos / 17 referentes / 18 ajustes, y `completo` con 3 / 6 / 17 / 18 (o sea que el eje
+> `ambito` quedó intacto) · `?ambito=linkedin` **sigue dando 400**, que es lo correcto.
+>
+> ### ⬜ Lo que sigue — **el plan paso a paso está en [plan-motor-linkedin.md](./plan-motor-linkedin.md)**
+>
+> 🔑 **Y escribirlo destapó algo que este handoff venía diciendo mal: "los 3 bloqueos no técnicos"
+> NO son un bloque.** Los dos carriles de ADR-055 §2 no comparten bloqueos:
+>
+> | | Personal | Copiable |
+> |---|---|---|
+> | Banco de referentes de Fernando | **NO lo necesita** — *"no tengo el listado"* habla de cuentas **ajenas**; sus filas (`fuente: archivo`) son material que la casa ya tiene | sí |
+> | Apify | no | sí |
+> | Umbral | no (no compite con nadie) | sí, y es por carril |
+> | Few-shot | sí | sí |
+>
+> ⇒ **El carril personal está a UN pedido de ser construible**, y es el que ADR-055 llama *"el más
+> barato del proyecto"*. Por eso el plan **no** sigue el orden del manifest: va por la espina que
+> puede correr entera con lo más barato (con un `colectar` de mentira que emite 1 pieza), y el
+> entregable de la fase 1 no es código sino **Fernando mirando la primera pieza en el Feed**.
+>
+> ❓ **Y dejó una pregunta abierta que hay que cerrar antes de escribir `colectar` personal:** un
+> podcast es audio y `enriquecer` es `n/a` en este pipeline ⇒ no hay transcripción. ¿Pega texto una
+> persona (como el `transcribir` de reels), guarda URL y el motor baja texto, o se reabre
+> `enriquecer` con Supadata? **Lo tercero contradice el manifest y pide ADR.**
+>
+> 1️⃣ **D3** (Mani + Majo + Jero) — sigue siendo el único item sin marcar del ROADMAP §3.
+> 2️⃣ **Prender `retia/linkedin`** — ya sin condición de orden: el deploy de ADR-068 está arriba.
+> 3️⃣ **Cargar la primera voz y el banco semilla** (Alejandro). **Es lo único que destraba todo lo
+> demás**: con 0 voces y 0 referentes, cualquier motor que se construya corre en vacío.
+> 4️⃣ **Las etapas del motor**, en el orden en que tienen insumos: `normalizar` / `filtrar_scorear` /
+> `entregar` / `calidad` (R-1 + R-2) → `colectar` (pide elegir actor de Apify) → **`generar`, que
+> sigue bloqueada por los few-shot**.
+> 5️⃣ **Fase 4 (ajustes)**, parada por entorno: su `028` pide ensayo contra un Postgres local y Docker
+> no responde en esta máquina.
+>
+> 🔴 **Los 3 bloqueos NO técnicos del motor siguen intactos** (ADR-055 §Consecuencias): no hay
+> definición de *"funcionó"*, no existe el banco de referentes, faltan los few-shot. Lo de hoy les
+> sacó del camino la plomería —la fachada y el esqueleto—, **nada más**.
+
+> ## 🔗 2026-08-09 (cierre 106) · EL COCKPIT DE LINKEDIN ESTÁ LISTO PARA CONFIGURAR, Y EL BOTÓN ▶ DISPARABA LA MÁQUINA EQUIVOCADA
+>
+> **Leelo antes que nada si vas a tocar LinkedIn.** Alejandro toma el pipeline de LinkedIn de acá en
+> adelante. El diseño vive en **`../maquina-linkedin/`** (PLAN, entrevista a Fernando, ADR 001–004) y
+> **no se copia** — ese repo es el *por qué*; la construcción es este (ADR 004 de allá / ADR-055 de acá).
+>
+> ### 🔴 Lo primero, porque estaba vivo en producción
+>
+> **El cockpit de LinkedIn podía disparar los tres workflows de reels.** `operar/actions.ts` tiene
+> `correrAhora` → `MOTOR_WEBHOOK_URL`, `buscarAhora` → `DESCUBRIMIENTO_WEBHOOK_URL` y `archivarAhora`
+> → `ARCHIVADO_WEBHOOK_URL`, y las tres se guardaban **solo** con `exigirTenant("operar")`, que
+> autoriza **la zona** — que LinkedIn declaraba. Mandaban `{ instancia }` con el uuid de LinkedIn, o
+> sea que le pedían al motor de reels correr sobre un tenant ajeno. **No falla**: el motor arranca.
+>
+> 📏 **Medido antes de cerrarlo: cero `runs`, cero `processed_items`, cero `outputs`** contra las 3
+> instancias de LinkedIn ⇒ nadie llegó a apretarlo y no hubo nada que reparar.
+>
+> Cerrado por [ADR-066](../adr/ADR-066-un-cockpit-sin-motor-solo-muestra-lo-que-se-configura.md) con
+> **dos** reglas, y la segunda **no es redundante**: (1) LinkedIn queda en `curar` + `ajustes`;
+> (2) el disparo se guarda **por pipeline**, en `noEsSuMaquina()`. Sacar la zona cierra la puerta
+> *hoy*; el día que LinkedIn recupere `operar` con su motor propio, la guardia de zona **vuelve a
+> autorizar** el POST al motor de reels, en silencio. Hay un test que se pone rojo si alguien vuelve a
+> declarar `operar` y que apunta a ese comentario.
+>
+> ### ✅ El cockpit pasó de 1 pantalla a 4
+>
+> | Pantalla | Tabla | Estado |
+> |---|---|---|
+> | **Voces** ([ADR-067](../adr/ADR-067-el-perfil-de-voz-de-linkedin-es-una-capa-sobre-las-voces-de-la-empresa.md)) | `app.voces_linkedin` | 🆕 perfil, **firma** (R-2), espaciado, separación, franjas, días, líneas rojas |
+> | **Referentes** | `app.referentes_linkedin` | ya estaba |
+> | **Feed** | `app.candidatos_linkedin` | 🆕 vacío: no hay motor |
+> | **Descartes** | `app.descartes_linkedin` | 🆕 vacío: no hay motor |
+>
+> ⛔ **`historicos` y `sugeridos` NO se declaran, y no es un pendiente:** no tienen **escritor** (el
+> archivado que llena `outputs` es de reels; no hay descubrimiento de LinkedIn). Ratificado en ADR-066
+> para no re-litigarlo.
+>
+> ### 🩸 Medir dio vuelta el supuesto sobre las voces
+>
+> ADR 002 del repo de diseño daba por inventariadas las de 30X (Andrés y Daniel Bilbao) y por
+> desconocidas las de Retia. **En el sistema es al revés:**
+>
+> | | |
+> |---|---|
+> | `app.voces` | **3 filas, las 3 de `retia`** — 30X y EstadoX tienen **cero** |
+> | Y son | justo las dos cuyo cockpit de LinkedIn está `active` (`retia/linkedin` está en `draft`) |
+> | Peor | **30X y EstadoX no tienen cockpit de reels** ⇒ no existía **ninguna** pantalla desde donde darles de alta una voz |
+>
+> Por eso la pantalla de Voces **también crea la voz**, y esa es su única escritura sobre `app.voces`.
+>
+> 🔴 **La regla que no se toca:** lo que activa una voz en LinkedIn es **que exista su perfil**, nunca
+> `voces.activo`. Ese flag significa de facto *"corre en reels"* (lo consume `leerConfigOperar`):
+> leerlo escondería voces válidas y **escribirlo apagaría proyectos de reels en producción, sin un
+> solo error**. El alta fuerza `activo: false` — **guarda, no default**: en Retia, la única empresa con
+> los dos cockpits, una voz nacida activa entraría al plan del motor de reels sin que nadie lo pidiera.
+>
+> ### ⬜ Lo que queda, y el orden
+>
+> | | Quién | Qué |
+> |---|---|---|
+> 1️⃣ | Mani + Majo + Jero | **D3**, la demo de 10 min. Sigue siendo el **único item sin marcar del ROADMAP §3** y ahora no compite con un cockpit nuevo |
+> 2️⃣ | Alejandro | **Prender `retia/linkedin`** (`update instances set estado='active' …`). Se dejó en `draft` a propósito: prenderlo hoy le mete a Majo y Jero un selector de pipeline con un cockpit casi vacío justo antes de D3 |
+> 3️⃣ | Alejandro | **Cargar la primera voz y el banco semilla.** No es código y **nada lo destraba**: 10–15 cuentas por marca + los filtros de Pinterest |
+> 4️⃣ | — | **Fase 4 (ajustes de LinkedIn), sin hacer.** Ver abajo |
+>
+> ⏸️ **La Fase 4 se paró por falta de entorno, no de decisión.** Es la única con migración (`028`:
+> `drop constraint ajustes_clave_check` —viene de la `014`, está **nombrado**— y `add constraint` con
+> la unión de vocabularios) y toca `app.ajustes`, que reels usa todas las semanas. La disciplina de la
+> `027` pide **correrla contra un Postgres local con la forma de prod antes de tocar nada**, y en esta
+> máquina **el daemon de Docker no responde y no hay `psql`**. Sin ese ensayo es la `019` otra vez: se
+> corrió, no dio error visible y **no había entrado**. También es la que menos desbloquea — son
+> perillas que ningún motor lee.
+>
+> ### 🎯 Y lo que sigue de verdad: el motor en n8n
+>
+> **Ahí va Alejandro ahora.** Lo que hay que saber antes de abrir n8n:
+>
+> 🔴 **Los 3 bloqueos siguen sin ser técnicos** (ADR-055 §Consecuencias, y ninguna sesión de código
+> los mueve): **no hay definición de "funcionó"** (son 3 respuestas, una por marca; solo EstadoX puede
+> anclarla a dinero), **no existe el banco de referentes**, y **faltan los few-shot** (3–4 posts que
+> Fernando sienta perfectos, por cuenta). Sin el 3.º, la etapa de generación no tiene con qué.
+>
+> **Un solo workflow parametrizado, NO uno por empresa** (ADR-050, el dispatcher). La evidencia está
+> en el propio n8n: hay **~57 workflows apagados**, muchos con el mismo nombre repetido — eso es lo que
+> produce el patrón viejo de un workflow por cliente. Y la unidad de config **es la voz, no la
+> empresa** (ADR 002), así que uno por empresa igual necesitaría config por voz adentro.
+>
+> **Lo que le falta al tooling para que LinkedIn exista en n8n** (todo medido):
+>
+> | | |
+> |---|---|
+> | `Workflows/workflow-linkedin/` | tiene `README.md` + `workflow.yaml`, **no `workflow.json`** |
+> | `validate.mjs` | **no valida que exista el `workflow.json`** — por eso `linkedin` pasa en verde estando vacío de motor |
+> | `n8n-sync.mjs` | su `ALIAS` está **hardcodeado con 5 workflows** y `linkedin` no está: `n8n:diff` y `n8n:push` no lo ven |
+> | `auditar-workflows.mjs` | **saltea** los dirs sin `workflow.json` |
+> | `clients/<cliente>/linkedin.yaml` | el manifest lo declara y **no existe** (solo hay `_ejemplo/` y `piloto/` de short-form) |
+> | cron en el dispatcher | **no existe** |
+> | `GET /api/engine/run-plan?ambito=linkedin` | 🔴 **da 400 hoy** — `route.ts` acepta solo `motor\|completo`, y el `workflow.yaml` de LinkedIn **ya declara ese ámbito**. Es lo primero que se va a chocar |
+> | `leerRunPlanCrudo` (`lib/config.ts`) | **no tiene rama por pipeline**: llena el plan siempre desde las tablas de reels. Necesita su `armarRunPlanLinkedin` |
+>
+> ⚠️ **Y el ritual que no cambió:** crear nodos o conexiones es **re-import completo** — `n8n:push` lo
+> detecta y se niega. Después de cualquier import, `npm run n8n:diff` (el `<<SUPABASE_URL>>` sin
+> resolver ya rompió el error handler **dos veces**, silenciado por `onError: continue`).
+>
+> ### 🧪 Dos cosas de método que valieron más que el código
+>
+> **1. Casi reporto un bug que no existía.** Sondeando el check de `candidatos_linkedin.calificacion`,
+> un `🔥` **válido** devolvió `23514` — leído literal, *"el check rechaza su propio vocabulario"*. Era
+> la sonda: **el shell mutila los emoji a `??`** (se veía en el `details`). Con escape JSON
+> (`🔥`), `🔥` y `👎` pasan y mueren en la FK. ⇒ **Toda sonda de un vocabulario cerrado
+> necesita un control negativo que falle** — acá `👌`, que siguió dando `23514` y se leyó bien.
+>
+> **2. Las 4 tablas siguen en 0 filas después de todo el sondeo.** El camino de escritura se verificó
+> **sin escribir**: la forma exacta de la app con FK inexistente da `23503` (o sea que todas las
+> columnas y tipos pasaron), una columna inventada da `PGRST204`, y un valor fuera de check da `23514`.
+
+> ## 🔑 2026-08-07 (cierre 104) · LA PUERTA SE ABRE CON CONTRASEÑA, Y ESO DESTRABA LAS DOS VERIFICACIONES QUE FALTAN
+>
+> **[ADR-065](../adr/ADR-065-la-puerta-se-abre-con-contrasena.md) construida, deployada y verificada
+> en prod** (`15bfec4`). El magic link costaba un correo por entrada — y **dos cada vez que había que
+> alternar entre dos cuentas**, que es exactamente lo que pedían las dos verificaciones que llevaban
+> días abiertas.
+>
+> ### 🩸 Medir cambió el diagnóstico, y esto es lo que hay que recordar
+>
+> El síntoma era *"me pide un correo cada vez que quiero entrar"*, y la lectura obvia —la sesión
+> vence— **era falsa**: la cookie dura **400 días** (`DEFAULT_COOKIE_OPTIONS` de `@supabase/ssr`
+> 0.12.3) y el proxy refresca bien. El re-login era **la cuenta B pisando la de A**: la sesión es
+> **una sola cookie por dominio y por perfil de navegador**. ⇒ Sin medir, el arreglo natural habría
+> sido alargar una sesión que ya duraba 400 días, y el problema seguía intacto.
+>
+> ### ⬜ Lo que queda, y es todo de Mani (nada de código)
+>
+> | | |
+> |---|---|
+> | 📣 **Avisarle al grupo** | El mensaje quedó redactado en la sesión. Sin aviso, el equipo se encuentra un campo de contraseña que todavía no tiene (pueden entrar igual: el link está plegado bajo *"No tengo contraseña"*) |
+> | ⚙️ **4 ajustes en Supabase** | *Password Requirements* al mismo mínimo que valida `domain/credenciales.ts` (si la base es más laxa, la constante de la app es decorativa) · **cerrar el signup** del provider Email · confirmar que **no hay session timebox ni inactivity timeout** — si los hubiera, explican el re-login y **nada de la ADR lo evita** |
+> | 🔓 **A7 + el clic a la tanda** | Los dos estaban trabados por el login. Con contraseña y **dos perfiles de Chrome** (no incógnito) caen en una sentada |
+>
+> ### 📏 El estado real de las cuentas, medido con la Admin API
+>
+> **10 en `auth.users` · 9 con mail confirmado · 9 fichas en `app.usuarios`.** Tres cosas salen de ahí:
+>
+> - **No hay que re-invitar a nadie, y re-invitar ni siquiera funciona**: `inviteUserByEmail` falla si
+>   el mail ya existe (lo documenta `lib/equipo.ts`). El camino es entrar una vez por link y ponerse
+>   la contraseña en **`/mi-cuenta`**.
+> - **Hay 1 cuenta sin confirmar.** Ponerle contraseña **no le alcanza**: entrar le va a seguir
+>   fallando con *"mail o contraseña incorrectos"* —mentira a propósito, la puerta no revela quién
+>   existe— y el motivo real (`email_not_confirmed`) solo aparece en el log de Vercel. **El link se lo
+>   confirma solo al usarlo**, así que el mismo camino de todos la arregla.
+> - **10 cuentas contra 9 fichas:** alguien quedó con el alta a medias y hoy caería en `/sin-rol`. No
+>   es urgente, pero está ahí.
+>
+> ### 🔒 Dos decisiones que salieron de construir, no del plan
+>
+> **1. El largo se valida al ELEGIR la contraseña, nunca al entrar.** Reusar `LARGO_MINIMO` en los dos
+> lados es la tentación obvia y es un **bug con fecha de activación**: el día que el mínimo suba, todo
+> el que tenga una más corta queda afuera —con *"contraseña incorrecta"*, que además le miente— sin
+> que nadie haya tocado su cuenta. Hay un test que sostiene la propiedad.
+>
+> **2. El error devuelve un ESTADO, no un texto.** El estado viaja en el query string, así que darle
+> mensaje propio a `email_not_confirmed` —tentador, porque es accionable— **habría publicado la
+> diferencia en la URL igual**, y el login se vuelve un oráculo de enumeración. Verificado contra
+> prod **sin escribir nada**: un mail que no existe y un mail real con contraseña incorrecta devuelven
+> la **misma** respuesta (`400 invalid_credentials`).
+
+> ## 🚀 2026-08-07 (cierre 102) · EL CHECKLIST DEL MVP QUEDA CON UN SOLO ITEM, Y HAY UNA ADR SIN CONSTRUIR
+>
+> **Leelo antes que el 101 y que el 100: cierra la mitad de los dos.** Sesión larga. Lo que hay que
+> saber para retomar está en tres bloques: **lo que se cerró**, **lo único que queda por construir**,
+> y **los tres errores que valen más que el código**.
+>
+> ### 🎯 Lo primero: qué queda abierto
+>
+> | | |
+> |---|---|
+> | ✅ **[ADR-064](../adr/ADR-064-la-tanda-es-el-pegote-no-el-procesamiento.md) CONSTRUIDA y la [`027`](../../core/schema/027_tandas.sql) APLICADA** (07/08) | Verificada por su efecto contra prod: **9 tandas**, reparto **52·48·2·2·2·1·1·1·1** (suma 110), **cero huérfanas**, y `autores_de_tandas()` da `42501` con `service_role` (existe, con el grant solo para `authenticated`). ⏳ Lo único que queda es **abrir una tanda con un clic** y renombrarla: pide login por magic link |
+> | ⬜ **D3 — la demo de 10 min** con Majo y Jero | **El ÚNICO item sin marcar del ROADMAP §3** ([ROADMAP.md:328](../../ROADMAP.md)): calificar → ver el re-rank → bajar el histórico. No es construir nada, es sentarse 10 min a que lo hagan ellos. Es de lo más viejo abierto del repo, y en la tabla de riesgos es la mitigación de uno concreto (*"el equipo no adopta la vista de re-rank"*). Las 3 cosas que pide funcionan hoy |
+> | 🔬 RLS de LinkedIn con filas | Necesita alguien con cuenta en 2 empresas. Si no existe, **se puede descartar**: las 4 tablas están vacías y su workflow no existe (ADR-055) |
+> | 🟡 Un clic suelto | ~~El tab **Entender** en el nav de un `operador`~~ ✅ **cerrado por Mani el 07/08: *"el operador ve todo excepto los costos"***, que es exactamente el reparto que ADR-052 pidió y la `025` §3 puso en la base (un `operador` obtiene **0 tarifas**, un `dev` las 8). Queda **A7** (que dos personas en Operar se vean) |
+>
+> ### ✅ Lo que cerró hoy — cinco corridas de fuego y tres ADRs
+>
+> **V6 · V5 · D2** por sesión de agente, **V2 · V4** por tu ojo. El detalle de las tres primeras está
+> en el cierre 101; V2 y V4 las cerraste con *"la traducción es perfecta"* y *"filtrar por aprobados
+> sirve de maravilla"*. **El clic al CSV y el alta por `ajustes/equipo` también cayeron** (`usuarios`
+> 8 → 9, medido), así que **B4 cierra**.
+>
+> | ADR | Qué decidió | Estado |
+> |---|---|---|
+> | **[062](../adr/ADR-062-el-transcriptor-deja-de-ser-un-callejon-sin-salida.md)** | El transcriptor entra al sistema: sus guiones van al Histórico, abre sus propias corridas, y un enlace que nunca va a servir se **abandona** | ✅ **construida, deployada y verificada en prod** |
+> | **[063](../adr/ADR-063-el-sponsor-es-el-jefe-del-equipo-no-el-que-mira.md)** | El sponsor **opera** (había **cero** en las 3 empresas: la figura no servía). Ve Actividad, **no** Costos. Y **solo toca operadores** | ✅ construida · **Jero es sponsor de Retia** |
+> | **[064](../adr/ADR-064-la-tanda-es-el-pegote-no-el-procesamiento.md)** | La tanda es el **pegote**, no el procesamiento | 📐 **decidida, sin construir** |
+>
+> **Migración [`026`](../../core/schema/026_transcripcion_abandonada.sql) aplicada y verificada por su
+> efecto** (23514 → 23503 en los dos sondeos, y un `tipo` inventado **sigue** dando 23514: se le
+> agregó un valor, no se le sacó la puerta).
+>
+> 🔁 **Backfill corrido:** las transcripciones viejas entraron al histórico. Verificado por
+> correspondencia **uno a uno** y no por un total, a propósito: el equipo estaba transcribiendo
+> mientras corría. Quedó **105 ↔ 105, 0 faltantes y 0 sobrantes**.
+>
+> 🗑️ La voz de prueba **"Alejo" se borró** (0 proyectos, 0 candidatos, 0 descartes colgando).
+>
+> ### 🩸 Los tres errores de la sesión, que valen más que lo que se construyó
+>
+> **1. Media frase de un comentario viejo mandó una ADR al error.** ADR-062 afirmaba que
+> `outputs.tipo` no tenía check duro, citando el header de la `001`: *"queda SIN check duro a
+> propósito"*. **La frase sigue:** *"cuando se selle, se agrega el check en 002"* — y la `002` lo
+> selló. Lo cazó **un sondeo contra prod sin escribir nada** (23514 vs. 23503 cambiando un solo
+> campo), no un review ni un test. La ADR quedó corregida **en su propio texto**, marcada.
+> ⇒ **Una nota de diseño de una migración vieja describe una intención, no el estado.** Es la cuarta
+> vez que este repo se equivoca así.
+>
+> **2. Casi meto una "red de seguridad" que destruía datos.** Para acotar el gasto de V5 iba a bajar
+> `Videos a transcribir por corrida`. Ese presupuesto **quema** (ADR-044): corre después del
+> `POST processed_items`, así que lo capado ya está en la memoria de dedup, vuelve sin transcript y
+> el gate lo descarta `sin_guion` **para siempre**. Desde la pantalla de Ajustes se ve idéntico a
+> `cap_top_n`, que sí postergaría. ⇒ **Antes de tocar un techo, preguntá si POSTERGA o si QUEMA.**
+>
+> **3. Introduje un agujero y lo encontré midiendo, no probando.** ADR-062 abre un `run` por pasada
+> y lo cierra al final; si la pasada muere (Vercel corta a los 60 s, cierran la pestaña) **el cierre
+> nunca corre**. Medido a la hora: **5 de 10 runs colgados en `en_curso`**. Ya está arreglado (barrido
+> espejo del nodo del motor, ventana fija de 5 min = 5× el `maxDuration`) y **el barrido a mano barrió
+> 3 de 5, no 5** — los otros dos estaban vivos de verdad. *Que no mate corridas vivas era lo que había
+> que comprobar.*
+>
+> ### ⚠️ Dos cosas que van a confundir a quien mire la base
+>
+> - **`/curar/historicos` saltó de 31 a 140, y no es un bug:** ADR-062 metió las transcripciones a
+>   pedido ahí. Son **32 del feed + 108 pegadas a mano**. El CSV tiene **16 columnas** ahora
+>   (`ORIGEN` al final).
+> - **`/transcribir` muestra 50 de 110.** Techo duro sin paginar, y es exactamente lo que ADR-064
+>   viene a arreglar. **La pantalla ya oculta más de la mitad de lo que existe.**
+>
+> 🔥 **Y el dato de operación: el equipo está usando Transcribir de verdad y a escala.** Pasó de 57 a
+> **110** durante la sesión, con tandas de ~50. Cualquier deploy toca gente trabajando.
+
+> ## 🏁 2026-08-07 (cierre 101) · CAYERON V6, V5 Y D2. LAS CORRIDAS DE FUEGO QUEDAN EN OJO HUMANO
+>
+> **Leelo antes que el cierre 100: le cierra dos filas.** De las 6 corridas de fuego + activación que
+> seguían abiertas, quedan **tres, y las tres son de mirar con los ojos**: V2 (la traducción), V4 y
+> **D3**. Ninguna es de agente.
+>
+> ### 🩸 Dos enunciados que envejecieron, y el patrón es el mismo
+>
+> **V6 y V2 pedían mirar a ojo algo que el sistema ya garantiza por construcción, y pedían romper o
+> muestrear algo que ya no se puede.** Los dos se cerraron (uno entero, el otro a mitad) **midiendo el
+> código**, no ejecutándolo.
+>
+> | | Lo que pedía | Lo que resultó ser |
+> |---|---|---|
+> | **V6** | romper la credencial de Supabase → el workflow IGUAL entrega | 🩸 **El simulacro es immontable**: los **31 nodos HTTP** de los 5 workflows comparten `Config.supabase_url`, así que **no hay palanca** que rompa el registro sin romper la entrega. Pero el invariante #1 **ya está declarado nodo por nodo en los `onError`** ⇒ es una **propiedad estructural que se lee del JSON** |
+> | **V2** | muestrear uno en español (script == transcripción tal cual) | 🔑 **No es una muestra, es el código.** En `Traducir` un video `es` nunca entra al `order`, y el reparto es `script: (cache[id] \|\| transcript)` ⇒ con el cache vacío **el script ES el transcript**. Ya tenía test verde. Y **no hay material igual**: los 170 candidatos eran **169 `en` + 1 `otro`, cero español** |
+>
+> ### ✅ V6 cerrada por auditoría: el check #6
+>
+> `Workflows/auditar-workflows.mjs` ahora exige `onError: continueRegularOutput` en todo nodo
+> `httpRequest`, con la constante **`FAIL_CLOSED`** como única excepción: **9 nodos, cada uno con su
+> porqué escrito** (los 4 de fachada/ADR-028, `Leer procesados`/ADR-029 exc. 1, las 3 entregas, y
+> `Borrar candidatos`).
+>
+> 🔑 **El default es "sos sumidero"**, y esa es la decisión entera: un nodo HTTP nuevo entra **pidiendo**
+> su `onError`, y quien lo quiera fail-closed tiene que escribir por qué — una línea de diff que se lee
+> en el review, no algo que se decide en silencio.
+>
+> 🔴 **Se verificó poniéndolo ROJO, no verde**, con 3 mutaciones sobre una copia: `onError` sacado de un
+> nodo de registro · dado a uno de `FAIL_CLOSED` (lista vieja) · un nodo de la lista renombrado (lista
+> fantasma). **Los 3 disparan, exit 1**, y el repo quedó intacto. *Un check que solo sabe decir ✓ no
+> prueba nada.*
+>
+> ### ✅ V5 corrida y verde — y con ventana de 3 días, no de 1
+>
+> **Corrida real `on_demand`, `ok`, 13.8 min, ~$0.24.** El enunciado pedía `dias_recencia = 1` y **se
+> corrió con 3 a propósito**: con 1, si Apify no traía nada, la intersección daba **0 por vacío y no
+> por dedup** ⇒ se habría marcado como cerrada una prueba que no probó nada. Con 3 la ventana cubre
+> entera la corrida del 06/08, o sea **máximo solape**.
+>
+> | | |
+> |---|---|
+> | Apify volvió a traer | **69** videos |
+> | Sobrevivieron al dedup | **4** |
+> | Se le pagó a Supadata | **4** transcripciones, **no 69** |
+> | `processed_items` nuevos | **4**, contra las **48** del 06/08 |
+> | Intersección entre las 2 últimas | **`0 ✓`, por `run_id`** · `registro_dedup: ok` en las dos |
+> | Feed | **171** · 0 sin-guion · 171/171 `external_id` · 0 urls duplicadas |
+>
+> ⇒ **El ∅ es de un dedup que filtra, no de una tabla vacía.** `Días de recencia` **restaurado a 100**
+> y verificado en `app.ajustes` **y por la fachada**, que es lo que el motor lee el lunes 08:00.
+> Base después: `processed_items` 874→**878** · `runs` 43→**44** · `candidatos` 170→**171**.
+>
+> 🩸 **Y por poco se hace algo destructivo, que vale más que la prueba:** se evaluó bajar
+> **`Videos a transcribir por corrida`** (250) como tope de gasto de la corrida. **Habría quemado
+> videos.** Ese presupuesto corre **después** del `POST processed_items` (ADR-044): lo capado ya está
+> en la memoria de dedup, vuelve sin transcript, el gate lo descarta `sin_guion` **y no se reintenta
+> nunca**. Quedó en 250. *La red de seguridad de una prueba puede ser el daño — y desde la pantalla de
+> Ajustes se ve igual que `cap_top_n`, que sí postergaría.*
+>
+> ### ✅ D2 cerrada entera — la fila que el cierre 100 dejó en ❌
+>
+> `update workflows set estado = 'active' where id = 'short-form-content'`, **aplicado y leído de
+> vuelta**: `short-form-content: active` · `linkedin: draft` (a propósito, ADR-055) ·
+> `substack: inactive`. Con la mitad del manifest que ya estaba del 06/08, **D2 no tiene mitades**.
+>
+> ### ⬜ Lo que queda de las corridas de fuego: 3, todas de ojo
+>
+> | | Qué | Quién | Cuánto |
+> |---|---|---|---|
+> | **V2** | solo la mitad de la **traducción**: abrir un candidato, abrir el video, juzgar si el guion dice lo mismo | Majo o Jero | 5 min |
+> | **V4** | filtrar por *aprobados* en `/curar/feed`: solo aprobados, caliente→frío | Majo o Jero | 2 min |
+> | **D3** | la **demo de 10 min**. Es de lo más viejo abierto de todo el repo | Mani + Majo + Jero | 10 min |
+>
+> 🩸 **Y el hallazgo que hace a V2 irrepetible después de la corrida:** el **transcript original no se
+> persiste en ningún lado**. `app.candidatos` guarda el `script` ya traducido y nada más, y hay **cero
+> solape** entre las 57 `transcripciones` y las URLs de los 170 candidatos. **Comparar traducción
+> contra fuente después de la corrida es imposible sin volver a pagarle a Supadata** — por eso la forma
+> barata es contra el **video**, no contra el transcript.
+
+> ## 📏 2026-08-07 (cierre 100) · LA FOTO DE PROD CONTRA LO QUE DICEN LOS DOCS
+>
+> Sesión de repaso: en vez de leer el estado, se **midió** (PostgREST con `service_role` + la API de
+> n8n). Tres cosas estaban hechas y ningún doc las registraba, y cuatro que se daban por
+> encaminadas no habían pasado. **Nada de esto se dedujo del relato de una sesión anterior.**
+>
+> ### ✅ Hecho y sin registrar hasta hoy
+>
+> | | Medido |
+> |---|---|
+> | 🔑 **La `ANTHROPIC_API_KEY` del `.env` ya está repuesta** | Da **200** contra `/v1/models`. El cierre 98 la daba por revocada (401) y quedó viejo: **ese pendiente de seguridad está cerrado** |
+> | 📝 **Transcribir se usó de verdad, y a escala** | `app.transcripciones` pasó de **2 filas** (lo que dicen los docs) a **57**: 56 `listo` + 1 `sin_transcript`, en 3 tandas del 07/08 (01:04 · **03:19 con 52 links** · 03:38). Las dos últimas son **posteriores al commit `3e482c8`**, así que la pantalla nueva **está deployada y aguantó una carga real** |
+> | 👁️ **El feed** (item 5 de la tabla de abajo) | ✅ recorrido por Mani el 07/08 |
+>
+> 📌 **Y un número que corrige la alarma de Supadata:** esa tanda de 52 dio **1 vacía (2%)**, no 65%.
+> El 65% es del corpus del **motor** (videos de referentes, descubiertos por Apify); esto son links
+> pegados a mano. **Son fuentes distintas y el problema está más acotado de lo que decía el cierre
+> 98** — sigue valiendo mirarlo, pero no como si el supply entero estuviera en riesgo.
+>
+> ### ❌ Lo que se daba por encaminado y NO pasó (medido, no supuesto)
+>
+> | | Medido |
+> |---|---|
+> | **D2**, la mitad de la tabla | `workflows` sigue diciendo `short-form-content: draft` |
+> | **El alta real por `ajustes/equipo`** (item 8) | `usuarios` = **8** y `usuarios_clientes` = **9**, idénticos al 06/08 ⇒ **ningún alta nueva** |
+> | **La limpieza de la prueba de RLS** | las 2 filas `prueba rls` **siguen sembradas** (y el clic del item 6 sigue sin hacerse) |
+> | **Transcribir, sus dos arreglos de pantalla** | *(Se cerraron **2 de 3** el mismo día — ver el bloque de abajo.)* |
+>
+> ### ✅ Transcribir: 2 de 3 cerrados el 07/08, y el que queda es un clic
+>
+> **El panel de "no hace falta transcribirlos" PASÓ, y la prueba no fue el ojo sino la ausencia de un
+> evento.** Ese camino corta antes de `pegarEnlaces`, así que **no escribe `transcribir.pegar`**; el
+> código viejo avisaba *después* de encolar y habría dejado un evento con `ya_estaban: 2`. **Cero
+> eventos nuevos ⇒ el deploy de `3e482c8` está vivo en prod y el aviso llega antes de pagar.**
+>
+> **El doble pago se cerró sin browser y sin gastar un centavo.** El reclamo y la transcripción son
+> dos pasos separados, así que se ejerció **solo el reclamo** contra prod: 4 filas sembradas, dos
+> trabajadores. Secuencial: A se llevó **4**, B **0**. **Simultáneo** (los dos `PATCH` a la vez):
+> B **4**, A **0**. Nunca se llamó a Supadata y las 4 filas se borraron — la tabla quedó en **57** y
+> `processed_items` sin una sola fila de prueba.
+>
+> ### 🩸 Y el reintento destapó TRES bugs, todos de la mitad de pantalla
+>
+> El botón se apretó a las 07:24 y **la mitad de servidor estaba perfecta**: evento escrito, fila de
+> vuelta en `pendiente` con `error`/`script`/`procesado_en` limpios. Desde la pantalla, en cambio,
+> *"no pasó nada"* — y era cierto. Los tres salieron de que una persona apretara un botón; **ninguno
+> se ve en una query ni en un test de dominio.**
+>
+> | | El bug | El arreglo |
+> |---|---|---|
+> | 1 | 🔴 **La fila fallada no se podía encontrar.** La lista trae las **últimas 50** por `creado_en`; una tanda de 52 links pegados juntos comparte el timestamp **al segundo**, y la única fallada cayó en la **posición 49 de 50** entre 49 `Listo`. Y el desempate entre timestamps iguales es **arbitrario** ⇒ el pegote siguiente la empuja **fuera de la ventana** y el botón se vuelve inalcanzable: **la fila queda clavada, que es el bug que ese botón existe para matar** | `leerFallidas`, sin ventana, en su propia tarjeta arriba de todo |
+> | 2 | 🔴 **El botón dejaba la fila en la cola y nadie la levantaba** (`pendiente` + `procesado_en: null`). `revalidatePath` invalida el cache del server, pero lo que dispara el `Procesador` es el prop `pendientes`, y eso pide re-render **del cliente**. El pegote no lo notaba porque su `setResultado`/`setTexto` ya provocaban uno | `router.refresh()` en el botón |
+> | 3 | 🟡 **El panel decía "viene en camino" sobre un link que falló.** `cualesEnCola` preguntaba *"¿está en la tabla?"* **sin mirar el estado**. Es lo que indujo el intento por el camino equivocado (pegar el link de vuelta, que **nunca** puede arreglarlo: el `ignoreDuplicates` lo descarta) | `fallados` es su propio montón en `repartirEnlaces`, con 2 tests |
+>
+> ⏳ **Lo único que queda del punto 2 de §2-bis:** ver que ahora el reintento arranque solo. La fila
+> quedó **en `pendiente`** esperando; con recargar la pantalla se procesa.
+> Verde sobre el árbol: `typecheck` · **224/224** · `build` · `validate` (2152 checks).
+>
+> ### 🟡 La voz "Alejo": es un registro huérfano, no un problema de accesos
+>
+> El cierre 99 la marcó como *"fila sospechosa"* y quedaba abierta la duda de si alguien tenía acceso
+> a la empresa equivocada. **No es eso, y el diagnóstico cierra la duda:** `app.voces` no son personas
+> ni permisos, es la entidad de **reels** (la persona cuyo contenido busca el motor, con proyectos
+> colgando). Medido:
+>
+> | | |
+> |---|---|
+> | `client_id` · `activo` | `30x` · **`false`** |
+> | proyectos que cuelgan de ella | **cero** |
+> | instancias de `30x` | **solo `linkedin`** |
+> | quién lee `app.voces` | el plan de corrida de **short-form-content**. LinkedIn tiene su propia `app.voces_linkedin`, y es de grano **instancia** |
+>
+> ⇒ **Ninguna corrida la va a leer nunca** (30X no tiene cockpit de reels), y aunque estuviera en la
+> empresa correcta, **sin proyectos no produciría nada**. No molesta a nadie y no bloquea nada.
+> **Decisión de Mani, sin apuro:** moverla a `retia` y darle proyectos (si la quería como voz de
+> reels) o borrarla (si fue un click de prueba). *Que Alejo tenga acceso a 30X es otra cosa, y está
+> bien.*
+>
+> ### ✅ Y B1 quedó confirmado por su efecto, sin depender del relato
+>
+> **170 candidatos** (todos `nuevo`) · **93 `outputs`** · **48 descartes intactos** · el run
+> `execution_id 126` en `ok`. Los 5 calificados entraron a `outputs` y salieron del feed, que es
+> exactamente lo que el gate de la `023` pedía ver.
+> Y `n8n:diff` **verde en los 5**: el live sigue corriendo lo que dice el repo.
+
+> ## 🔥 2026-08-06 (cierre 99) · EL COCKPIT SE ADIVINABA, Y HACE 3 DÍAS ADIVINABA MAL
+>
+> **Leelo antes que nada: cambia lo que hay que hacer y desbloquea B1.** Salió buscando por qué el
+> botón "Cargar más" del feed no funcionaba, y el botón era el síntoma más chico.
+>
+> ### El bug
+>
+> Las **~30 server actions** llamaban `exigirTenant(zona)` **sin segmentos**, porque una server
+> action no recibe los `params` de la ruta. Sin segmentos, `resolverContexto` cae a *"el primero que
+> alcance"* — un default correcto para la raíz `/`, y **una adivinanza en todas las demás**.
+>
+> Con `retia/reels` como única instancia activa, adivinar acertaba siempre. El **2026-08-03 20:46**
+> entraron las 3 de LinkedIn; `leerInstancias()` ordena por `(client_id, slug)` y filtra
+> `estado = active`, así que el primero pasó a ser **`30x/linkedin`**. Desde ese momento, cada acción
+> del cockpit de Retia leyó y escribió en el tenant de 30X para quien tuviera la mala suerte de
+> alcanzarlo. La tabla existe, la query es válida, devuelve cero filas: **el fallo mudo otra vez**,
+> y esta vez en producción durante 3 días.
+>
+> ### 🎯 A quién le rompía: 3 de 8, y son exactamente los tres que no son del equipo de redes
+>
+> Calculado sobre las membresías reales y el orden de `leerInstancias()`. `retia/linkedin` es
+> `draft`, así que no cuenta — por eso un operador de Retia veía **una sola** instancia y acertaba.
+>
+> | | `suyas[0]` | |
+> |---|---|---|
+> | **Manuel Mejia** y **Alejandro Dávila** (`es_dueno`) | `30x/linkedin` | 🔴 roto |
+> | **Alejandro 30X** (`30x` + `estadox`) | `30x/linkedin` | 🔴 roto |
+> | Majo, Jero, Alejo, Juan José, Manuel 30X (solo `retia`) | `retia/reels` | 🟢 andaba |
+>
+> 🩸 **O sea: el equipo de redes podía calificar y los dos devs no.** Que no haya un solo evento
+> `candidatos.calificar` desde el 01/08 **no lo explica este bug** para Majo y Jero: a ellos la
+> pantalla les funcionaba. Vale la pena preguntarles si intentaron y algo más los frenó, porque esa
+> sería otra falla y no está diagnosticada.
+>
+> 📌 **Y corrige un dato del bloque 🅱️ de más abajo:** ahí dice *"Majo (`30x`+`estadox`)"*. En prod
+> **Majo Duarte es solo `retia`**; la cuenta con doble membresía es **Alejandro 30X**. Los números
+> de la prueba de B3 no cambian (se corrieron con sesiones reales), pero el nombre estaba cruzado.
+>
+> **La página nunca estuvo mal** — `page.tsx` sí recibe `params`. Solo las acciones. Por eso el feed
+> mostraba 175 en el chip (página, tenant bueno) y "Cargar más" traía 0 (acción, tenant malo) y
+> hacía desaparecer el botón sin decir nada.
+>
+> ### Medido contra prod, no deducido
+>
+> | | |
+> |---|---|
+> | `app.candidatos` de `retia/reels` | **175**, y **0 calificados** |
+> | `app.candidatos` de `30x/linkedin` | **0** — lo que leía "Cargar más" |
+> | último evento `candidatos.calificar` | **2026-08-01 17:39**. Nada en 3 días (ver el matiz de abajo: al equipo de redes la pantalla le andaba) |
+> | último `outputs` escrito | 04/08, y sus 9 filas tienen `calificado_en` del **01/08** |
+>
+> 🩸 **Y una fila sospechosa que Mani tiene que mirar:** el evento `voces.crear` del **05/08 15:25**
+> quedó registrado en la instancia **`30x/linkedin`**, y en `app.voces` hay una voz **"Alejo" con
+> `client_id = 30x`**. Si la creaste parada en un cockpit de Retia, **está en la empresa
+> equivocada** y ninguna pantalla de Retia te la va a mostrar. Si la creaste en `/30x/...`, está
+> bien. No lo puedo distinguir desde afuera: la decisión es tuya.
+>
+> ### El arreglo (`c267980`, ya en `main`) — 📐 escrito en [ADR-061](../adr/ADR-061-el-cockpit-se-nombra-no-se-adivina.md)
+>
+> `exigirTenant(zona, cliente, pipeline)` con los **dos obligatorios**. Un cockpit que falta pasó a
+> ser un **error de compilación** — no un default fail-closed que explota cuando alguien hace click.
+> Es la regla que `scoped()` ya aplica a las queries (ADR-047 Capa 1) un escalón más arriba: *si no
+> se puede nombrar el cockpit, no se puede construir la guardia.* tsc listó los 25 call sites; el
+> cockpit viaja desde el cliente con `usarCockpit()` (que lo lee de la URL, la misma fuente que
+> `params`) y **no es un permiso**: se valida contra `instanciasVisibles`.
+>
+> ⚠️ **A5 se salvó por no estar deployada.** `ajustes/equipo/actions.ts` documentaba que *"la empresa
+> no es un parámetro… sale del cockpit abierto"* como su defensa contra el modo de falla de ADR-051.
+> Era cierto salvo por el detalle de que el cockpit abierto estaba adivinado: **habría dado de alta
+> a la gente de Retia en 30X**, con el gate de rol evaluado contra el cockpit equivocado.
+>
+> ### El feed, además, dejó de paginar (decisión de Mani)
+>
+> Se van el cursor keyset (`Cursor`/`cursorDe`/`despuesDe` y sus 5 tests), `POR_PAGINA`, `hayMas` y
+> el botón. **175 filas = 103,7 KB medidos**, y PostgREST las devuelve todas (no hay `db-max-rows`;
+> se comprobó pidiendo sin `limit`). El filtro **se queda en la query**: es lo que sostiene el
+> congelado de plan-cockpit §D6.4 sin tener que escribirlo.
+>
+> ### 🎙️ Y después, los 3 huecos de la pestaña **Transcribir** (`3e482c8`)
+>
+> Salieron de repasar la pantalla a pedido de Mani. Ninguno estaba anotado en ningún lado.
+>
+> | | El hueco | Cómo quedó |
+> |---|---|---|
+> | **1** | Una fila en `fallo` o `sin_transcript` **no se reintentaba nunca**: el procesador solo levanta `pendiente`, y volver a pegar el link tampoco servía porque el encolado lo descarta como duplicado. Quedaba clavada salvo borrarla por SQL — y con Supadata en **65% de transcripciones vacías** no es un caso raro | Botón **Reintentar** por fila. El guardia está en el servidor (`.in("estado", ["fallo","sin_transcript"])`), así que ni forzando el POST se reencola un `listo` y se paga de nuevo |
+> | **2** | **Doble pago.** La pantalla **arranca sola al cargar**, y `tomarPendientes` era un `select` puro: dos pestañas abiertas recibían **el mismo lote de 64** y lo pagaban dos veces. El comentario viejo lo minimizaba como *"pueden agarrar el mismo enlace"* — eran los 64 | El lote **se reclama** con un solo `UPDATE` cuyo `where` incluye la condición de libre, así que la segunda pasada se lleva **0 filas**. Sin lock ni tabla de colas |
+> | **3** | El único aviso de *"ya lo teníamos"* era un conteo **después** de encolar, sin decir cuáles, y **no miraba `processed_items`** — que era donde se pagaba de más en silencio | La pantalla **revisa antes** y ofrece quitarlos, separando *ya los pediste* de *ya los vio el motor*. Aceptar deja el campo con los que sí van y los manda |
+>
+> 🔑 **Por qué el reclamo vence a los 3 minutos, y no es un número prudente al azar:** la pantalla
+> declara `maxDuration = 60`, o sea que Vercel mata la función a los 60 s pase lo que pase. Con 3×
+> ese techo, **un reclamo vencido significa siempre que el trabajador murió**, nunca que está
+> tardando. Por eso tampoco hace falta un barrido: la condición del `where` es el barrido.
+>
+> ⚠️ **Un atajo deliberado, marcado con `ponytail:` en `lib/transcripciones.ts`:** el reclamo se
+> escribe en **`procesado_en`**, no en un estado `procesando` propio. Lo segundo pide un valor de
+> enum nuevo ⇒ migración en `core/schema/` ⇒ ADR, para un problema de **~USD 0,90** por cola
+> duplicada. Mientras la fila está `pendiente`, `procesado_en` significa *"reclamada en"*; al
+> terminar, `marcarResultado` lo pisa con la hora real. Nadie más lee esa columna (verificado: 3
+> referencias, las 3 en ese archivo; la pantalla muestra `creado_en`). **El día que haga falta
+> mostrar "procesando…" en la lista, eso ya es un estado de verdad y va con ADR.**
+>
+> 🔴 **Por qué NO se ofrece quitar los que vio el motor por default:** `processed_items` guarda todo
+> lo que el motor **consideró**, aunque el pre-trim o el gate lo hayan matado antes de transcribirlo.
+> O sea que *"el motor lo vio"* **no implica que exista el guion en ningún lado**, y quitarlo solo
+> escondería la única forma de conseguirlo. Por eso hay dos botones y no uno.
+>
+> ✅ Verificado contra prod **sin escribir nada**: el `PATCH` del reclamo (con `or` + `select` de
+> vuelta), el guardia de estado del reencolado y los dos lookups. **222/222** con 5 tests nuevos del
+> reparto — incluido el discriminante de que la clave lleva la plataforma adentro (el mismo id
+> numérico en IG y TikTok **no** es el mismo video).
+>
+> 🩸 **Y una sonda mía tocó una fila real, vale que quede escrito.** Probando el `PATCH` asumí "0
+> pendientes" de una lectura de minutos antes; Mani pegó un link a las 01:04:03 y la sonda lo
+> reclamó 3 segundos después. Sin consecuencias —la fila ya se había transcrito sola a las 01:04:20—
+> pero la lección es la de siempre en este repo: **contra prod se filtra por algo que no pueda
+> matchear nada real, no por lo que uno leyó hace un rato.**
+>
+> ⏳ **Lo que ningún agente pudo cerrar: la interacción de pantalla.** Requiere una sesión, y
+> generar un magic link de Majo o Jero es suplantarlas. Está escrito paso a paso en
+> [`verificaciones-humanas.md` §2-bis](../verificaciones-humanas.md), y **el punto del doble pago
+> necesita dos navegadores a la vez**.
+>
+> ### 🔓 Qué desbloquea, y qué falta
+>
+> **B1 estaba esperando algo imposible.** Su condición 4 pide *un archivado verde que escriba
+> `outputs`*, y el archivado solo escribe si hay calificados — que es justo lo que este bug impedía.
+> El orden real es: **deployar → que el equipo califique → archivado → recién ahí la `023`.**
+>
+> 🚧 **Lo único que falta y no puedo hacer yo: el deploy a Vercel.** Arrastra también A5 y el gate de
+> costos del Carril 0, que seguían sin salir.
+
+> ## 🚦 2026-08-06 · RETIA ENTRA, Y HAY UN PLAN DE DOS CARRILES: [plan-multi-tenant §15](./plan-multi-tenant.md#15-el-cierre-del-producto-en-dos-carriles)
+>
+> **Leelo antes de tomar nada de la tabla de abajo.** Tres personas de Retia —empresa cliente, no la
+> agencia— empiezan a usar la herramienta, y eso cruzó tres disparadores que el repo dejó escritos
+> con fecha: el alta manual de ADR-051, el gate de costos de `domain/roles.ts:25-31`, y el eje
+> *+usuarios* de §10.
+>
+> **§15 está escrito para dos agentes trabajando en paralelo**, con dueño único por archivo (§15.C):
+>
+> | Carril | Rama | Qué | No toca |
+> |---|---|---|---|
+> | **A** | `carril-a-accesos` | La zona **Ajustes** (5ª), la pantalla de **equipo** con invitaciones, la migración **`025`** con las policies que la `021` dejó sin escribir, y la concurrencia visible en Operar | n8n, el motor |
+> | **B** | `carril-b-cierres` | El gate de la **`023`**, el **check #1** contra prod, la prueba de **§14.6**, los **runbooks** + `core/templates/`, y la deuda de docs medida | `apps/dashboard/` |
+>
+> 🔴 **Antes de los dos, y lo hace Mani a mano (Carril 0, §15.0.bis):** el gate de costos de
+> [`entender/page.tsx:41`](../../apps/dashboard/app/[cliente]/[pipeline]/(zonas)/entender/page.tsx)
+> dice `rol !== "sponsor"`, así que **un `operador` ve lo que cuestan los proveedores**. Con gente de
+> Retia adentro eso es el margen de la agencia, y *falla hacia MOSTRAR*. El arreglo ya estaba escrito
+> en `roles.ts:31`: pasarlo a `rol === "dev"`. **Va antes de dar las 3 altas.**
+>
+> ⚠️ **Cuatro dependencias de orden que no se pueden invertir:** Carril 0 antes de las altas ·
+> **A1 (`025`) antes que A5 en prod** (el flip está vivo: pantalla sin policy = cero filas o `42501`)
+> · ~~**B2 después de A1**~~ · **B4 después de A5** (el runbook de alta de cliente cambia de forma
+> cuando el alta deja de ser SQL).
+> **📌 Corregido el 06/08: eran tres, no cuatro.** La de B2 partía de que la `025` crea tablas, y no
+> crea ninguna — crea una función y policies. **B2 ya se corrió y dio cero filas** (bloque 🅱️ abajo).
+> La de B4 tampoco bloqueó: el runbook se escribió asumiendo A5, con el paso marcado para verificarlo.
+>
+> 💣 **Landmine que la pantalla de equipo va a tocar primero:** `scoped.ts:51` declara
+> `"app.usuarios": { grano: "cliente" }` ⇒ filtra por `client_id`, **columna que la `019` dropeó**.
+> Hoy nadie lo ejerce porque `lib/auth.ts` lee esa tabla con `createClient()` directo. Es la tarea A2.
+
+> ## 🅰️➡️ CARRIL A MERGEADO A `main` (2026-08-06) — 6 de 7. **Falta A7 y nada más.**
+>
+> El carril A se quedó sin usage antes de empezar **A7**. Todo lo demás entró: Carril 0 (`d89ef04`),
+> ADR-060 (`dc9ae59`), la `025` (`0ad70ec`), A2+A3 (`8763333`), A4 (`7e261b7`), A5 (`8218347`).
+>
+> **Rebase sin un solo conflicto**, y eso es §15.C funcionando: los dos carriles editaron
+> `plan-multi-tenant.md` y no se pisaron porque cada uno escribió solo su sub-bloque.
+> Verificado sobre el árbol mergeado: `typecheck` · **222/222** · `build` · `validate` (2143 checks)
+> · `n8n:diff` limpio en los 5.
+>
+> ### ✅ La `025` está aplicada, y **la verifiqué por su efecto contra prod**
+>
+> El commit de A decía *"falta aplicarla en el SQL Editor"* — Mani ya la corrió. No se da por
+> aplicada porque haya corrido (la lección de la `019`): **26 policies** (eran 24), las 3 funciones
+> existen, y `app.tarifas` dejó de ser `using (true)`. Y se corrió su verificación #2 con **sesiones
+> reales** (`set local role authenticated`), que es lo que el fixture de A no podía dar:
+>
+> | sesión | membresías | personas | tarifas | emails | dueños que asoman |
+> |---|---:|---:|---:|---:|---:|
+> | dueño (`retia:dev`) | 8 | 7 | 8 | 6 | **0** |
+> | Retia `operador` | 5 | 5 | **0** | 5 | **0** |
+> | Majo (`30x`+`estadox`) | 2 | 1 | **0** | 1 | **0** |
+>
+> **Un `operador` obtiene 0 tarifas y un `dev` las 8**: el margen de la agencia quedó cerrado *en la
+> base*, que era el hallazgo 4 de ADR-060 (el gate era solo de UI). Y **cero dueños asoman** en las
+> tres sesiones ⇒ el bug que la medición de A cazó está corregido en prod.
+>
+> 📌 **Dos números difieren del fixture y ninguno es la policy:** `tarifas` del dueño da 8 y no 2
+> (prod tiene 8 tarifas, el fixture sembró 2), y Majo da 2/1 y no 6/5 porque **en prod está en
+> `30x`+`estadox`, no en `retia`+`30x`** como supuso el fixture. La suposición estaba mal; el
+> comportamiento está bien.
+>
+> 🩸 **Y una anotación del pie de la `025` que NO hay que creerle** (su punto 4): *"B2 va después de
+> esta migración"*. **Falso, y medido** — corregido en el propio archivo, en §14.6 y en §15.B.
+>
+> ### ✅ A7 hecha después del merge — el carril A queda **completo, 7 de 7**
+>
+> - `correrAhora()` gana el chequeo server-side **que su gemela ya tenía sesenta líneas más abajo**.
+>   Reusa `hayCorridaViva` + `ultimasCorridasMotor`: cero dominio nuevo, cero query nueva.
+>   **El mensaje dejó de mentir** — ahora dice *"Ya hay una corrida corriendo"* y no *"Señal enviada"*.
+> - `auto-refresh.tsx` se monta **siempre**, 5 s con corrida viva y 30 s sin ella. Antes solo
+>   polleaba si ya había corrida viva **al renderizar**, o sea que quien tenía Operar abierta cuando
+>   otro disparó no se enteraba nunca.
+>
+> 🔑 **Una decisión que el plan no había tomado: el chequeo nuevo es fail-OPEN**, al revés que el de
+> `buscarAhora`. Si la lectura de `runs` falla, dispara igual — el motor **tiene** guard
+> single-flight en n8n y es la autoridad real, así que esto es UX. `buscarAhora` es fail-closed
+> porque **no tiene guard del otro lado**: ahí el chequeo es la única defensa y dos clicks son dos
+> corridas de Apify pagas. El porqué está en §15.A.
+>
+> ⏳ **Su verificación es de dos ventanas** y está escrita en
+> [`verificaciones-humanas.md` §4-bis](../verificaciones-humanas.md).
+>
+> ### ⏳ Lo único que queda del carril A: el deploy
+>
+> El código está todo en `main`. **La pantalla de equipo (A5) y el gate de costos (Carril 0) no
+> están en producción todavía** — hasta que se deployen, sus verificaciones de §15.D no se pueden
+> hacer, y el runbook `agregar-cliente.md` tiene su paso de alta marcado
+> `🚧 VERIFICAR CUANDO A5 ESTÉ EN PROD`.
+> ⚠️ **La `025` ya está aplicada, así que el orden que no se podía invertir está respetado**: la
+> pantalla se puede deployar cuando quieras, no va a caer en `42501` ni en cero filas.
+
+> ## 🅱️ CARRIL B (2026-08-06, rama `carril-b-cierres`) — **5 de 6. Solo B1 sigue abierta, y es calendario.**
+>
+> Todo medido contra prod (PostgREST + SQL con sesiones reales) y contra n8n por su API; nada de
+> memoria. **No se tocó `apps/dashboard/`, ni `domain/pipelines.ts`, ni se creó ninguna migración.**
+>
+> | | Estado |
+> |---|---|
+> | **B2** · check #1 contra prod | ✅ **CERO FILAS.** Y **no dependía de A1** — ver abajo |
+> | **B3** · §14.6 con filas | ✅ **CORRIDA el 06/08: `1 y 1`**, con el `2` al lado que la hace legible. La escritura cruzada muere con `42501`. **Falta el clic** (item 10 del checklist humano) |
+> | **B4** · runbooks + `core/templates/` | ✅ El criterio de F5 da **partido**: empresa 🟢, pipeline 🔴. **Y el paso 2 se corrigió contra A5 en prod: decía 5 cosas mal** |
+> | **B5** · checklist de ojo humano | ✅ [`docs/verificaciones-humanas.md`](../verificaciones-humanas.md), **11 items** |
+> | **B6** · deuda de docs | ✅ Eran **21 links rotos**, no 4, y la lista era más larga |
+> | **B1** · gate de la `023` | ✅✅ **CERRADA DEL TODO: la `023` está aplicada (07/08) y verificada por su efecto.** Con eso **el carril B queda 6 de 6** y las migraciones **25 de 25**. Ver abajo |
+>
+> ### ✅ B3 cerrada sin browser, y el discriminante es lo que la hace valer
+>
+> Se sembraron las 2 filas (una por empresa) y se corrieron **las dos capas con sesiones reales**
+> (`set local role authenticated` + `request.jwt.claim.sub`), que es lo único que las ejercita:
+>
+> | Sesión | ve en `referentes_linkedin` | |
+> |---|:-:|---|
+> | `service_role` | **2** | el denominador |
+> | **Alejandro 30X** (`30x`+`estadox`, no dueño) | **2** | RLS deja pasar lo suyo |
+> | **Majo** (`retia`) | **0** | 🔴 **el discriminante**: mismas 2 filas, no ve ninguna ⇒ la policy **filtra** |
+> | **Manuel** (`es_dueno`) | **2** | control: indistinguible de RLS apagado, por diseño |
+>
+> Y las dos capas compuestas como las corre la pantalla (sesión de Alejandro + el `.eq("instance_id")`
+> de `scoped()`): **`/30x/linkedin` → 1 · `/estadox/linkedin` → 1 · `/retia/linkedin` → 0**, contra
+> **2** sin el filtro de cockpit. **Es el `1 y 1`**, y el 2 de al lado prueba que el 1 no es *"hay una
+> sola fila"*. El `insert` en instancia ajena muere con **`42501`**.
+>
+> 🩸 **Y destapó un modo de falla que no es de LinkedIn: `update`/`delete` cruzados no dan `42501`,
+> dan 0 filas en silencio.** `with check` valida la fila que entra; `using` simplemente no ve las
+> ajenas. Una pantalla que no mire el conteo de afectadas dice *"guardado"* sobre algo que no se
+> guardó. `lib/referentes-linkedin.ts` ya lo cubre (`.select("id")` y tira si vuelve vacío) y **es un
+> invariante que cada tabla nueva tiene que repetir** — hoy está escrito en un solo archivo.
+>
+> ⚠️ **Las 2 filas quedaron sembradas a propósito**, para que el clic se pueda hacer. Limpieza:
+> `delete from app.referentes_linkedin where consulta like 'prueba rls%';`
+>
+> 🚫 **Por qué no hice el clic yo:** la cuenta de doble membresía es `alejandro.davila@30x.com`, una
+> persona real. Generarle un magic link y entrar como él es suplantarlo, y eso no lo hace un agente
+> aunque tenga la `service_role` para hacerlo.
+>
+> ### ✅ B1 CERRADA (07/08): las 4 condiciones del gate, medidas por su efecto
+>
+> Mani deployó, calificó 5 videos y pidió correr el archivado. Se disparó por su webhook con
+> `{ instancia }` en el body (el header lo comparte con el motor) → **`73dac44a`, `ok`,
+> `execution_id 126`, `archivados: 5`**. Efectos verificados contra prod, no por el verde:
+> **5 `outputs` con ese `run_id`**, 175 → **170 candidatos**, y los **48 descartes intactos**
+> (ADR-036). Antes de disparar se midió que el barrido de 20 días borraba **0** y que el destilado
+> se salteaba los 2 proyectos (3 y 2 calificados, el mínimo es 4): cero llamadas a Haiku, cero
+> criterios tocados.
+>
+> 🩸 **Y el §0 de la `023` decía algo falso, que se corrigió midiendo.** Afirmaba que *"desde la base
+> no hay forma de distinguir una corrida que ya no manda estas columnas de una que todavía las
+> manda: las dos escriben filas idénticas"*. **No son idénticas: la que ya no las manda las deja en
+> NULL.** El run del 03/08 escribió `url`/`seguidores`/`idioma` con dato; el del 06/08 las 48 en
+> NULL. Los `outputs` de este archivado: `source_items` NULL en los 5, contra 88 de 93 que lo
+> tienen. **Las condiciones 3 y 4 sí se verifican por su efecto**, y así se firmaron.
+>
+> ⚠️ La única que no se pudo medir así es `transcripciones.pedido_por`: solo la escribe la pantalla
+> de Transcribir y nadie la usó desde el deploy. Se apoya en la condición 2, que sí quedó probada
+> por otra vía (las 5 calificaciones aterrizaron en `retia/reels`, cosa imposible antes del deploy).
+>
+> ### ✅✅ Y la `023` se aplicó (07/08). **Migraciones: 25 de 25. Carril B: 6 de 6.**
+>
+> Mani la corrió en el SQL Editor. Verificada por su efecto, no por haber corrido — que es la
+> lección de la `019`:
+>
+> | | |
+> |---|---|
+> | las 6 columnas | **`42703` en las 6** por PostgREST, que de paso prueba que su schema cache se refrescó |
+> | las 2 que se quedan (`run_id`, `primera_vez`) | **200 con dato** — la mitad de la verificación que se olvida |
+>
+> 🔬 **Y se sondeó el camino de escritura sin escribir una fila**, que es lo que el gate protegía y
+> lo que el §4 no contestaba: `POST /processed_items` con la forma exacta del motor y un
+> `instance_id` inexistente da **`23503`** (pasó la validación de schema, aborta por FK, con una
+> instancia real entra); el mismo POST con `url` agregada da **`PGRST204`**. La FK aborta antes de
+> tocar la tabla, así que no quedó nada. **El camino está sano y el lunes no va a cerrar en verde
+> sin memoria.**
+>
+> ⏳ Lo que queda es mirar la corrida del lunes con
+> `node Workflows/workflow-short-form-content/verificar-corrida.mjs 2`: tiene que decir
+> `intersección: 0 ✓` **contando por `run_id`**.
+>
+> ### 🔄 Cómo llegó hasta acá (06/08 de noche): la corrida a mano y las 2 primeras condiciones
+>
+> La corrida existe y es la primera del motor **después** de que la mitad de escritura de la `023`
+> entrara al live el 05/08: **`2026-08-06 21:24 → 21:40`, `ok`, `execution_id 125`**, embudo
+> `colectados=538 → asignados=880 → pretrim=710 → filtrados=80 → gate=17 → outputs=10`.
+>
+> Las 4 condiciones del §0 de la [`023`](../../core/schema/023_poda_write_only.sql), una por una:
+>
+> | # | Condición | |
+> |---|---|---|
+> | 1 | `n8n:diff` limpio en los 5 | ✅ **verificado hoy** — los 5 corren lo que dice el repo |
+> | 2 | el deploy de Vercel con `lib/transcripciones.ts` en prod | ❓ **no lo puedo medir desde acá.** Lo confirma Mani |
+> | 3 | corrida del motor verde **que escribió memoria de dedup** | ✅ **`intersección: 0 ✓`, contando por `run_id`** (48 filas la del 06/08, 121 la del 03/08). El `⛔ NO CUENTA` que se le puso ayer **no disparó**, o sea que el ∅ es de un dedup que funciona y no de una tabla vacía |
+> | 4 | archivado verde **que escribió `outputs`** | ❌ **el último es del 04/08**, anterior al push. Y no podía llegar solo — ver abajo |
+>
+> 🔴 **La 4 no puede llegar sola.** El archivado toma `estado=neq.nuevo` —o sea que **cualquier**
+> calificación sirve, 🔥 👍 o 👎— y hoy hay **0 de 175**. El propio §0 lo anticipa (*"si esa semana
+> no hubo calificados, el archivado cierra con 0 y NO sirve de prueba"*). Para los dos devs esto
+> era imposible por el bug del cockpit; para el equipo de redes, simplemente no pasó. **El camino es
+> calificar aunque sea un puñado y después correr el archivado**, no esperar al domingo.
+>
+> 📌 **Dato de calidad, aparte del gate:** la corrida avisó *"65% de transcripciones vacías"* (31 de
+> 48), contra un baseline del 23/07 de 41% y un 54% en la del 03/08. **Tres corridas subiendo.** No
+> bloquea nada, pero si Supadata sigue así el `sin_guion` se come el supply.
+>
+> ### ✅ B1: su verificación ya no puede mentir (del cierre anterior)
+>
+> `verificar-corrida.mjs` imprimía **`intersección: 0 ✓ (∅, el dedup funciona)`** también cuando las
+> dos corridas no habían escrito **ninguna** fila — o sea que el ∅ de un dedup perfecto y el ∅ de una
+> tabla vacía se leían igual. **Y ese es exactamente el modo de falla que este gate existe para
+> cazar**: `PGRST204` tragado por el `onError: continue`, motor cerrando en verde sin memoria. Ahora,
+> si alguna de las dos corridas viene vacía, dice **`⛔ NO CUENTA`**. Probado por los dos lados: no
+> dispara contra los datos reales (121 y 10 filas, por `run_id`, ✓) y dispara con una corrida forzada
+> a vacío.
+>
+> ✅ **Y el live no se movió**: `n8n:diff` verde en los 5, así que la mitad de escritura de la `023`
+> sigue puesta y la corrida del lunes vale.
+>
+> ### 🩸 B4 — el paso 2 del runbook decía 5 cosas mal, y una escondía una decisión
+>
+> Con A5 en prod se contrastó *"dar de alta a las personas"* contra el código y contra la base:
+>
+> | Decía | Es |
+> |---|---|
+> | *"El mail, el rol, y listo"* | Son **tres** campos: **nombre** (obligatorio), mail y rol |
+> | *"`sponsor` (solo Entender)"* | 🩸 Ve **Entender + Ajustes**, y es **el único rol del cliente que administra su propio equipo**. Es el rol del jefe del cliente, y la línea vieja escondía eso |
+> | *"a `dev` no se le da…"* (disciplina) | Además **está impuesto**: solo un `es_dueno` puede otorgarlo, ni forzando el POST |
+> | *(nada)* | 📬 **Si ya tiene cuenta, NO llega mail.** Al agregar una empresa ese es el caso normal |
+> | *(nada)* | La membresía es **por empresa, no por pipeline** |
+>
+> 🩸 **Y el hallazgo que ningún doc tenía: hoy ninguna empresa cliente puede darse de alta a sí misma.**
+> **Cero `sponsor`** en las 3 empresas; los únicos 2 que administran equipo son los devs de la agencia
+> (ambos `es_dueno`, en `retia`). `30x` y `estadox` tienen **una persona cada una, `operador`**, y un
+> `operador` que entre a `/…/ajustes/equipo` sale rebotado. **El alta la hace la agencia.** Que el
+> cliente se administre solo no está roto: está **sin usar**, porque nadie nombró un `sponsor`.
+>
+> ### 🛑 Decisión de Mani (06/08): el `workflow.json` de LinkedIn NO se construye todavía
+>
+> **No se crea en n8n, no se le da cron en el dispatcher, no se re-importa nada.** Lo que ya existe
+> —la `020` y la `024` aplicadas, los 3 cockpits, la pantalla de Referentes, el manifest en `draft`—
+> se queda como está y no molesta a nadie. El bloqueo sigue siendo **no técnico** (no hay definición
+> de *"funcionó"*, no existe el banco de referentes, faltan los few-shot), y encima las 4 tablas
+> tienen **0 filas**. El porqué completo, y qué **sí** se puede seguir haciendo mientras tanto, en
+> [plan-multi-tenant §12](./plan-multi-tenant.md).
+> ⚠️ **B3 no depende de esto**: ejercita RLS con dos filas sembradas a mano, no el pipeline.
+>
+> ### 🔴 Tres cosas que cambian lo que otro agente iba a hacer
+>
+> 1. **`B2 después de A1` era falso, y el check es más ciego de lo que se creía.** El argumento era
+>    *"o el check reporta las tablas nuevas"*, y la **`025` no crea tablas** — crea una función y
+>    policies. Peor: el check pregunta por *"RLS y **cero** policies"*, así que **no puede ver** el
+>    agujero que la `025` tapa. `app.usuarios` ya tiene policy (del `007`) y **no tiene columna de
+>    tenant** desde que la `019` dropeó `client_id`; `app.usuarios_clientes` ya tiene la suya (de la
+>    `021`). La `025` arregla *"la policy es demasiado angosta"*, que es otra pregunta. La tabla con
+>    la medición está en [§14.6](./plan-multi-tenant.md).
+> 2. **🩸 La tabla de números esperados del bloque de abajo tiene 4 de 9 filas mal**, y son las que
+>    alguien iba a usar para decidir si RLS anda. Pedían el `count(*)` crudo donde la pantalla filtra:
+>    `/curar/historicos` son **31** (no 88) · `/operar` son **5** tarjetas (no 41) · `/curar/sugeridos`
+>    son **6** (no 8) · `/curar/ajustes` son **8** para un `operador`. **La tabla buena está en
+>    [`verificaciones-humanas.md` §0](../verificaciones-humanas.md).**
+>    🔑 **Y la trampa inversa, que casi se cuela en la corrección:** `app.voces` tiene 4 filas y
+>    `/retia/reels/curar/voces` muestra **3** — la cuarta es de 30X, porque `voces` es de grano
+>    **empresa**. Con el doble grano, **un `count(*)` global no confirma ni desmiente nada.**
+> 3. **Los 4 manifests de los pipelines vivos decían `status: draft`** con comentarios ya falsos
+>    (*"cron sin activar"*, *"sin importar aún en la instancia n8n"*) mientras corrían en producción
+>    hacía meses. Corregidos a `active` contra lo medido; `validate` verde. Es la mitad de **D2** del
+>    ROADMAP. **La otra mitad es de Mani** porque escribe en prod: `workflows.estado` dice `draft`
+>    para `short-form-content`. Nada lo lee (`scoped.ts:43` deja esa tabla fuera del mapa a propósito),
+>    así que es cosmético — `update workflows set estado = 'active' where id = 'short-form-content';`
+>
+> ### 📏 La foto de prod al 2026-08-06, que ningún doc tenía junta
+>
+> **23 de 24 migraciones aplicadas** — la única que falta es la **`023`**, verificada por sus 7
+> columnas todavía vivas. **24 policies** (18 en `app` + 6 en `public`) = 19 de la `021` + 4 de la
+> `024` + 1 del `007`; *la `021` tiene **19**, no 17: los docs venían repitiendo mal ese número.*
+> **3 clientes · 4 instancias · 8 usuarios / 9 membresías · 4 voces (3 de Retia) · 6 proyectos ·
+> 16 referentes · 165 candidatos · 88 outputs (31 aprobados + 57 descartados) · 38 descartes ·
+> 772 `processed_items` · 41 corridas (29 `ok`, 12 `fallo`)**. Los 5 workflows `active`, en
+> `America/Bogota`, con **cero nodos y cero credenciales de Google**.
+>
+> ### ⚠️ Y dos que no se cerraron a propósito, porque el enunciado envejeció
+>
+> - **V6 (resiliencia) no se puede correr como está escrita.** Pedía romper la credencial de Supabase
+>   *"para que el workflow IGUAL escriba a Airtable"*, y post-D7 **la entrega también es Supabase**:
+>   romperla tumba las dos mitades, así que ya no separa registro de ejecución. El invariante #1 de
+>   PLAN §2.5 sigue vivo; **lo que hay que rediseñar es cómo se ejercita**, y es decisión de Mani.
+> - **V5 (incremental `dias=1`) no va antes del gate de la `023`.** Si `processed_items` deja de
+>   escribirse, el `PGRST204` se lo traga el `onError: continue` y el motor cierra en verde **sin
+>   memoria de dedup** — que es justo lo que V5 cree estar midiendo.
+
+> ## ✅ AL CIERRE 98 (2026-08-06): EL FEED PAGINA. ANTES: EL FLIP CERRADO, LA BALDE 2 PODADA, AIRTABLE FUERA.
+>
+> **Lo único que bloquea algo:** la **`023`** espera **una corrida del motor y un archivado verdes**
+> para firmar su gate — su mitad de escritura ya está en el live (`n8n:diff` limpio). Después de la
+> corrida del lunes, `node Workflows/workflow-short-form-content/verificar-corrida.mjs 2` tiene que
+> decir **`intersección: 0`** y contar por **`run_id`** (si cae a la ventana de `primera_vez`, la
+> memoria no se escribió y hay que mirar por qué antes de dropear nada).
+>
+> ⏳ **Y no hay nada que hacer ahí hasta el fin de semana:** la última corrida en la base es del
+> **04/08 21:12**, y la mitad de escritura salió el **05/08**, así que **ninguna corrida ejerció
+> todavía el código nuevo**. El archivado es domingo 18:00 y el motor lunes 08:00. Dispararlo a mano
+> arranca una corrida real y **paga**.
+>
+> ✅ **La paginación del feed (§12 #7) se cerró el 06/08** y con eso el checklist del multi-tenant
+> queda con **un solo item: LinkedIn**. La pantalla pasó de ~405 KB a ~16 KB por carga. **Falta el
+> clic** (ver la tabla de abajo, junto al del CSV): está verificada contra prod a nivel query y con
+> tests, pero nadie la abrió en un browser.
+>
+> 🚀 **Y la Fase 5 arrancó el 06/08:** primera pantalla de LinkedIn (Referentes) + la **[`024`](../../core/schema/024_rls_linkedin.sql)**
+> con sus 4 policies. ✅ **La `024` se APLICÓ el 06/08 y se verificó por su efecto** (`pg_policies`
+> devuelve las 4 filas, todas con `instancias_visibles` en el `qual`). ⚠️ Ojo con una diferencia
+> contra la `021`: aquella era inerte al entrar porque el BFF
+> leía con `service_role`; **con el flip en prod, la `024` se evalúa desde el minuto que entra.**
+>
+> 🔴 **Aparte, y es de seguridad:** la `ANTHROPIC_API_KEY` del `.env` local es **la key filtrada en
+> `d98d45a`, revocada, que da 401**. El pipeline no se ve afectado (el live trae otra y responde
+> 200), pero hay que reponer la buena a mano — la línea del `.env` tiene el diagnóstico y el paso.
+>
+> ### Lo del cierre 96, que sigue igual: quedan dos clics
+>
+> **La Capa 2 está viva y verificada por las dos mitades**: con cuenta no dueña (3 de 4 voces sin
+> filtro de tenant) y con cuenta dueña sobre las pantallas con datos (las 4 zonas, `Entender`
+> incluida). La Fase 6 del plan quedó **completa**.
+>
+> Lo que queda son dos verificaciones de browser que no bloquean nada y se hacen en un login.
+>
+> | # | Qué | Quién | Estado |
+> |---|---|---|---|
+> | 1 | 🔴 **Entrar a `/retia/reels` con una cuenta DUEÑA y recorrer las 4 zonas** | Mani | ✅ **HECHO el 05/08.** Cuenta dueña, ventana aparte: **las 4 zonas cargan con datos, Entender incluida** — que era el riesgo concentrado (sus 12 vistas corren `security_invoker` y necesitan que el usuario alcance `clients`/`instances`/`workflows`). **Con esto el flip queda cerrado** |
+> | 2 | 🟡 El botón **Descargar CSV** de `/curar/historicos` (ADR-057) | Mani | ⬜ **arrastre del cierre 94**, el más viejo abierto. El CSV está verificado contra las 31 filas reales con un parser RFC 4180 independiente; lo que nadie hizo es **el clic**. 15 columnas, acentos derechos |
+> | 4 | 🟡 Que el tab **Entender** aparezca en el nav de un **operador** (`b8a3832`) | Jero o Alejo | ⬜ se ve solo, en su próximo login. La lógica tiene tests; falta el ojo. *No se probó desde una sesión de agente a propósito: habría requerido generar un magic link de la cuenta de otra persona* |
+> | 3 | 📐 El **ADR del `origen` en el `TenantContext`** | quien retome | ✅ **ESCRITO: [ADR-058](../adr/ADR-058-el-flip-de-la-capa-2.md)** — cubre el `origen`, la ventana de ADR-047 que se cerró sin suspender cockpits, y por qué `lib/tenant.ts` se queda en `service_role` |
+> | 5 | 🟡 Recorrer el **feed** en `/curar/feed` | Mani | ✅ **HECHO el 07/08.** Las 170 de una, los chips con el total real y la tarjeta abriendo con guion. *(Su enunciado envejeció dos veces: nació pidiendo "Cargar más" y el keyset, y el feed dejó de paginar el 07/08.)* |
+> | 9 | 🔴 Los **3 arreglos de Transcribir** (reintento · reclamo de la cola · avisar antes de pagar) | Majo o Jero | ⬜ **nuevo del 07/08.** Lo único de esa sesión que no se pudo verificar solo: las queries se probaron contra prod y el dominio tiene tests, pero **nadie tocó la pantalla**. El punto del doble pago **necesita dos navegadores a la vez**. Pasos en [`verificaciones-humanas.md` §2-bis](../verificaciones-humanas.md) |
+> | 6 | 🔬 **La prueba que cierra §14.6**: RLS de LinkedIn con datos reales | quien tenga la cuenta de 2 empresas | 🟡 **La mitad de query está CERRADA el 06/08: `1 y 1`, y `42501` en la escritura cruzada** (tabla completa en el bloque 🅱️ y en §14.6). **Queda el clic, y las 2 filas ya están sembradas esperándolo** |
+> | 7 | 🔴 El **check #1 de la `021` contra PROD** | Mani o Alejo | ✅ **HECHO el 06/08: CERO FILAS**, sobre el corpus completo (con la `020` y la `024` aplicadas). No queda ninguna tabla con columna de tenant, RLS activado y cero policies |
+> | 8 | 🔴 **Un alta real por `ajustes/equipo`** | Mani (o cualquier `es_dueno`) | ⬜ **nuevo del 06/08**, y es lo único que le falta a B4. Todo el resto del runbook está contrastado contra el código y contra prod; **lo que ningún agente puede confirmar es que salga el mail.** Necesita un mail que no esté en el sistema (un alias sirve). Pasos en [`verificaciones-humanas.md` §11](../verificaciones-humanas.md) |
+>
+> ⚠️ **Y el flip se hizo DOS VECES el mismo día, por dos sesiones que no se vieron** (`d8edea2` y una
+> rama paralela, `capa-2-flip-scoped`, descartada). Las dos llegaron al mismo diseño: mismo campo
+> `origen`, mismos dos valores, mismos dos constructores, mismas mediciones de la fachada. **Que
+> converjan no valida el diseño, mide otra cosa:** la decisión estaba forzada por la forma del código,
+> y escribir el ADR *antes* —como manda el repo— habría ahorrado el día duplicado. Es el costo real de
+> haber dejado el ADR para después, y por eso queda anotado acá y no solo en el ADR.
+>
+> <details><summary>Registro: cómo se hizo el #1, y los números que tenía que dar</summary>
+>
+> Cuenta **`a.davila0423@gmail.com`** (Alejandro Dávila, `es_dueno: true`). **Ventana de incógnito**,
+> si no el magic link cae sobre otra sesión.
+>
+> ⚠️ **Un dueño NO bypassa RLS**, y es lo que hace que esta prueba valga: `es_dueno` es un predicado
+> *adentro* de `app.clientes_visibles()`, no un `BYPASSRLS`. Solo el `service_role` bypassa, y ese ya
+> no es quien lee las pantallas. Así que esto ejercita grants, policies y `security_invoker` de
+> verdad — sobre las tablas que sí tienen datos.
+>
+> 🩸 **NO USES ESTA TABLA — 4 de sus 9 filas están mal** (medido el 06/08, tarea B5). Pedían el
+> `count(*)` crudo de la tabla donde la pantalla filtra: `/curar/historicos` son **31**, no 88
+> (filtra `aprobado`; los 88 son 31 + 57 descartados) · `/operar` son **5** tarjetas, no 41
+> (`limite = 5` sobre los runs del motor) · `/curar/sugeridos` son **6**, no 8 (solo `propuesto`) ·
+> `/curar/ajustes` son 18 para un `dev` pero **8** para un `operador`. Se conserva como registro de
+> cómo se hizo el #1. **La tabla buena vive en
+> [`docs/verificaciones-humanas.md`](../verificaciones-humanas.md) §0.**
+>
+> | Pantalla | Tiene que mostrar *(números viejos, ver el aviso de arriba)* |
+> |---|---|
+> | **`/entender`** | ⚠️ **empezá por acá**: son las **12 vistas `security_invoker`**, la zona de más riesgo del flip |
+> | `/operar` | **41** corridas |
+> | `/curar/feed` | sobre **165** candidatos |
+> | `/curar/voces` | **3** voces · **6** proyectos |
+> | `/curar/referentes` | **16** |
+> | `/curar/ajustes` | **18** knobs |
+> | `/curar/descartes` | **38** |
+> | `/curar/sugeridos` | **8** |
+> | `/curar/historicos` | **88** — y acá se hace el **#2**, el clic al CSV (15 columnas, acentos derechos) |
+> | `/transcribir` | **2** |
+>
+> Y **una escritura** (calificar en el feed, o mover un knob): prueba el `with check` de las policies
+> y el insert a `app.eventos`, que ninguna lectura toca.
+>
+> 🩸 **Acá la alarma se INVIERTE respecto de la cuenta de prueba del cierre 95.** Con los cockpits de
+> LinkedIn (vacíos) cualquier número era sospechoso; acá el peligro es el **cero**. Una pantalla que
+> carga limpia y muestra 0 donde la tabla dice 165 es **una policy que no matchea**, y es el fallo
+> silencioso — la misma familia que la vista que daba 18 filas para 17 referentes (`015`). Por eso
+> están los números: *"se ve bien"* no distingue los dos casos. Un `42501` en pantalla, en cambio, es
+> el fallo ruidoso: un grant que faltó, se arregla con SQL **sin revertir el deploy**.
+>
+> 🛟 **Rollback si algo se rompe feo:** `git revert d8edea2 && git push`, o el rollback instantáneo
+> al deployment de `3f2105a` desde Vercel. La `021` puede quedarse aplicada: vuelve a ser inerte sola
+> en cuanto el BFF regrese al `service_role`.
+>
+> </details>
+>
+> ### ✅ 🔬 #6 — CORRIDA el 2026-08-06. Las dos filas están sembradas; queda el clic.
+>
+> **Los pasos 1 y 2 se hicieron** (siembra + las dos capas medidas con sesiones reales) y dan
+> **`1 y 1`**. La tabla con las 4 sesiones y el resultado de la escritura cruzada está arriba, en el
+> bloque **🅱️ CARRIL B**, y completa en
+> [plan-multi-tenant §14.6](./plan-multi-tenant.md) — **no se duplica acá: un hecho, un dueño.**
+>
+> | empresa | `instance_id` de su cockpit de LinkedIn | fila sembrada |
+> |---|---|---|
+> | **30X** | `f35d0282-2511-4905-b407-2ab338bc2336` | `prueba rls 30x` |
+> | **EstadoX** | `f7baff77-8211-43f7-a64c-aed9e7a3e860` | `prueba rls estadox` |
+>
+> ⬜ **Lo único que falta es mirarlo en la pantalla** (`/30x/linkedin/curar/referentes` y
+> `/estadox/linkedin/curar/referentes`, incógnito, con `a6464e1d-…`) y **agregar uno desde el botón**,
+> que es lo único que ejercita los `grant insert` *por el camino de la app*. Los pasos exactos y qué
+> significa cada resultado están en [`verificaciones-humanas.md` §10](../verificaciones-humanas.md).
+>
+> **Limpieza, después del clic:** `delete from app.referentes_linkedin where consulta like 'prueba rls%';`
+>
+> ### 📐 #3 — CERRADO: [ADR-058](../adr/ADR-058-el-flip-de-la-capa-2.md)
+>
+> **La autoridad viaja en el `TenantContext`** (`origen: "sesion" | "fachada"`), y ahora está escrito
+> por qué: gobierna cómo se elige credencial en todo el BFF, así que sin ADR alguien iba a
+> "simplificar" el discriminante por redundante. El ADR cubre las tres cosas que el código no
+> explica — el `origen`, la ventana de ADR-047 que se cerró **sin** suspender cockpits, y por qué
+> `lib/tenant.ts` se queda en `service_role`.
+>
+> <details><summary>Los tres pendientes del cierre 93, cerrados y medidos el 04/08 (registro)</summary>
+>
+> | # | Qué | Estado |
+> |---|---|---|
+> | 1 | 🔑 Rotar la API key de Anthropic | ✅ **HECHO Y VERIFICADO el 04/08.** La key del commit filtrado (`d98d45a`) da **401** contra la API de Anthropic ⇒ está revocada. Los 3 workflows del live traen **una sola** key cada uno y **coincide con el `.env`**. Nadie lo había anotado: se descubrió midiendo |
+> | 2 | ✍️ Firmar y correr la `019` | ✅ **APLICADA por Mani el 04/08, y verificada por su EFECTO:** `app.usuarios` quedó en **`id, nombre, creado_en, es_dueno`** — murieron `rol` y `client_id`. Las 5 membresías intactas (3 operador + 2 dev, todas `retia`), `es_dueno` en los 2 devs. **La ventana del expand está cerrada: van 21 de 21 migraciones** |
+> | 3 | 🩸 El archivado no archiva nada | ✅ **ARREGLADO, EMPUJADO AL LIVE Y VERIFICADO CON UNA CORRIDA REAL** (ejecución 124). Los números abajo |
+> | + | ⚠️ Dos bugs nuevos del archivado, del mismo origen | ✅ **empujados al live el 04/08** (`n8n:diff` limpio en los 5). Se verifican solos en la próxima corrida — ver el hecho-cuando abajo |
+>
+> **Smoke-test después de la `019`** (es la migración que toca justo la fila que decide si alguien
+> entra): `/` y `/retia/reels` → **307** al login · `/login` → **200** · `run-plan` → **200** ·
+> `instancias?workflow=short-form-content` → **200** con la instancia de `retia/reels`, y
+> `?workflow=linkedin` con las **2 active** (`retia/linkedin` queda afuera por `draft`, como se
+> diseñó). ✅ **Y Mani entró con una cuenta operador: se ve bien.** Esa era la verificación que la
+> base no puede dar.
+>
+> ### 🟡 El clic que faltaba *(sigue abierto — es el #2 de la tabla de arriba)*
+>
+> El botón **Descargar CSV** de `/curar/historicos` ([ADR-057](../adr/ADR-057-el-sheet-historico-por-instancia-o-ninguno.md)).
+> Su parte frágil —el CSV— está verificada contra las 31 filas reales de prod con un parser RFC 4180
+> independiente, pero **nadie hizo clic en el botón**: eso necesita una sesión con login por magic
+> link. Abrí `/retia/reels/curar/historicos`, tocá **Descargar CSV** y abrilo. Tiene que traer
+> **15 columnas** y los acentos derechos.
+>
+> ### 🩸➜✅ El archivado, cerrado con la misma tabla del cierre 93
+>
+> Causa raíz confirmada **leyendo la ejecución 123 nodo por nodo**, no deduciéndola: `Leer Candidatos
+> calificados` emitió **9 items planos** (n8n parte el array de PostgREST en items) y el `IF` mandó
+> **0 por true y 9 por false**. El fix pregunta por los items del nodo, con el mismo `_filas` que ya
+> usan los nodos de abajo — así el IF y el code node no pueden volver a discrepar sobre la forma:
+>
+> ```
+> ={{ $('Leer Candidatos calificados').all().map(i => i.json).flat().filter(r => r && r.id).length }}
+> ```
+>
+> Y `alwaysOutputData: true` en `Leer Candidatos calificados`: **segunda regresión de D7, misma
+> causa.** Con 0 calificados el nodo emite 0 items, el IF no corre y **`Cerrar run` no se ejecuta por
+> ninguna rama** — el run queda abierto hasta que lo barre el zombie sweeper. Con Airtable no pasaba
+> (`{records:[]}` era 1 item).
+>
+> | | Antes (03/08) | **Después (04/08, ejecución 124)** |
+> |---|---|---|
+> | candidatos calificados | 9 → **9** | 9 → **0** ✅ |
+> | candidatos totales | 174 → 174 | 174 → **165** (9 borrados) ✅ |
+> | `outputs` totales | 79 → **79** | 79 → **88** ✅ |
+> | último `outputs` | 26/07 | **04/08 21:12** ✅ |
+> | el IF | `[0 true, 9 false]` | **`[9 true, 0 false]`** ✅ |
+> | la corrida | `ok` en 3,3 s | `ok`, `archivados: 9`, `execution_id: "124"` real |
+>
+> Al Sheet fueron **7** y no 9, y está bien: `Preparar filas Sheet` filtra `estado === 'aprobado'`, y
+> de los 9 había 7 aprobados y 2 descartados.
+>
+> ### ⚠️ Los dos bugs que el fix DESTAPÓ (y el comando que falta)
+>
+> No los causó el fix: estaban **tapados** detrás del IF: como el archivado no archivaba desde D7,
+> ningún nodo de abajo llegaba a correr. Los dos son la misma causa, y está escrita en el contrato:
+> **`fields.uuid` murió en el run-plan v2** ([ADR-048 §5](../adr/ADR-048-run-plan-v2-motor-por-instancia.md)),
+> el `id` **es** el uuid, y *"los tres `uuidDe` se fueron juntos"* — el motor ×2 y el descubrimiento
+> ×1 se migraron; **los dos nodos del archivado se quedaron atrás**.
+>
+> | Nodo | Qué hacía mal | Consecuencia medida |
+> |---|---|---|
+> | `Armar filas archivado` | `projMap[f.uuid]` / `vozMap[f.uuid]`, y `f.uuid` hoy es `undefined` ⇒ los dos mapas vacíos | **Todo `outputs.metadata.proyecto` y `.voz` vacío**, y PROYECTO/VOZ vacíos en el Sheet. Medido: los 61 outputs del 26/07 tienen proyecto; los 9 de hoy salieron **todos vacíos** |
+> | `Destilar criterios` | `const _uuid = projMeta[pid].uuid` ⇒ `null` siempre ⇒ `recs` vacío | **El loop de aprendizaje de ADR-022 está muerto**: `PATCH Proyectos criterios` nunca corre. Y encima **paga las llamadas a Haiku** y tira el resultado. Los 9 daban 5 (*Comunicación de parejas*) + 4 (*Storytelling*), **los dos ≥ el mínimo de 4**: tenía que destilar 2 proyectos y destiló 0 |
+>
+> ✅ **Los 9 `outputs` con metadata vacía ya se repararon** (backfill por `external_id`, preservando
+> el resto del metadata: 5 *Comunicación de parejas* / Milena Morales + 4 *Storytelling* / Rosario
+> Gomez, 0 vacíos restantes). **Las 7 filas del Sheet quedaron con PROYECTO y VOZ vacíos** y eso hay
+> que arreglarlo a mano en el Sheet, o dejarlo — ver [ADR-057](../adr/ADR-057-el-sheet-historico-por-instancia-o-ninguno.md).
+>
+> ✅ **Empujados al live el 04/08** (`n8n:push -- archivado --nodos "Armar filas archivado,Destilar
+> criterios" --apply`; `n8n:diff` limpio en los 5). Rollback si hiciera falta:
+> `npm run n8n:restore -- archivado .n8n-snapshots/archivado-2026-08-04T21-31-43-595Z.json --apply`.
+>
+> 🎯 **Hecho cuando (lo único que queda de esto, y no se puede apurar):** la próxima corrida del
+> archivado —el **cron del domingo 18:00**, o un disparo a mano— tiene que dejar
+> `outputs.metadata.proyecto` y `.voz` **poblados** y `PATCH Proyectos criterios` **ejecutado** (o
+> saltado por el mínimo de 4 legítimamente). Si vuelve a salir vacío, el fix del uuid no entró.
+>
+> <details><summary>🔑 Cómo se rotó la key de Anthropic (ya hecho — se deja como procedimiento)</summary>
+>
+> ### 🔑 Cómo se rota la key de Anthropic, y por qué `n8n:push` NO sirve acá
+>
+> **La key no es una credencial de n8n: va inline en el `jsCode` de 6 nodos.** Medido contra los
+> `workflow.json` el 03/08 — no hay ninguna credencial `anthropic*` en la instancia:
+>
+> | Workflow | Nodos que la llevan |
+> |---|---|
+> | motor | `Pre-trim relevancia` · `Traducir (Claude Haiku)` · `Gate de relevancia` |
+> | descubrimiento | `Vetting relevancia (Haiku)` · `Vetting TikTok (Haiku)` |
+> | archivado | `Destilar criterios` |
+>
+> **El orden importa, y al revés de lo que parece:**
+> 1. Rotar en la consola de Anthropic.
+> 2. **Editar los 6 nodos a mano en n8n.** ⚠️ **`n8n:push` no puede hacerlo**: el repo guarda
+>    `<ANTHROPIC_API_KEY>` y `n8n-sync` **aprende el valor del propio live** (esa es toda la idea de
+>    ADR-053: una tabla a mano sería una segunda verdad). Si empujás antes de cambiarlo en n8n, el
+>    push **reescribe la key vieja**, porque es la que aprendió.
+> 3. Actualizar `ANTHROPIC_API_KEY` en el `.env` de la raíz (a mano; es local y gitignored).
+> 4. `npm run n8n:diff` para confirmar verde.
+>
+> 🛟 **La red que ya existe si el paso 2 queda a medias:** el mapa de placeholders se aprende de los
+> 5 workflows a la vez, así que si un workflow tiene la key nueva y otro la vieja, el placeholder
+> entra en **conflicto** y `n8n-sync` lo **descarta** (`for (const k of conflictos) mapa.delete(k)`).
+> El push queda con un placeholder sin resolver y **falla cerrado** en vez de escribir el valor
+> equivocado. Un `n8n:diff` después de rotar te dice si quedó alguno sin cambiar.
+>
+> </details>
+>
+> ### ✅ Y lo que seguía en el plan, hecho al día siguiente
+>
+> El **flip de `scoped.ts`** (Fase 6, **paso 2 de 2**) entró el **05/08** (`d8edea2`). Este bloque
+> decía *"alto riesgo concentrado en una línea"* y *"se prueba con la cuenta de Jero"*: **las dos
+> cosas resultaron falsas**. No era una línea (la fachada comparte `scoped()`), y la cuenta que sirve
+> no es la de Jero sino una **no-dueña con membresía en dos empresas**, porque es la única que separa
+> las dos capas. Los dos hallazgos están en [§14.3](./plan-multi-tenant.md) y en el cierre 95.
+>
+> </details>
+>
+> ### Lo que sí quedó cerrado del runbook viejo
+> | # | Paso | Estado |
+> |---|---|---|
+> | 1–2 | `018` + backfill | ✅ Alejandro, 03/08. 5 usuarios → 5 membresías, `es_dueno` en los dos correctos |
+> | 3 | Merge `refactor/membresias` → `main` + push | ✅ **HECHO (`ad2de5b`)**, fast-forward limpio |
+> | 4 | Probar el login con una cuenta operador | ✅ Mani: se ve bien |
+> | 5 | `019_membresias_cierre.sql` | ✅ **aplicada el 04/08** (al segundo intento: la primera vez su gate humano abortó la transacción entera sin error visible). `app.usuarios` quedó en `id, nombre, creado_en, es_dueno` |
+> | 6 | `020_pipeline_linkedin.sql` | ✅ aplicada: las 4 tablas responden y `linkedin` está en `workflows` |
+> | 7 | El alta de EstadoX y 30X (SQL abajo) | ✅ aplicada: `clients` = **3** · `instances` = **4** (`retia/reels` active · `retia/linkedin` **draft** · `estadox/linkedin` active · `30x/linkedin` active), exactamente como se diseñó |
+> | + | **`021_rls_capa_2.sql`** (Fase 6, paso 1) | ✅ aplicada. Es **inerte** hasta el flip: el BFF sigue en `service_role`, que bypassa RLS |
+>
+> ### El SQL del paso 7 — las dos empresas nuevas y los tres cockpits de LinkedIn
+>
+> ```sql
+> begin;
+>
+> -- Las dos marcas que faltaban. `estado` acá es 'activo' (español) — ojo, en `instances` es
+> -- 'active' (inglés). Las dos tablas usan vocabularios distintos desde la `001` y es fácil errarle.
+> insert into clients (id, nombre, estado) values
+>   ('estadox', 'EstadoX', 'activo'),
+>   ('30x',     '30X',     'activo');
+>
+> -- Un cockpit de LinkedIn por marca (ADR-055: un cockpit = una fila en `instances`).
+> -- El cockpit solo lista instancias `active`, así que el estado decide QUIÉN lo ve, no solo si
+> -- corre. Activar no dispara nada: el dispatcher no tiene cron de LinkedIn y no existe el
+> -- workflow en n8n.
+> insert into instances (client_id, workflow_id, slug, nombre, estado) values
+>   -- 🩸 `draft` a propósito, y esto se descubrió CORRIÉNDOLO. La membresía es por EMPRESA, no por
+>   -- cockpit (ADR-051), así que un `active` acá le habría dado a Jero —y a Alejo, y a Manuel 30X—
+>   -- un cockpit de LinkedIn vacío, sin motor y sin datos, más un selector de pipeline que no
+>   -- pidió nadie. Pasa a `active` cuando LinkedIn tenga algo que mostrarle al equipo de Retia.
+>   ('retia',   'linkedin', 'linkedin', 'LinkedIn', 'draft'),
+>   -- Estas dos sí `active`: en `estadox` y `30x` **no hay ninguna membresía**, así que las ven
+>   -- solo los dos dueños. Son el banco de pruebas del cockpit de LinkedIn sin tocarle la pantalla
+>   -- a nadie del equipo.
+>   ('estadox', 'linkedin', 'linkedin', 'LinkedIn', 'active'),
+>   ('30x',     'linkedin', 'linkedin', 'LinkedIn', 'active');
+>
+> commit;
+> ```
+>
+> **Sin membresías nuevas, y es a propósito** (decidido con Alejandro el 03/08): los dos devs son
+> `es_dueno` y alcanzan las tres empresas sin necesitar fila. Jero, Alejo y Manuel 30X siguen viendo
+> **solo Retia** — no se enteran de que existen las otras, que es exactamente lo que el selector de
+> equipo tiene que garantizar.
+>
+> ### Qué tiene que verse después del paso 7 (la prueba de que funcionó)
+> · Entrando con **tu** cuenta: aparece el **selector de equipo** con 3 opciones (retia, estadox,
+>   30x) y **ningún selector de pipeline** (cada empresa tiene un solo cockpit visible: Retia solo
+>   `reels` porque su LinkedIn queda `draft`) · en `/estadox/linkedin` **el nav NO dibuja
+>   `Transcribir`**, y entrar a mano a `/estadox/linkedin/transcribir` **redirige** · con la cuenta
+>   de **Jero**: ningún selector, y `/estadox/linkedin` lo rebota a su cockpit de Retia.
+>
+> ✅ **VERIFICADO contra un Postgres 16 real (2026-08-03).** Se corrió `001→020` completo en Docker,
+> con el renombre `piloto`→`retia` en el medio, los gates humanos de la `017`/`019` descomentados y
+> **el mismo seed que prod** (5 usuarios, 2 devs). Resultado: **5 usuarios → 5 membresías** ·
+> `es_dueno` = **Alejandro Dávila y Manuel Mejia**, los correctos · la `019` dejó
+> `app.usuarios` en `id, nombre, creado_en, es_dueno` (murieron `rol` y `client_id`) · las 4 tablas
+> de LinkedIn creadas, `instance_id` **not null y sin default** en las 4 · **`app.plataforma` intacto
+> (`instagram, tiktok`)** · `linkedin` registrado en `workflows`. **El SQL del alta también se corrió
+> ahí mismo** y es de donde salió el hallazgo del `draft` de arriba.
+
+> ## ✅ CERRADO EL 2026-08-03 (cierre 93): `params.execution_id` aparece en una corrida real
+>
+> **Ya no falta nada acá.** La corrida del archivado del 03/08 (21:19, `on_demand`) escribió
+> `params.execution_id: "123"`, y se verificó contra `GET /api/v1/executions/123`: mismo
+> `workflowId` que `N8N_WF_ARCHIVADO`, `status: success`, `startedAt` a 0,6 s del `runs.inicio`.
+> ADR-054 queda verificado end-to-end. Lo de abajo es el enunciado original, como registro.
+>
+> <details><summary>El pendiente original (cierre 90)</summary>
+>
+> Los 3 `Abrir run` ya graban `params.execution_id = $execution.id` en producción y el error handler
+> ya cierra por esa llave ([ADR-054](../adr/ADR-054-cada-run-lleva-su-execution-id.md)). Se probó
+> end-to-end con un workflow desechable que se cae a propósito: el handler se disparó, capturó el id
+> de la ejecución caída y su `PATCH` salió limpio contra Supabase. **Lo que todavía no pasó es una
+> corrida de verdad**, así que ninguna fila de `runs` tiene la clave todavía. Después del próximo
+> cron (lunes 8:00):
+>
+> ```sql
+> select estado, params->>'workflow', params->>'execution_id', inicio from runs order by inicio desc limit 5;
+> ```
+>
+> Las 3 últimas tienen que traer `execution_id` no nulo. Si viene nulo, el `Abrir run` de ese
+> workflow no se empujó — se ve con `npm run n8n:diff` y se arregla con `n8n:push`.
+>
+> ### ⚠️ La regla nueva que sale de esta sesión: **`npm run n8n:diff` después de CADA import**
+> El error handler se rompió **dos veces por lo mismo** (la copia original y el re-import del
+> 2026-08-03): `<<SUPABASE_URL>>` quedó literal en el campo URL de un nodo HTTP. `<<…>>` no es
+> sintaxis de expresión de n8n, así que el request muere — y como el nodo va con
+> `onError: continueRegularOutput`, **la ejecución termina en verde igual**. Las dos veces lo
+> encontró un diff, nunca una corrida. El nodo *parece* configurado porque la credencial queda en
+> verde y el placeholder vive adentro del campo URL.
+>
+> ### ⚠️ Importar en n8n NO actualiza en el lugar: crea un workflow con id NUEVO
+> El re-import del error handler creó `gBcKmzxc4EgXMwzv` y dejó el original archivado. Si volvés a
+> importar cualquiera de los 5, hay que **actualizar su `N8N_WF_*` en el `.env`** y volver a apuntar
+> lo que lo referencie (`settings.errorWorkflow` de los otros 4), o el alias del diff apunta al
+> muerto y te miente en verde.
+>
+> </details>
+
+> ## ✅ EL REFACTOR MULTI-TENANT ESTÁ EN PRODUCCIÓN (2026-08-03, madrugada)
+>
+> **Los 6 pasos del runbook están hechos y verificados contra la base y contra n8n, no de palabra.**
+> `retia/reels` es el cockpit vivo; las URLs son `/retia/reels/...` y **entrar por la raíz `/` lleva
+> solo** (es el link que hay que darle al equipo).
+>
+> ✅ **Los bookmarks viejos YA NO mueren (cierre 89, `e5c6668`).** Decía acá que morían, y era cierto
+> hasta ese commit: la Fase 3 había dejado páginas solo para las **zonas**, así que `/retia/reels`,
+> `/retia` y todo link pre-refactor daban **404 pelado**. Ahora `[cliente]` y `[cliente]/[pipeline]`
+> son rutas de verdad y rebotan a la zona inicial del rol, y como los links viejos tienen 1–2
+> segmentos, **los atrapan esas mismas rutas y caen solos en el cockpit correcto**. Hay además un
+> `not-found.tsx` para lo que ni eso matchea. *No hace falta avisarle nada a Jero.*
+>
+> | | Paso | Verificado con |
+> |---|---|---|
+> | 1 | Renombre `piloto` → `retia`, slug → `reels` | 1 cliente, 1 instancia, 0 filas apuntando a otra cosa. **Los defaults puente se movieron** (probado insertando sin `client_id`) |
+> | 2 | Merge `b1b8212` + deploy | `run-plan` responde **400 sin instancia · 403 ajena · 200 con `version: 2`**, y `fields.uuid` no viaja en ninguna de las 4 listas |
+> | 3 | Re-import de los 4 workflows | Coinciden con el repo **nodo por nodo** (34·22·8·20), 0 placeholders, **24 llamadas a PostgREST bien scopeadas** (20 por instancia + 4 por `id=eq.`) |
+> | 4 | Crons viejos apagados | 60 workflows en n8n, **5 activos**: los 4 nuestros + el *Error Workflow*. Los crons viven en el dispatcher (lunes 8am · domingo 18:00) |
+> | 5 | Corrida de verificación | `ok` en 16,7 min **con `instance_id`** · embudo 545→836→12→1 · `supadata: 10` (el cap mordió exacto) · **0 filas fuera de `retia`** |
+> | 6 | `017` aplicada | Las 10 columnas en `not null` sin default · el arbiter viejo da **`42P10`** · el nuevo escribe |
+>
+> ### 🩸 Y la prueba que convierte esto en un hecho, no en una promesa
+> Se creó una **segunda instancia** de `retia` (`slug: prueba-dedup` — que de paso prueba el unique
+> nuevo de la `016`, el que antes prohibía dos instancias del mismo pipeline), se metió un
+> `external_id` **que ya existía** para la instancia real, y **entró**. Dos filas, mismo video, dos
+> instancias. Antes de la `017` eso era imposible. Las dos filas de prueba se borraron y los
+> conteos volvieron a la línea base (651 · 1 instancia · 1 cliente).
+>
+> ### 🚨 LO QUE APRENDIMOS Y NO ESTABA EN NINGÚN CHECKLIST: LAS CREDENCIALES
+> El checklist del re-import cubría los **placeholders** y no decía una palabra de las
+> **credenciales**. Costó dos intentos fallidos, los dos del mismo tipo: una credencial elegida mal
+> de un desplegable. **El repo tenía la culpa**: sus `workflow.json` referencian credenciales por
+> *nombre y sin id*, y el nombre de Supabase (`Supabase Registro`) **no existe en n8n** — la real se
+> llama `Supabase account`. Al no poder emparejar, n8n las pide a mano: 25 clicks, y ahí se cuelan
+> los errores.
+> **Ya está corregido en el repo** (25 referencias), así que el próximo import engancha solo.
+> **La tabla de qué credencial va en qué nodo — verificada contra n8n el 2026-08-03:**
+>
+> | Workflow | Nodo | Credencial |
+> |---|---|---|
+> | motor | `Disparo on-demand (webhook)` | `Webhook Motor Header` |
+> | motor | `Leer plan (fachada)` | `Run Plan Header` |
+> | archivado | `Disparo por instancia (webhook)` | `Webhook Motor Header` ← **el mismo que el motor, a propósito** |
+> | archivado | `Leer plan (fachada)` | `Run Plan Header` |
+> | archivado | `Append al Sheet Histórico` | la de Google Sheets (se elige a mano, no es texto) |
+> | descubrimiento | `Buscar ahora (webhook)` | `Webhook Descubrimiento Header` |
+> | descubrimiento | `Leer plan (fachada)` | `Run Plan Header` |
+> | **dispatcher** | `Leer instancias (fachada)` | **`Run Plan Header`** ← el que falló |
+> | **dispatcher** | `Disparar por instancia` | **`Webhook Motor Header`** |
+> | los 25 nodos de Supabase | — | `Supabase account` |
+>
+> ⚠️ **Los dos fallos fueron por poner `Webhook Motor Header` donde iba otra.** Es fácil: el
+> desplegable las muestra juntas y los nombres se parecen. **Al re-importar, revisá los nodos de
+> `fachada` primero** — son los que rompen al arrancar.
+>
+> ### 🟢 Lo bueno de cómo falló
+> Los dos errores dieron **403 en el primer nodo**, antes de tocar Apify, Supadata o Haiku. Cero
+> pesos gastados en dos intentos fallidos. Es el fail-closed de ADR-028 funcionando como se diseñó.
+>
+> ### Lo que sigue
+> **Nada bloquea la operación.** Lo que queda es construcción, en este orden: merge de
+> `refactor/membresias` + `018` + `019` (ADR-051/052) → **Capa 2 (RLS)**, que con clientes externos
+> ya no es diferible → paginación del feed → LinkedIn como pipeline N+1.
+>
+> 🔸 *Detalle que no molesta: `instances.config_ref` sigue diciendo `clients/piloto/…` y el
+> directorio `clients/piloto/` no se renombró. Es config de prueba de la era piloto y su consumidor
+> (`deploy.mjs`) está deprecado — renombrarlo etiquetaría datos falsos como si fueran de Retia.*
+
+> 🟣 **QUIÉN USA ESTO HOY, Y LA RESTRICCIÓN QUE IMPONE (Mani, 2026-08-02).** Lo que está live
+> —los 3 workflows y el cockpit— **es de Retia**. No hay diferenciador de empresa ni instancias
+> concurrentes: hay **un** cliente (`piloto`), **una** instancia y **5 usuarios**, todos con
+> `client_id = piloto`, y el que lo usa de verdad es **Jero** (`operador`, ya con su correo en el
+> auth de Supabase). Todo el refactor multi-tenant se hace **encima de un producto en uso**.
+>
+> **La restricción, dicha como restricción: Retia no se puede quedar sin acceso ni sin motor
+> mientras dure el refactor.** De lo que viene, tres cosas se lo pueden llevar puesto:
+> · ~~**La Fase 3 le rompe los bookmarks**~~ ✅ **cerrado en el cierre 89**: los links viejos ahora
+>   rebotan solos al cockpit. Entrar por la raíz `/` sigue siendo el camino a darle igual.
+> · **La Fase 6 (RLS)** es la única que puede dejarlo afuera de verdad: hoy el BFF lee con
+>   `service_role` y ahí pasa a leer con su sesión. Es la fase que hay que probar con la cuenta de
+>   él, no con una de dev.
+> · **El `018` de ADR-051** mueve el acceso de `usuarios.client_id` a `usuarios_clientes`. **Si no
+>   backfillea las 5 filas de arriba, los 5 pierden el cockpit el día del deploy** — Jero incluido.
+>
+> 🟠 **DECIDIDO (Mani, 2026-08-02): `piloto` → `retia` y el slug → `reels`, ANTES del merge.**
+> Desde la Fase 3 los dos van en la URL: `/piloto/short-form-content/curar/feed` hoy,
+> `/retia/reels/curar/feed` después. Se hace antes del merge porque después ya hay links repartidos,
+> y romperlos dos veces seguidas es lo que hace que la gente deje de confiar en el cockpit.
+>
+> > 🚨 **No es un `update clients set id = 'retia'`: eso falla.** Las **6 FKs** que apuntan a
+> > `clients.id` están declaradas `references clients (id)` **a secas, sin `on update cascade`**
+> > (la `001` y la `016`). Hay que crear, repuntar y borrar. Y la trampa que no se ve: **la `016`
+> > dejó DEFAULTS puente apuntando a `'piloto'`** en las 4 tablas de grano empresa, y viven hasta
+> > la `017` — si no se mueven, el primer insert que no mande `client_id` explícito viola la FK.
+> >
+> > ```sql
+> > begin;
+> >
+> > -- 1. Nace el cliente nuevo con los datos del viejo.
+> > insert into clients (id, nombre, estado, creado_en, parent_id)
+> > select 'retia', 'Retia', estado, creado_en, parent_id   -- 👉 confirmá el nombre visible
+> > from clients where id = 'piloto';
+> >
+> > -- 2. Repuntar TODO lo que le apunta. Los conteos son los de prod al 2026-08-02:
+> > update instances      set client_id = 'retia' where client_id = 'piloto';  -- 1
+> > update clients        set parent_id = 'retia' where parent_id = 'piloto';  -- 0 (no hay árbol aún)
+> > update app.usuarios   set client_id = 'retia' where client_id = 'piloto';  -- 5  ← Jero acá
+> > update app.voces      set client_id = 'retia' where client_id = 'piloto';  -- 3
+> > update app.proyectos  set client_id = 'retia' where client_id = 'piloto';  -- 6
+> > update app.referentes set client_id = 'retia' where client_id = 'piloto';  -- 16
+> >
+> > -- 3. Los defaults puente de la 016. SIN ESTO se rompe el primer insert.
+> > alter table app.usuarios   alter column client_id set default 'retia';
+> > alter table app.voces      alter column client_id set default 'retia';
+> > alter table app.proyectos  alter column client_id set default 'retia';
+> > alter table app.referentes alter column client_id set default 'retia';
+> >
+> > -- 4. Recién ahora.
+> > delete from clients where id = 'piloto';
+> >
+> > -- 5. El otro segmento de la URL. `slug`/`nombre` no los referencia nadie.
+> > update instances set slug = 'reels', nombre = 'Reels'
+> >  where workflow_id = 'short-form-content';
+> >
+> > commit;
+> > ```
+> >
+> > **Verificar después** (las tres tienen que dar lo esperado, no "parecer bien"):
+> > `select id, nombre from clients;` → una fila, `retia` ·
+> > `select client_id, slug from instances;` → `retia` / `reels` ·
+> > `select count(*) from app.usuarios where client_id <> 'retia';` → **0**.
+> >
+> > **Lo que NO cambia, y conviene saberlo:** el **`instances.id` es el mismo uuid**, así que
+> > `N8N_INSTANCE_ID`, los workflows re-importados y el dispatcher **no se tocan**. Y el código no
+> > tiene el slug hardcodeado en ningún lado (verificado: solo aparece en un comentario).
+> >
+> > 🔸 **Dos cosas que quedan desalineadas a propósito:** `instances.config_ref` sigue diciendo
+> > `clients/piloto/…` y el directorio `clients/piloto/` **no se renombró**. Ese yaml es config de
+> > prueba de la era piloto (una voz falsa de "IA y productividad", cuentas de muestra) y su único
+> > consumidor es `deploy.mjs`, que está **deprecado**. Renombrarlo etiquetaría datos falsos como si
+> > fueran de Retia; limpiarlo o borrarlo es otra tarea.
+>
+> 📌 **Alta de usuarios: sigue manual y Mani quiere cambiarlo.** ADR-051 lo dejó como deuda
+> consciente con disparador *"el primer usuario que no sea de la agencia"*. **Vale confirmar si ese
+> disparador ya se cumplió**: si Jero entra como gente de Retia y no como equipo de la agencia, el
+> alta manual (invite en Supabase + `insert` a mano en el SQL Editor) ya dejó de alcanzar.
+
+> ✅ **REFACTOR MULTI-TENANT — FASES 0 a 4 EN PRODUCCIÓN. LA `016` Y LA `017` APLICADAS.**
+> *(Este bloque decía «Fases 0 a 4 en la rama» y listaba cinco pasos pendientes — re-import, apagar
+> crons, activar dispatcher, corrida de verificación, `017`. **Los cinco están hechos.** También murió
+> acá el aviso del `slug`: hoy es `reels`, y el del techo de gasto: el re-import pasó.)*
+>
+> **El estado medido, con sus números, vive en un solo lugar:**
+> [plan-multi-tenant §0](./plan-multi-tenant.md) (base + n8n + repo, verificado el 2026-08-03) y el
+> checklist con marcas en **§12**. No lo dupliques acá.
+>
+> **Lo que falta está escrito para ejecutarse, en [plan-multi-tenant §14](./plan-multi-tenant.md):**
+> **§14.1** la `018`/`019` sin mergear · **§14.2** `n8n:push` sin topología · **§14.3** RLS ·
+> **§14.4** el Sheet global · **§14.5** knobs y cupos compartidos.
+>
+> 🚨 **Lo único de ahí que puede lastimar a alguien hoy, y por eso se repite acá:** la **`018`**
+> mueve el acceso de `usuarios.client_id` a `app.usuarios_clientes`. **Si no backfillea las 5 filas
+> de `app.usuarios` en la misma transacción, los 5 usuarios pierden el cockpit el día del deploy —
+> Jero incluido.** Se verifica con `select count(*) from app.usuarios_clientes;` → **5**, antes de
+> que Vercel deploye.
+
+> ✅ **SACAR EL TECHO DE GASTO — CERRADO (2026-08-02/03).** *El re-import se hizo, el techo quedó en
+> **250** por decisión (no por costo), y la corrida de verificación salió `ok`. Lo de abajo se
+> conserva porque su hallazgo sigue vigente y es de los caros de re-derivar: **el cap POSTERGA, el
+> presupuesto QUEMA**, y el cuello es el supply, no los cortes.* Mani pidió sacar
+> `cap_top_n` (los planes pagos de Apify/Supadata/Claude no llegan ni a la mitad del cupo y se
+> resetean solos) y que el motor sea lo más preciso posible trayendo el `N` de cada proyecto. La
+> revisión encontró que **el cap no era lo que frenaba, y sacarlo hoy habría roto la corrida**.
+> Salieron 2 ADRs: [044](../adr/ADR-044-todo-nodo-caro-tiene-presupuesto.md) ·
+> [045](../adr/ADR-045-se-borra-solo-lo-que-nunca-produjo-nada.md).
+>
+> ### 🚨 El hallazgo que importa: `Traducir` era el techo real, y el único nodo caro SIN red
+> Corría **serial con `sleep(1000)` y sin presupuesto**. Los referentes son casi todos ingleses: la
+> corrida del 31/07 16:28 hizo **170 traducciones sobre 191 transcritos (89%)** y duró 31 min.
+> `Transcribir` tiene presupuesto (840 s) justamente porque el watchdog del task runner
+> (`N8N_RUNNERS_TASK_TIMEOUT`, 900 s en el pod) **mata el nodo entero** y la corrida muere sin
+> entregar nada — pasó 3 veces el 07-10. `Traducir` no tenía ninguno: al doble de volumen se lleva la
+> corrida puesta, después de pagar Apify y Supadata. **Era el modo de falla más caro del motor.**
+>
+> ### 🩸 Y la asimetría que hay que memorizar: el cap POSTERGA, el presupuesto QUEMA
+> El orden en serie es `Heat-score v1 → Preparar procesados → POST processed_items → Transcribir`
+> (ADR-029, enmienda del 31/07), o sea **el video se marca como procesado ANTES de transcribirse**.
+> El que se queda sin presupuesto vuelve con transcript vacío → el gate lo descarta `sin_guion`
+> (ADR-030) → y ya está en la memoria de dedup: **no se reintenta nunca**. El corte de `cap_top_n`,
+> en cambio, pasa *adentro* de `Heat-score v1`, antes de ese POST: lo capado vuelve la corrida
+> siguiente. Sacar el cap sin mover el presupuesto habría cambiado un aplazamiento por una pérdida
+> permanente. *(Y con `CONCURRENCIA = 8` a ~27 s/video, 840 s daban ~250 videos: exactamente
+> `cap_top_n = 250`. Los dos techos estaban calibrados al mismo punto, así que bajar uno no destrababa
+> nada.)*
+>
+> ### ✅ Paso 1 HECHO — y el paso 2 se dio vuelta al mirarlo (2026-08-02)
+> **1. ✅ Motor re-importado y publicado** por Mani, con el commit `f0a0936` en `origin/main`
+> (Vercel deploya `main`, así que el cockpit con el borrado también está vivo).
+> **2. 🔄 `Videos a transcribir por corrida` se puso en 0, se verificó, y se VOLVIÓ a 250.**
+>
+> > 🚨 **El techo no era freno de gasto: era el que raciona el supply.** `Leer procesados` lee
+> > `processed_items` entera (`limit=50000`, **sin filtro de fecha**) y `POST processed_items` corre
+> > **antes** de transcribir, así que todo lo que se transcribe queda en la memoria de dedup para
+> > siempre — pase o no el gate, se entregue o no. Y la entrega la topan los `N`, que hoy suman
+> > **100**. Con el techo en 0, la corrida transcribe ~500 (el backlog de 100 días entero), entrega
+> > **los mismos 100**, y **quema ~265 videos que no vuelven**. Con 250 quema ~80 y el backlog dura
+> > 2-3 semanas. *Sacar el techo no entrega un solo video más.*
+> >
+> > **Y el cuello está río abajo:** **143 candidatos sin calificar** en el feed (49 · 34 · 31 · 24 · 5)
+> > contra **9 calificados en total** desde que el feed existe. Cada corrida grande le suma backlog a
+> > un backlog. **El techo se sube cuando sube `sum(N)` o cuando el equipo vacía el feed**, no cuando
+> > sobra cupo en Supadata. Detalle y la tabla de números: [enmienda de
+> > ADR-044](../adr/ADR-044-todo-nodo-caro-tiene-presupuesto.md#enmienda-del-2026-08-02-mismas-horas--el-techo-se-queda-en-250-y-no-por-costo).
+>
+> ⚠️ *Los dos cambios de ese knob se hicieron por PostgREST, no por `/curar/ajustes`, así que sus
+> eventos en `app.eventos` tienen `usuario_id: null` y un `origen` que lo dice. Son los dos únicos de
+> la historia de ese knob sin autor; no los leas como un hueco.*
+>
+> ### ✅ La corrida se hizo (03/08 02:36 UTC, `ok`) — la guía de qué mirar queda para la próxima
+> **3. Correr y mirar.** Con el techo en 250 y el backlog de 100 días, esperá que el cap **muerda**
+> (el máximo histórico transcrito son 191). Lo que hay que mirar, en orden de qué te avisa antes:
+> · **Apify primero, no `runs`.** Si algo murió en el arranque, `runs` deja la fila en `en_curso`
+>   para siempre y parece lentitud. **Cero llamadas en Apify ⇒ murió antes de scrapear** (lo más
+>   probable: `<<DASHBOARD_URL>>` sin rellenar). Ese reflejo desempató la sesión del 02/08.
+> · **`[Traducir] Loop completo en …ms`** tiene que aparecer, y **`[Traducir] PRESUPUESTO agotado`**
+>   NO. Si aparece, el techo pasó a ser Anthropic: subí `concurrencia_traducir` en `Config` (sin
+>   re-import).
+> · **`[Transcribir] PRESUPUESTO agotado`** es el que duele: cada video ahí es un video **quemado**
+>   (ya está en `processed_items`, ver arriba). Si aparece, subí `concurrencia_transcribir`.
+> · **`ventana_corrida_min` está en 60** y la estimación de esta corrida es ~27 min. Si se pasa de
+>   60, el barredor la mata en vuelo y el guard deja arrancar otra en paralelo.
+> · ⚠️ **Ojo con `cap_top_n` cuando muerde: corta GLOBAL.** Si un proyecto vuelve con `evaluados: 0`,
+>   no es que no haya supply — es que el cap se lo llevó otro (pasó con el cap en 10 el 02/08).
+>
+> **4. Lo que NO es palanca ahora mismo:** subir `Resultados por cuenta de referente` de 40 a 50, que
+> era la recomendación anterior. Con el feed en 143 sin calificar y la entrega topada por `sum(N)`,
+> traer 160 crudos más solo aumenta lo que se quema. **Guardala para cuando el equipo esté al día.**
+>
+> ### ⚠️ Lo que esto NO arregla, y hay que decirlo
+> **Ningún proyecto se va a acercar a su `N` por esto.** El cuello es el **supply**, no los cortes:
+> todos los proyectos, en todas las corridas medidas, dicen `razon_faltante: supply`. Los 4 proyectos
+> de comunicación comparten **7 cuentas** y piden 60 videos entre todos, y `Armar candidato` le da
+> cada video a **un solo** proyecto. La corrida más gorda que hubo (31/07 16:28, 280 crudos, 191
+> transcritos, sin que el cap mordiera) entregó **139 de 400**. Y el dedup contra `processed_items` es
+> brutal: 2 h después de esa corrida, 491 pretrim quedaron en **35** filtrados. La recencia en 100 días
+> va a drenar un backlog viejo en las próximas 1-2 corridas, y eso es real, pero es de una sola vez.
+> **La palanca de verdad es sumar referentes.**
+>
+> 🔎 **Otro hallazgo que quedó anotado y no se tocó: `cap_top_n` corta GLOBAL, no por proyecto.**
+> Medido en tu propia corrida de verificación `191ddc8b` (02/08, cap en 10): `Trading fast tips` se
+> llevó los 10 lugares y los cuatro proyectos de comunicación quedaron en `evaluados: 0`. Mientras
+> esté en un valor que muerda, mata proyectos enteros en vez de recortar parejo. Con el techo en 0 el
+> problema no se plantea; repartirlo por proyecto sería un ADR propio.
+>
+> ### ✅ Lo que ya está hecho y verificado (código, sin tocar prod)
+> · **`Traducir` con pool + presupuesto** y el `catch` mudo que ahora cuenta y loguea (una tanda
+>   entera podía fallar y la corrida salía verde con los scripts en inglés).
+> · **`Transcribir` de 8 a 24 en vuelo** (~0.9 req/s contra los 10 req/s del plan pago: 11× de aire).
+>   840 s pasan a cubrir **~745 videos**.
+> · **3 knobs nuevos en `Config`** (`concurrencia_transcribir`, `concurrencia_traducir`,
+>   `presupuesto_traducir_s`): se editan a mano en n8n **sin re-importar**, que es el punto — el
+>   handoff ya documenta lo que cuesta un re-import.
+> · **Borrar records en el cockpit (ADR-045):** voces, proyectos y referentes. Verificado en vivo
+>   contra la base: el rechazo («*Comunicación en empresas tiene 24 videos en el feed…*») y el borrado
+>   feliz, con un proyecto y un referente de prueba que se crearon y se borraron. **De los 6 proyectos
+>   vivos hoy solo *Trading Psychology* se puede borrar** (0 candidatos, 0 descartes); los otros cinco
+>   tienen entre 10 y 60 filas colgando. **Sin migración y sin re-import.**
+> · 🧹 **El `@casper_smc` duplicado que este handoff arrastra desde el 01/08 ya se puede limpiar solo,
+>   sin SQL a mano.** Sigue vigente el cuidado: mirar qué proyectos tiene cada una de las dos filas
+>   antes de borrar, porque si difieren, borrar la equivocada le saca fuentes a un proyecto.
+>
+> **Verde antes de commitear:** `npm run validate` 1616 checks · **138 tests** del dashboard (7 nuevos
+> de `domain/borrado.ts`) · `typecheck` · `build` · `auditar-workflows.mjs` sin hallazgos ·
+> `test-nodos.mjs` todo en verde con una sección nueva para `Traducir` (pool, presupuesto, dedup del
+> fan-out, el español que no gasta llamada, y el fail-open ahora audible). ⚠️ El test del presupuesto
+> de `Transcribir` tuvo que **fijar la concurrencia en 2**: con el pool en 24, los 30 videos del caso
+> arrancan en dos vueltas y ningún budget razonable llega a morder.
+
+> 🟡 **SEGUNDA RONDA DE REVISIÓN UI/UX — CÓDIGO LISTO, FALTAN 2 PASOS MANUALES DE MANI (2026-08-01).**
+> 7 observaciones de Mani sobre el cockpit live. Como en la primera ronda, **tres eran defectos y no
+> preferencias**, y una era una pantalla que decía algo falso. Salieron 4 ADRs:
+> [040](../adr/ADR-040-los-criterios-de-la-voz-son-obligatorios.md) ·
+> [041](../adr/ADR-041-la-metadata-del-referente-es-derivada.md) ·
+> [042](../adr/ADR-042-el-techo-de-gasto-se-toca-desde-el-cockpit.md) ·
+> [043](../adr/ADR-043-el-techo-se-muestra-la-entrega-no-se-promete.md).
+>
+> ### 🚨 Y apareció un bug PREEXISTENTE al verificar (migración `015`, sin aplicar)
+> Contar las filas de `v_salud_referentes` para comprobar la columna `seguidores` dio **18 para 17
+> referentes**. No lo causó ADR-041: **`v_senal_seleccion` agrupa por `(referente, idioma)`** y el
+> `left join` de la `009` lo trataba como uno-a-uno. Cualquier cuenta que publique en dos idiomas se
+> duplica. `@tori.trades` es una hoy:
+> `otro → 0 de 1 (0.00)` · `en → 1 de 8 (0.13)`.
+> O sea que la cuenta salía **dos veces** en `/curar/referentes` y «aprueban» mostraba **la tasa de un
+> idioma elegido al azar por el join**, no la de la cuenta (la real es 1 de 9 ≈ 11%). Misma familia
+> que todo lo demás: no falla, no avisa, y deja un número que se ve razonable y está mal. *`esFlojo`
+> usa `tasa_gate`, no esta, así que* A revisar *nunca estuvo contaminado.*
+> ✅ **[`core/schema/015`](../../core/schema/015_salud_referentes_una_fila.sql) aplicada** — la vista
+> pasó de 18 filas a **17 (una por referente)** y `@tori.trades` da **0.11**, que es su 1 de 9 real. **Regla que deja para esa vista: todo join nuevo
+> tiene que garantizar UNA fila por referente** — las CTEs de `seguidores` ya nacieron con
+> `distinct on` justamente por eso.
+>
+> 🧹 **Dato sucio aparte, sin resolver: `@casper_smc` está DOS VECES en `app.referentes`**, dos ids
+> distintos y la misma plataforma. No es la vista, son dos filas reales. Antes de borrar una hay que
+> mirar qué proyectos tiene cada una: si difieren, borrar la equivocada le saca fuentes a un proyecto.
+>
+> ### ✅ CERRADO — las 3 migraciones aplicadas, el motor re-importado y el techo VERIFICADO EN VIVO
+> Corrida `191ddc8b` del 2026-08-02, **`ok` en 17 min**, con el techo puesto en 10:
+> `colectados 562 → asignados 912 → pretrim 754 → **filtrados 10** → supadata 10 → gate 5`.
+> **10 videos distintos transcritos, no 250: ADR-042 funciona de punta a punta.** El techo volvió a
+> **250**. *(Los `entregados=0` con `razon=supply` de 4 proyectos son artefacto del cap en 10, no una
+> señal de capacidad: con el techo real esos números no significan nada.)* Apify ~$0.83.
+>
+> 🩸 **Costó TRES intentos, y los dos primeros murieron por lo mismo: `<<DASHBOARD_URL>>` sin
+> rellenar tras el re-import.** El nodo `Leer plan (fachada)` arma su URL con
+> `$('Config').first().json.dashboard_url + '/api/engine/run-plan?ambito=motor'`; con el placeholder
+> literal la URL queda **relativa** y n8n se la pide **a sí mismo** →
+> `404 ... webhook "GET <uuid>/api/engine/run-plan" is not registered`.
+> **Por qué es la que se olvida:** `dashboard_url` es el placeholder **más nuevo** del workflow (entró
+> con la fachada de ADR-028), así que no está en la memoria muscular de los re-imports viejos —
+> `<<SUPABASE_URL>>` sí se rellenó las dos veces (por eso la fila de `runs` se escribía igual).
+> ⚠️ **Y el fallo es MUDO donde importa:** un abort ahí deja la fila en `en_curso` para siempre, sin
+> `fin` ni métricas. Parecía una corrida lenta. **Lo que lo desempató fue mirar Apify con el
+> `APIFY_TOKEN` del `.env`: cero llamadas ⇒ murió antes de scrapear, no era lentitud.** Guardá ese
+> reflejo: `runs` no distingue "colgada" de "muerta", Apify sí.
+> **Checklist para el próximo re-import de este workflow (los 6, no 2):** `<<DASHBOARD_URL>>` ·
+> `<<INSTANCE_ID>>` · `<<SUPABASE_URL>>` · `<<WEBHOOK_PATH_MOTOR>>` · `<ANTHROPIC_API_KEY>` ·
+> `<SUPADATA_API_KEY>`. Los dos últimos muerden a mitad de corrida, no al principio.
+>
+> 🧹 Quedaron 2 runs en `fallo` del 02/08 (`a375351b`, `dbdd85a0`): son los intentos muertos, no hay
+> nada que investigar ahí.
+
+> ### ✅ Lo que quedaba de Mani — LOS 3 HECHOS (verificado 2026-08-02: la `014` está aplicada, el
+> motor re-importado, y la corrida `191ddc8b` transcribió 10 videos distintos con el techo en 10).
+> *Se dejan escritos porque el porqué de cada uno sigue valiendo para el próximo re-import.*
+> **1. Aplicar [`core/schema/014`](../../core/schema/014_criterios_voz_y_perillas.sql) en el SQL
+> Editor — ANTES del commit.** El código endurece el zod de `filaVoz` a `z.string()`: si el deploy
+> llega primero y alguna voz tuviera `criterios_relevancia` null, se cae `/curar/voces` **y la
+> fachada `/api/engine/run-plan` que alimenta a n8n**. Las 3 voces vivas tienen criterios
+> (545–649 chars), así que el riesgo real es cero — pero el orden se respeta igual.
+> **2. Re-importar y publicar el motor** (`workflow-short-form-content`). Después del deploy, no
+> antes: si el workflow llega primero, `pick` no encuentra la clave nueva y cae al `Config` (250).
+> No rompe nada, pero el knob no hace nada y ese silencio confunde.
+> **3. El hecho-cuando, y es una corrida real:** poner *Videos a transcribir por corrida* en **10**,
+> correr, y confirmar en `runs.metricas` que se transcribieron **10 videos distintos, no 250**.
+> Después devolverlo a **250**. ⚠️ Si el cambio no agarró, **la corrida sale verde igual** y
+> transcribe 250 — la misma familia de fallo silencioso que los 4 hallazgos de D7. Es la corrida más
+> barata que se hizo hasta ahora, justamente por el cap en 10.
+>
+> ### Los tres hallazgos que no eran lo que parecían
+> 1. **La hora de Actividad estaba mal por la misma razón que el repo declara timezone obligatoria en
+>    el manifest** (`workflow-manifest.md:32`, «incidente real»). `entender/secciones.tsx` es un
+>    Server Component y `toLocaleString` sin `timeZone` usa la del proceso: en Vercel, **UTC**. Todo
+>    salía 5 h adelantado. Ahora hay un `lib/fechas.ts` con `America/Bogota`, que era la zona que el
+>    repo ya había elegido para los crons. De paso se arregló un primo: `notaDePromocion` **persistía**
+>    la fecha UTC, así que aprobar un sugerido de noche dejaba escrito el día siguiente, para siempre.
+> 2. **«Candidatos por corrida» tenía una descripción falsa en la base.** Decía *«Cuántos videos
+>    distintos trae la corrida en total»* — eso describe a `cap_top_n`, que es **otro knob**. Lo que
+>    hacía era ser el default de `N` para proyectos con `N` vacío, y desde ADR-038 **no aplicaba a
+>    ninguno**. Estaba inerte y mentía: se borró (ADR-042).
+> 3. **Las notas se corrían de lado porque el control era un `<Input>` de una línea**, no un textarea
+>    (`referentes/pantalla.tsx`). Y `sugeridos/actions.ts` escribe ahí automáticamente ~250 chars al
+>    aprobar: en prod, `@smcandict` 243 y `@trademachineoff` 226.
+>
+> ### Lo que hay que saber antes de tocar las perillas de cantidad
+> 🚨 **«Los knobs se esconden, NO se borran» era demasiado general.** Hay que mirar **caso por caso**
+> qué valor tiene el `Config` del workflow, porque es ahí donde cae la clave borrada:
+> · `Candidatos por corrida`: ajustes 100, `Config` `top_n` 100 ⇒ **se borró, cayó parada.**
+> · `Días de recencia`: ajustes 200, `Config` **7** ⇒ **borrarla tira la recencia a 7 en silencio.**
+> El aviso de ADR-038 sigue vigente para la recencia y para `Resultados por cuenta`.
+>
+> 🔀 **El gatillo de `fields.uuid` se disparó y NO se usó.** El handoff dejó anotado que `fields.uuid`
+> y el `uuidDe` sin trabajo mueren «en el próximo re-import que haga falta por otra cosa». Este
+> re-import es ese. Se decidió **no aprovecharlo**: son cambios sin relación, y si la corrida de
+> verificación sale mal quedan dos sospechosos. La próxima vez ya no hay excusa de costo.
+>
+> ### Lo demás que entró
+> · **Criterios de voz obligatorios** al crear y al editar, `not null` en Postgres (ADR-040). Para n8n
+>   el campo pasa de "a veces null" a "siempre string": es un **aflojamiento**, no un cambio de
+>   contrato — por eso no lo obliga a re-importar.
+> · **Seguidores en Referentes**, derivados en `v_salud_referentes` (ADR-041). **9 de 17 cuentas van a
+>   mostrar número**; las otras 8 se sembraron a mano y no tienen el dato en ningún lado ⇒ «—».
+> · **`voz` y `engagement` vuelven al Feed** — eran las dos únicas pérdidas reales del corte en esa
+>   pestaña. Y la **calidad global** vuelve a Entender, **sin migración**: `v_metricas_calidad` ya
+>   trae los conteos crudos, y `calidadGlobal()` recalcula la precisión **desde las sumas** (promediar
+>   precisiones de proyectos con volúmenes distintos da un número creíble y equivocado).
+> · **Ajustes separa un bloque «Avanzado (solo devs)».** Antes un rol `dev` veía los 18 mezclados sin
+>   ninguna marca, que es por qué la perilla inerte seguía llamando la atención.
+> · **El techo de crudos** (ADR-043) debajo del campo `N`, en `/operar`, y con helper text en 6
+>   lugares. **No es un pronóstico**: `domain/corrida.ts:17-25` decidió a propósito no estimar la
+>   entrega, y esto es una multiplicación (`cuentas × resultados por cuenta`). Si alguien más adelante
+>   quiere poner un «te van a llegar ~12», el razonamiento está en ADR-043 para no re-litigarlo.
+> · **La migración `014` también registra `visibilidad`**, que el flip de ADR-038 había dejado solo en
+>   prod: una base recreada desde `core/schema/` salía con los 18 knobs en dev y **el equipo no veía
+>   ninguno**.
+>
+> **Verde antes de commitear:** `npm run validate` 1589 checks · **131 tests** del dashboard ·
+> `typecheck` · `build` · `auditar-workflows.mjs` sin hallazgos · `test-nodos.mjs` todo en verde (con
+> 3 casos nuevos para la precedencia del techo de gasto). ⚠️ El mock `CFG_PLAN` de `test-nodos.mjs`
+> tenía `cap_top_n: 100` contra los **250** del `workflow.json` vivo: mismo drift que el contrato
+> congelado, corregido a favor del que está corriendo.
+
+
+> 🟢 **REVISIÓN UI/UX DE LA PRIMERA VERSIÓN LIVE — EN PRODUCCIÓN 2026-08-01 (commit `dce25a3`).**
+> 10 observaciones de Mani sobre el cockpit recién deployado. Tres resultaron ser **bugs, no
+> preferencias**, y una obligó a decir algo incómodo sobre la máquina. Cero re-imports de n8n, cero
+> migraciones nuevas: todo en `apps/dashboard/` + un `UPDATE` de datos + un bucket de Storage.
+> Salieron 3 ADRs: [037](../adr/ADR-037-miniaturas-por-proxy-propio.md) ·
+> [038](../adr/ADR-038-una-sola-perilla-de-cantidad.md) ·
+> [039](../adr/ADR-039-la-lista-resume-el-record-se-abre.md).
+>
+> **Los tres hallazgos que no eran lo que parecían:**
+> 1. **Las miniaturas no fallaban por el expiry.** Los CDNs de Meta mandan
+>    `cross-origin-resource-policy: same-origin`: el browser **bloquea siempre** un `<img>` directo,
+>    con la URL fresca o vencida. `curl` daba 200 y por eso la hipótesis del handoff anterior apuntó
+>    al lado equivocado — CORP no lo aplica curl, lo aplica el browser. Arreglado con
+>    `/api/miniatura` (ADR-037). *El expiry también existía y se midió: **~5 días**, menos que la
+>    cadencia semanal — por eso el proxy además cachea en Storage.*
+> 2. **El botón del buscador no estaba escondido: no lo renderizaba nadie.** `BotonBuscar` quedó
+>    escrito y sin importar desde el commit `270d107` que lo creó. Ahora está en Operar (y en
+>    Sugeridos), y `buscarAhora` se mudó a `operar/actions.ts` al lado de `correrAhora` — la mezcla
+>    de "aprobar es curar" con "disparar es operar" fue lo que dejó el botón huérfano.
+> 3. **Las barras del embudo se salían porque no es un embudo.** `asignados` (1585) > `colectados`
+>    (700): del fan-out en adelante se cuentan filas `(video × proyecto)`, no videos. Ahora son
+>    **dos embudos con su propia base**, más clamp y `overflow-hidden`.
+>
+> **Y lo que hay que saber antes de tocar la cantidad de videos ([ADR-038](../adr/ADR-038-una-sola-perilla-de-cantidad.md)):**
+> los 3 knobs globales (`Días de recencia`, `Resultados por cuenta de referente`, `Candidatos por
+> corrida`) pasaron a `visibilidad = 'dev'` y el `N` del proyecto es obligatorio y único.
+> 🚨 **Se escondieron, NO se borraron, y no hay que "limpiarlos" después:** `Armar plan de corrida`
+> resuelve `pick('dias_recencia', …)` con `ajustes > Config`, y el `Config` del motor tiene
+> `dias_recencia = 7`. Borrar la fila sin re-importar **tira la recencia de 100 a 7 en silencio** —
+> la quinta de la familia. `visibilidad` es campo de UI, no del contrato: la fachada sigue sirviendo
+> los **18** ajustes (verificado contra prod).
+>
+> **Verificado en producción tras el deploy:** `/operar` sin la palabra «hasta», con
+> `pide N · X cuentas · la última entregó Y` por proyecto · `/api/miniatura` devuelve la imagen
+> (200, 1080×1920, redirigiendo a Storage), **307 sin sesión** y **400 al host fuera de la
+> allowlist** (el anti-SSRF) · fachada intacta en los dos ámbitos · `npm run validate` 1517 checks ·
+> 116 tests.
+>
+> ### 🟠 Lo que queda, y es de Mani
+> **1. ✅ `Resultados por cuenta de referente` está en 40 desde el 01/08.** (Se pedía subirlo de 20.
+> Queda margen: el cap de `Config` es **50**, o sea 160 crudos más por corrida sin re-importar nada.)
+> Es dev-only, así que la pantalla no lo recuerda. **Es la palanca más barata** para que los
+> proyectos se acerquen a su número: con 20, un proyecto de 3 referentes miraba 60 videos crudos y
+> entregaba ~10 contra un N de 15.
+> **2. Avisarle al equipo que la pantalla cambió.** [El onboarding](../onboarding-equipo-redes.md)
+> ya está reescrito (§0, §3.1, §5.2, §5.3, §5.5, §8.1). Lo que no puede faltar: *la lista resume y
+> el record se abre tocando la fila*, *crear es un botón arriba*, y *el número de videos ahora vive
+> en el proyecto y es el único que manda*.
+> **3. El pronóstico honesto va a mostrar que varios proyectos no llegan.** No es un bug de la
+> pantalla: es el estado real, que antes tapaba la palabra «hasta».
+
+> 🟢 **D7 ESTÁ EN PRODUCCIÓN — 2026-08-01. Airtable salió del sistema.** Mergeado a `main`,
+> deployado, **migración `013` aplicada**, dato migrado y **los 3 workflows re-importados y
+> publicados**. El hecho-cuando mecánico está cumplido: `grep -c api.airtable.com
+> Workflows/*/workflow.json` da **0 0 0**, `lib/airtable.ts` no existe y `<<AIRTABLE_BASE_ID>>` ya
+> no es placeholder de nadie.
+>
+> **Verificado contra prod:** la fachada sirve `fields.uuid` con el `id` viejo intacto (el paso de
+> expansión, vivo) · el webhook del descubrimiento responde **403 `Authorization data is wrong!`**
+> (activo, path y credencial OK) · en Postgres hay 145 candidatos, 20 descartes y 8 propuestas con
+> sus 16 pares.
+>
+> ✅ **PASO 1 CUMPLIDO — corrida `on_demand` `ok` el 2026-08-01 17:24 UTC.** Las escrituras de n8n a
+> Postgres se estrenaron y funcionan: **2 candidatos** (147 en total) con `proyecto_id`/`voz_id`
+> como **FK uuid de verdad**, **1 descarte** (21), **3 `processed_items` con `run_id`**,
+> `registro_dedup: ok`. Corrida barata a propósito (`Días de recencia` 7 y `Resultados por cuenta`
+> 10): 140 results de Apify, **≈$0.39**. ⚠️ **Los dos knobs quedaron recortados** — hay que
+> devolverlos a **100** y **40** en `/curar/ajustes` o el cron del lunes 08:00 corre a media máquina.
+>
+> ✅ **PASO 3 CUMPLIDO Y EN PRODUCCIÓN — 2026-08-01 (commit `2260ec0`).** El `id` del contrato es el
+> uuid en `voces`, `proyectos` y `referentes`. **No hizo falta un tercer re-import**, y esa fue la
+> decisión de diseño: los consumidores en n8n resuelven el uuid con `uuidDe[x.id] = x.fields.uuid`,
+> así que sirviendo los dos ids **iguales** ese mapa queda identidad. Por eso `fields.uuid` **no se
+> borró** — sacarlo sí obligaría a re-importar; muere en el próximo re-import que haga falta por
+> otra cosa. Las columnas `airtable_id` **siguen en las tablas** (traza al export y las usa
+> `scripts/cortar-feed.ts`): se caen con la limpieza de D8. A/B contra prod: mismo reparto
+> referente→proyecto (3/3/6/5), mismos 16 pares fuera de ámbito, demás campos idénticos.
+>
+> 🚨 **Y de paso apareció la CUARTA pérdida silenciosa de D7, ya arreglada por el paso 3.**
+> `Destilar criterios` del archivado indexa `projMeta` por el `id` del plan y después busca por
+> `candidatos.proyecto_id`, que desde D7 **es uuid**. Con el `id` en record id **nunca matcheaba**
+> ⇒ `byProj` vacío ⇒ **cero destilaciones, en verde y sin avisar**: ADR-022 muerto. No se había
+> notado porque destilar pide ≥4 calificados por proyecto y hay 0. Con el `id` en uuid, las dos
+> puntas coinciden. *Es la misma familia que los 3 hallazgos del grilling: no falla, sale verde y
+> deja un número en cero.*
+>
+> ### 🟠 Lo que queda, y es de Mani
+>
+> **1. Calificar 2 o 3 en `/curar/feed` — 2 minutos, gratis, y tiene fecha.** Es lo único que
+> prueba el **hallazgo 4** (`fecha_calificacion`), porque ese campo lo escribe **la app al
+> calificar**, no n8n: una corrida del motor no lo toca. Hoy `estado <> 'nuevo'` devuelve `[]`.
+> Y el **archivado corre solo los domingos 18:00** (`0 18 * * 0`): si llega con la cola en cero,
+> `Leer Candidatos calificados` vuelve vacío, no escribe un solo `output` y la cadena
+> `fecha_calificacion` → `outputs.calificado_en` → `v_metricas_calidad` se queda otra semana sin
+> probar. Con la cola cargada, ese archivado cierra el loop entero de una.
+>
+> **2. Devolver los 2 knobs** (`Días de recencia` → 100, `Resultados por cuenta de referente` → 40).
+>
+> **3. Sacar `AIRTABLE_PAT` y `AIRTABLE_BASE_ID` de Vercel.** Ya no los lee **ningún** código de la
+> app (verificado por grep): es higiene, no un corte.
+>
+> **Las queries de verificación**, para cuando la cola tenga algo:
+> ```sql
+> select id, calificacion, estado, fecha_calificacion from app.candidatos where estado <> 'nuevo' limit 5;
+> select * from app.v_metricas_calidad order by semana desc limit 5;
+> select * from app.v_auditoria_descartes order by semana desc limit 3;
+> ```
+> `fecha_calificacion` **no puede ser null** después de calificar, y `v_metricas_calidad` **no puede
+> dar cero filas** una vez que el archivado corrió sobre algo calificado.
+>
+> **Si algo falla, el síntoma más probable es un `404` contra una tabla que existe**: es el header
+> de schema (`Content-Profile: app` para escribir, `Accept-Profile: app` para leer). Está en
+> [`ingesta-registro.md §5`](../../core/contracts/ingesta-registro.md).
+>
+> ### Dos cosas para medir en esa primera corrida
+> · **El thumbnail** (hallazgo 2): agarrá un `thumbnail_url` nuevo y pedilo con `curl -I` al día
+>   siguiente. Airtable re-hosteaba las imágenes y ahora se guarda la URL cruda del CDN, firmada y
+>   con expiry. Si vence antes de la semana, entra Supabase Storage. *(Los 145 arrastrados vienen
+>   **sin miniatura a propósito**: eran adjuntos de Airtable con expiry de 2 h.)*
+> · **`registro_dedup`** en `runs.metricas`, como siempre.
+>
+> ### Airtable
+> El viaje de 9 páginas a congelar **dejó de importar**: ninguna máquina escribe ni lee ahí. Queda
+> el trabajo no-código de **D8** (export final, base a read-only, cancelar la suscripción) y
+> **avisarle a Majo y Jero que Airtable murió** — que ahora califican solo en el cockpit, y que la
+> bandeja de Sugeridos **ya no se llena sola los lunes**: hay un botón, y conviene apretarlo recién
+> cuando resolvieron las 8 que están esperando.
+>
+> 🔎 **Un zombie conocido, inofensivo:** hay un run de `descubrimiento` en `en_curso` desde el
+> 27/07. El barredor de zombies solo corre cuando corre el workflow, y al sacarle el cron nadie lo
+> barrió. No bloquea el botón (la guarda `hayBusquedaViva` usa ventana de 60 min, y ese tiene 5
+> días), y `v_embudo_descubrimiento` no lo cuenta ni como ok ni como fallo. Se limpia solo la
+> próxima vez que alguien busque.
+
+
+> 📋 **El viaje a Airtable que se viene acumulando, junto, para hacerlo de una** (los 3 cortes de
+> D5 y D6 dejaron su parte y ninguna se hizo todavía). **9 páginas a congelar** —solo-lectura o
+> renombrar `[ARCHIVO] …`— y **ninguna tabla a bloquear**:
+> *Configuración Global* · *Ajustes Dev-Only* (corte 1/4) · *Referentes* · *Referentes - Revisar* ·
+> *Referentes - Sugeridos* (corte 2/4) · *Voces* · *Proyectos* (corte 3/4) · **y las 2 que suma D6:
+> *Feed* y *Descartes*** (cierre 75 — calificar y auditar ya se hacen en `/curar/feed` y
+> `/curar/descartes`). ⚠️ Las 2 de D6 son **las menos urgentes de las nueve**: la app y Airtable
+> escriben la misma tabla, así que mientras las dos estén abiertas no hay divergencia posible, solo
+> dos lugares para hacer lo mismo. Congelarlas es higiene, no seguridad.
+> **La regla es la misma en los tres: se congela la PÁGINA, nunca la tabla.** Tres tablas siguen
+> recibiendo escrituras de máquina — `Referentes propuestos` (la escribe el descubrimiento y la
+> PATCHea la app), `Proyectos` (`criterios_aprendidos`/`advertencia_criterios`, ADR-033) y
+> `Candidatos`/`Descartes` (el motor). Bloquear cualquiera de esas rompe algo vivo.
+> **Y el aviso al equipo, que es la mitad que no es Airtable:** lo único peligroso de todo esto es
+> **aprobar un sugerido desde Airtable** (detalle abajo, corte 2/4). El resto es inocuo pero inútil.
+
+> 🟢 **EL CORTE 3/4 (Voces + Proyectos) ESTÁ EN PRODUCCIÓN — 2026-07-31.** Se corrió
+> `npm run cortar:voces-proyectos` (3 voces · 6 proyectos idénticos a Airtable en los dos ámbitos ·
+> los mismos 4 proyectos corriendo de los dos lados) y se mergeó a `main`. **No hubo migración**: a
+> diferencia del corte 2/4, el schema `009` ya modelaba bien los dos dominios.
+>
+> **Verificado en prod tras el deploy:** `?ambito=motor` → **3 voces · 4 proyectos · 15 referentes ·
+> 18 ajustes**, con la **N resuelta a 100** por el global y *Storytelling* con sus **5 referentes**
+> (el que el modelo viejo dejaba en 0) · `?ambito=completo` → 6 proyectos, y los 2 de Trading con
+> sus **862 y 1048 caracteres de `criterios_aprendidos` llegando desde Airtable**, que es ADR-033
+> funcionando en vivo · fail-closed intacto (sin header 403 · ámbito con typo 400) ·
+> `/curar/voces` responde y redirige a login sin sesión.
+>
+> 🟠 **Lo que queda, y es de Mani (2 min + el viaje a Airtable):**
+> **El hecho-cuando:** apagar y volver a prender un proyecto desde `/curar/voces`, confirmar que la
+> fachada lo refleja
+> (`curl "$DASHBOARD_URL/api/engine/run-plan?ambito=motor" -H "$RUN_PLAN_HEADER_NOMBRE: $RUN_PLAN_HEADER_VALOR"`)
+> y que quedó su fila en `app.eventos` (`tipo = 'proyectos.editar'`, con anterior y nuevo). Es
+> además la primera vez que alguien que no sea Claude entra a la pantalla.
+>
+> 🟠 **Y el paso de Airtable — que en este corte NO es "congelar y listo":**
+> **Congelar las páginas *Voces* y *Proyectos*** (solo-lectura o `[ARCHIVO] …`). ⚠️ **Pero la tabla
+> `Proyectos` sigue recibiendo escrituras de la máquina:** `Destilar criterios` del archivado le
+> PATCHea `criterios_aprendidos` y `advertencia_criterios` cada domingo, y la app los lee de ahí
+> hasta D7 ([ADR-033](../adr/ADR-033-dueno-por-campo-durante-la-coexistencia.md)). O sea: se congela
+> para **personas**, no se bloquea la tabla. Al equipo hay que decirle las dos cosas — que ya no se
+> edita ahí, y que lo que vean cambiar solo no es un fantasma.
+
+> 🟢 **EL CORTE 2/4 (Referentes) ESTÁ EN PRODUCCIÓN — 2026-07-31.** Los 3 pasos se ejecutaron en
+> orden el mismo día: Mani borró en Airtable la fila `recYQotSNwtcfuY2x` (activa, 2 proyectos,
+> **sin handle**: el motor la ignoraba gratis y el mapeo viejo la habría guardado como
+> `"(sin handle)"`, que para el motor **sí** es handle válido ⇒ un pedido a Apify por corrida) ·
+> aplicó la migración `012` · corrió `npm run cortar:referentes`. **La carga salió verde:**
+> 15 referentes · **33 pares** · los 6 proyectos idénticos de los dos lados (**Storytelling con sus
+> 5**, que es el que el modelo viejo dejaba en 0) · A/B de la fachada idéntico en los dos ámbitos.
+> **Verificado en prod tras el merge:** `?ambito=motor` y `?ambito=completo` → **200**, 3 voces ·
+> 4/6 proyectos · **15 referentes (33 pares)** · 18 ajustes.
+>
+> 🟠 **Lo que queda del corte, y es de Mani (Airtable + aviso al equipo):**
+> 1. **Congelar 3 páginas** (solo-lectura o renombrar `[ARCHIVO] …`): **Referentes**,
+>    **Referentes - Revisar/Flojos** y **Referentes - Sugeridos** (*Referentes Buscados*).
+>    ⚠️ **Se congela la PÁGINA, no la tabla:** `Referentes propuestos` la sigue **escribiendo** el
+>    descubrimiento y la **PATCHea** la app al aprobar; bloquear la tabla rompe las dos cosas.
+>    *(Si las 2 de Ajustes —**Configuración Global** y **Ajustes Dev-Only**— siguen abiertas del
+>    corte 1/4, van en el mismo viaje.)*
+> 2. **Avisarle a Majo y Jero.** El [onboarding §5.3 y §8.1](../onboarding-equipo-redes.md) ya está
+>    reescrito. **Lo que no puede faltar del aviso: aprobar un sugerido desde Airtable ahora es
+>    dañino** — es la única de las páginas congeladas donde editar no es inocuo. Marcar `aprobado`
+>    ahí dispara `POST Referentes (promoción)` del descubrimiento, que siembra la cuenta en la
+>    tabla `Referentes` de Airtable, **que ya no lee nadie**: parecería aprobada y no traería un
+>    solo video. La aprobación va en `Curar → Sugeridos`.
+>
+> **El hecho-cuando del corte** (2 min): apagar y volver a prender una cuenta desde
+> `Curar → Referentes` y confirmar que la fachada lo refleja
+> (`curl "$DASHBOARD_URL/api/engine/run-plan?ambito=motor" -H "$RUN_PLAN_HEADER_NOMBRE: $RUN_PLAN_HEADER_VALOR"`)
+> y que quedó su fila en `app.eventos` (`tipo = 'referentes.editar'`, con anterior y nuevo). Es
+> además la primera vez que alguien entra a las pantallas nuevas: **no se pudieron probar en el
+> browser** (entrar pide magic link).
+
+> ✅✅ **LA 2ª CORRIDA DE FUEGO (dedup) SE CUMPLIÓ — 2026-07-31 19:18, y con eso los 3 hallazgos del
+> cierre 70 están cerrados EN PRODUCCIÓN, no solo en el repo.** Re-import del motor hecho por Mani,
+> corrida `on_demand` **`ok` en 9,4 min**. Los 4 criterios, todos:
+> **`registro_dedup: ok`** ← *por primera vez desde que existe ADR-029* (H1: la memoria en serie
+> entró) · **27 `processed_items` nuevas, las 27 con `run_id`** (H3; las 601 viejas siguen en null,
+> total 628) · **intersección de `external_id` con la corrida de las 16:28 = ∅** · feed de 145
+> candidatos con **0 `⚠️ SIN GUION`**, **145/145 con `external_id`** y **0 urls duplicadas**.
+>
+> **⏱️ Los 9,4 min contra los 31 de la corrida anterior NO son una corrida a medias: son la medida
+> del dedup funcionando.** El embudo lo dice solo — mismos `colectados=280` y `asignados=635` que a
+> las 16:28 (mismas cuentas, 3 h después, nada nuevo publicado), pero **`filtrados` cae de 361 a 35**.
+> Ese escalón es `Heat-score v1`, que es donde vive el dedup: 456 de 491 se descartaron por estar ya
+> en memoria. Y como lo que se transcribe es lo que sale de ahí, la fase cara pasó de 361 items a 35
+> ⇒ el tiempo se desploma. **6 candidatos nuevos** (los que de verdad eran nuevos) sobre un feed que
+> ya tenía 139. Si esta corrida hubiera durado 31 min y entregado ~139 otra vez, *eso* sí habría sido
+> la alarma: querría decir que re-entregó lo mismo.
+>
+> 🟢 **CORTE 1/4 DE D5 (Ajustes) — DEPLOYADO Y VALIDADO POR ESTA MISMA CORRIDA.**
+>
+> ⚠️ **Y acá hay un aprendizaje de proceso que importa más que el corte:** el plan era pushear
+> *después* de la corrida (regla "una corrida, una variable", cierre 69). **No pasó: el commit del
+> flip ya estaba en `origin/main` 26 minutos antes de que la corrida arrancara** (reflog: `bd12a26`
+> commiteado 18:51:24 UTC, en el remoto 18:52:03; corrida 19:18:16), y prod ya servía la forma de
+> Postgres. **Quién empujó no está confirmado** —Claude no corrió `push`; lo más probable es que
+> haya sido Mani sincronizando desde su editor mientras trabajaba en paralelo en el re-import— y
+> tampoco hace falta saberlo para sacar la conclusión: **con Vercel deployando `main`, "commiteado
+> pero sin publicar" no es un estado en el que se pueda confiar.** Si algo no debe estar vivo
+> todavía, va en **rama**, no en `main`: la unidad de aislamiento es la rama, no el momento del push.
+>
+> **Lo bueno del accidente:** la corrida de las 19:18 corrió **con la fachada sirviendo los ajustes
+> desde Postgres**, salió `ok`, y los 4 proyectos resolvieron `n_objetivo: 100` (que es
+> `Candidatos por corrida` viajando por la fuente nueva). O sea el corte quedó **validado por una
+> corrida real**, que era el hecho-cuando de la mitad-motor. Lo que falta del hecho-cuando es la
+> mitad humana: editar una perilla desde el cockpit y verla llegar.
+>
+> 🟠 **2 pasos de Mani, YA EXIGIBLES (el deploy está hecho)** — hay que cerrarle la puerta vieja al equipo, porque hasta
+> que se cierre hay dos superficies editables y una de las dos no la lee nadie:
+> 1. **En Airtable: dejar las páginas *Configuración Global* y *Ajustes Dev-Only* en solo-lectura**
+>    (o renombrarlas `[ARCHIVO] …`). El dato viejo se conserva; lo que importa es que nadie edite ahí
+>    creyendo que aplica. **Avisarle a Majo y Jero** — el [onboarding §5.5](../onboarding-equipo-redes.md)
+>    ya está reescrito con el cambio de lugar.
+> 2. **El hecho-cuando del corte:** mover una perilla desde el cockpit y confirmar que la fachada la
+>    devuelve —
+>    `curl "$DASHBOARD_URL/api/engine/run-plan?ambito=motor" -H "$RUN_PLAN_HEADER_NOMBRE: $RUN_PLAN_HEADER_VALOR"`
+>    — y que quedó su fila en `app.eventos` (`tipo = 'ajustes.editar'`, con valor anterior y nuevo).
+>
+> **En Supabase no hay NADA que hacer para este corte** (la pregunta salió, queda escrita): la tabla
+> `app.ajustes` existe desde la migración `009` —aplicada el 30/07— y sus 18 filas las cargó el
+> import de sombra. El 31/07 se verificaron contra Airtable: **0 diferencias**. No hay SQL nuevo, no
+> hay env var nueva, no hay credencial nueva. El corte es código, y el código ya está.
+>
+> ⚠️ **`sombra:import` ya NO toca `app.ajustes`** (salió del catálogo de `scripts/comun.ts`): con
+> Postgres de dueño, un import pisaría en silencio lo que el equipo editó. Es el procedimiento para
+> los 3 cortes que faltan, no un detalle de este.
+
+> ✅ **El re-import del cierre 66 está HECHO** (confirmado por conducta, no por memoria): el cron del
+> 27/07 **abortó** en `Leer procesados`, que es exactamente el camino fail-closed de ADR-029 — con el
+> motor viejo (fail-open) el timeout se tragaba en silencio. ADR-029/030 están vivos.
+>
+> ✅ **RE-IMPORTS HECHOS el 2026-07-31 (cierre 70).** Los 3 workflows re-importados y el motor
+> corriendo por la fachada: caen el re-import del fix del timeout (cierre 67) **y** el #1 de D4. La
+> corrida de las 16:28 entregó **139 candidatos** en 31 min, `ok`. Detalle y los 5 fallos de config
+> que hubo que destrabar antes: log del cierre 70.
+> **Para el próximo re-import, el truco que ahorró horas:** un **POST con header inválido** al webhook
+> distingue gratis y sin disparar nada — **404** = workflow inactivo o path equivocado ·
+> **403 `Authorization data is wrong!`** = activo, path bien y credencial bien.
+>
+> ✅ **Corrida de fuego #2 (sin-guion + entrega): CUMPLIDA ENTERA por la corrida del 31/07.** **0**
+> títulos `⚠️ SIN GUION` en el feed · `metricas.sin_guion` = **21 descartados** (>0, o sea ADR-030
+> vivo) · los 4 proyectos con `razon_faltante: supply` y `tasa_gate` coherente.
+> **✅ El último criterio también cerró (cierre 72): `transcripciones_vacias` = 21 sobre 191
+> llamadas a Supadata = **11%**, contra el baseline de **41%** del 23/07.** El retry de ADR-030
+> funciona y no hace falta el spike de actors por esta razón (el gatillo del 💤 Someday de más abajo
+> era justamente "si las vacías siguen altas": no siguen). Salió del verificador, que ya calcula el
+> cociente solo — `node Workflows/workflow-short-form-content/verificar-corrida.mjs`. *Ojo con el
+> denominador: `llamadas.supadata` es una estimación del `Resumen del run`, así que el 11% es del
+> mismo orden de precisión que el 41% con el que se compara — la caída es grande, la cifra exacta no.*
+>
+> ✅ **La corrida de fuego #1 (dedup) también está CUMPLIDA** (19:18 del 31/07, arriba). **Ya no
+> queda ninguna corrida de fuego pendiente** — las dos cerraron el mismo día.
+>
+> 🟡 **Suelto, sin diagnosticar:** el run de **descubrimiento** del 27/07 14:00 UTC quedó `en_curso`
+> sin cerrar (igual que el del motor, pero ese tiene causa conocida). Nadie lo miró.
+>
+> 🟡 **Decisiones de Mani que quedaron abiertas (cierre 66):**
+> - **TikTok:** la rama TT corre en vacío (`apify_tt:1`, `[{}]`) porque hay **0 handles TT activos**. Se
+>   dejó `buscar_referente_tiktok=1` a propósito (apagarlo deshabilitaría TT si el equipo suma handles).
+>   Decidí: sembrar handles TT o apagar el toggle en `Config`. Es gasto de Apify menor pero constante.
+> - **Watchdog vs cap_top_n=250:** el techo real de la transcripción es `N8N_RUNNERS_TASK_TIMEOUT`
+>   (**900s en el pod**), no el presupuesto (840s, debajo a propósito). Con pool de 8 a ~27s/video, 250
+>   videos ≈ 844s: entra justo. Para holgura (o si los videos son lentos), subí el watchdog en el pod o
+>   la concurrencia. Si el presupuesto corta, lo no-transcrito ahora se **descarta** (ADR-030) = menos
+>   entrega. No subir el presupuesto por encima de 900 (sería inútil: el watchdog mata primero).
+> - **Spike Apify (Fase 6, opcional):** el paso 0 ya está resuelto — el actor IG `apify~instagram-scraper`
+>   trae caption/duración/tipo confiables pero **NO** `hasAudio`, y `musicInfo` no discrimina las vacías
+>   (39/41 usan audio original). Sin pre-filtro de sin-audio posible con este actor. Si querés comparar
+>   actors, corré el spike de 1 tarde en la consola de Apify (criterios en el plan/ADR-030) — no es
+>   migración, solo medición.
+>
+> 💤 **Someday (no urgente):** **revisar alternativas de actors en Apify si sigue flaqueando** — el
+> transcript vacío / la calidad de scrape. Gatillo: si tras el retry de ADR-030 las vacías siguen altas
+> o el supply queda corto de forma sostenida, correr el spike de arriba y evaluar migrar de actor (ADR
+> aparte).
+
+> ✅ **RESUELTO el 2026-07-31: la fachada responde 200 en prod.** Era el **valor** de
+> `RUN_PLAN_HEADER_VALOR` en Vercel, que no coincidía con el del gestor (la env estaba presente: lo
+> dijo el `motivo` del 403, que se agregó justo para no tener que adivinar entre "falta" y "está
+> mal"). **En vez de cazar qué valor había, se rotó el par entero** — n8n todavía no consume la
+> fachada, así que rotar salía gratis. **El header pasó a llamarse `X-Run-Plan-Auth`** (antes era
+> `X-Motor-Auth`, igual que el del webhook: dos secretos con el mismo nombre era un pie de banco).
+> **Verificado en prod:** `?ambito=motor` **200** (3 voces · 4 proyectos · 16 referentes · 18
+> ajustes) · `?ambito=completo` **200** · sin header 403 · ambito con typo 400.
+> **El par vive en:** `.env` de la raíz · `apps/dashboard/.env.local` · Vercel (Production) · la
+> credencial **`Run Plan Header`** de n8n · el gestor. **`MOTOR_WEBHOOK_HEADER_*` NO se tocó**: sigue
+> siendo `X-Motor-Auth`, es el del botón "Correr ahora", credencial **`Webhook Motor Header`**.
+>
+> ✅ **LOS 3 HALLAZGOS DEL CIERRE 70 ESTÁN ARREGLADOS EN EL REPO (cierre 71).** Lo que queda es
+> **un re-import del motor y una corrida** — los detalles abajo. Qué cambió:
+>
+> **(1) La memoria del dedup dejó de ser una rama paralela: va EN SERIE.** `Heat-score v1 → Preparar
+> procesados → POST processed_items → Transcribir`. Se descartó el fix propuesto (mover posiciones a
+> x<4480): funciona, pero deja la garantía central de ADR-029 viviendo en dos coordenadas del canvas,
+> o sea la próxima limpieza visual la rompe otra vez y en silencio. En serie es **topológica**.
+> De arrastre, `POST processed_items` pasó a ser ancestro de `Resumen del run`, así que
+> **`registro_dedup` revive** (deja de decir `no_corrio` siempre). Enmienda 2026-07-31 de ADR-029.
+> **⚠️ La regla general, que sigue valiendo para cualquier cambio de ramas: el orden de ejecución lo
+> decide la POSICIÓN EN EL CANVAS, no el JSON.** Reordenar el array no hace nada. Ahora hay un
+> chequeo que lo caza solo: `node Workflows/auditar-workflows.mjs`.
+>
+> **(2) `ventana_corrida_min` = 60** en el repo (motor + archivado + manifest + `domain/corrida.ts` +
+> las docs rezagadas). 45 se había elegido sobre un máximo medido de 23,2 min y la corrida del 31/07
+> duró 31 (margen 1,45x). La ventana tiene que quedar **por encima de la corrida más larga posible**:
+> debajo, el barredor mata una corrida en vuelo y el guard deja arrancar otra en paralelo.
+>
+> **(3) `processed_items.run_id`** lo escribe `Preparar procesados`, y viaja **`null` si el run no se
+> pudo abrir** (es FK a `runs(id)`: un uuid de relleno reventaría el batch entero). 4 casos en
+> `test-nodos.mjs`.
+>
+> ✅ **Pasos 1 y 2 (re-import del motor + placeholders + activar): HECHOS el 31/07** — la corrida de
+> las 19:18 lo prueba por conducta (`registro_dedup: ok` no puede salir del JSON viejo).
+> ⬜ **Paso 3, EL ÚNICO QUE SIGUE ABIERTO: archivado — `ventana_corrida_min` 120 → 60 a mano** en su
+> `Config`. **No pide re-import** y por eso no vino de arrastre con el del motor. Es el barredor de
+> zombies del archivado: con 120 tarda el doble en desbloquear una corrida que murió sin cerrar.
+>
+> 🟢 **RE-IMPORT #1 de D4 — listo en el repo, pasos exactos (cierre 69).** Va **después** del
+> re-import del fix del timeout y de una corrida verde (decisión de Mani: separados). **Antes de
+> tocar n8n: la env de Vercel** ya está arreglada (el bloqueante rojo cayó el 31/07, arriba) — confirmá con
+> `curl "$DASHBOARD_URL/api/engine/run-plan?ambito=motor" -H "$RUN_PLAN_HEADER_NOMBRE: $RUN_PLAN_HEADER_VALOR"`
+> → tiene que dar **200**. Después:
+> 1. **Credencial nueva en n8n:** tipo *Header Auth*, nombre **`Run Plan Header`**, con el par
+>    `RUN_PLAN_HEADER_NOMBRE`/`_VALOR` **exacto** del gestor (distinto = 403 en silencio, misma
+>    trampa de siempre).
+> 2. **`<<DASHBOARD_URL>>`** en el nodo `Config` de **los 3** workflows (sin barra final:
+>    el nodo concatena `/api/engine/run-plan`).
+> 3. Re-importar los 3 (mismo path y mismo header del webhook del motor, regla de siempre).
+> **Verificación en la ejecución:** `Leer plan (fachada)` con **1 ejecución / 1 item** y el mismo
+> embudo de siempre. Si da 403/503, el run **aborta a propósito** — no es un bug, es el fail-closed
+> de ADR-028: revisá la credencial y la env de Vercel, no le pongas `onError`.
+
+> 🔴 **ROTAR EL `service_role` DE SUPABASE — sigue sin hacerse.** La rotación que pedía el cierre 57
+> (PAT de Airtable + `service_role`) **sí se hizo el 2026-07-20** (cierre 64). Pero **el `service_role`
+> se volvió a pegar en un chat el 2026-07-28** (cierre 67, para verificar si el run fallido había
+> guardado IDs): tercera vez de la misma clase de exposición. **La key bypassa RLS: da acceso total a
+> la base.** Rotar y actualizar la credencial `Supabase Registro` de n8n, la env de Vercel y el gestor.
+> Si esto sigue repitiéndose, el fix no es rotar más rápido: es una key de solo-lectura aparte para
+> diagnosticar, o el MCP de Supabase, en vez de pegar la `service_role` en el chat.
+>
+> 🟠 **Guard single-flight — sigue SIN prueba viva** (decisión de Mani, cierre 54; cero costo extra).
+> Mientras una corrida esté **en ejecución** (n8n → Executions → running), abrí el motor y disparale un
+> **Execute manual**. Esperado: la rama bloqueada muere en el NoOp **sin abrir run** (ninguna fila nueva
+> en `runs`, cero gasto Apify) — el log dice que hay corrida viva. Si en cambio arranca una segunda
+> corrida en paralelo, el guard no quedó vivo en el re-import → parar y revisar. *(La instrucción
+> original lo ataba al cron del lunes 20/07; esa ventana pasó y la prueba nunca se hizo. El otro
+> chequeo que iba pegado, `runs.trigger_type`, ya quedó confirmado: la corrida del 31/07 registró
+> `on_demand` — log del cierre 70.)*
+
+- 🟠 **Equipo (sobrevive la mudanza al cockpit propio — es dato, no herramienta):** sembrar 3–5
+  referentes **TikTok** (bootstrap del eje TT: hoy la rama corre en vacío por 0 handles activos, ver la
+  decisión de TikTok arriba) y aprobar los *Referentes propuestos* que el descubrimiento va dejando.
+
+## Ciclo post-re-import — qué esperar (y qué NO es un fallo)
+
+El re-import fue el **viernes 17/07**, entre el archivado del domingo y el motor del lunes. Como el
+archivado computa la salud y los costos **leyendo `runs.metricas` del motor de los últimos 7 días**, el
+primer ciclo sale **a medias por diseño**, no por un bug:
+
+| Cuándo | Qué corre | Qué esperar |
+|---|---|---|
+| **dom 19/07 18:00** | archivado | ⚠️ **Parcial y está bien.** Solo ve runs del motor con código **viejo** (el motor nuevo aún no corrió) → `por_referente` y los contadores Apify vienen vacíos ⇒ **salud por referente sin poblar y costos Apify en $0**. Sí funcionan: `Métricas Proyectos` (calidad, sale de los calificados) y `Destilar criterios` (lee Airtable; necesita ≥4 calificados por proyecto — `min_muestra_destilar`). |
+| **lun 20/07 08:00** | motor | 1ª corrida con código nuevo → `runs.metricas` completas (M1 + `apify_ig`/`apify_tt`). |
+| **lun 20/07 09:00** | descubrimiento | 1ª con sus contadores Apify (`perfiles_semilla`/`detalle_sugeridos`/`lookalikes_tt`). |
+| **dom 26/07 18:00** | archivado | ✅ **La primera fila de `Métricas Global` completa** (embudo + salud por referente + costos $ reales). Recién acá se juzga si el re-import salió bien. |
+
+**No leas el domingo 19 como veredicto del re-import.** El primer ciclo end-to-end cierra el **26/07**.
+*(Los 5 fixes de UI de Airtable siguen pendientes: sin publicar la página *Costos*, los costos existen
+en la tabla pero no se ven.)*
+
+## Tablero activo — refactor Voces→Proyectos
+
+El detalle de cada componente y el "hecho cuando" viven en
+[refactor-voces-proyectos.md](./refactor-voces-proyectos.md). Arranque (§5): **A.1 + A.2 juntos** primero
+(de-riesgan el motor), después split.
+
+| Componente | Qué | Carril | Estado |
+|---|---|---|---|
+| **A** Auditoría del pipeline vivo | mapa nodo/campo/página + reconciliar repo↔live + decisión §3 (ADR) | Dev 1 | ✅ **COMPLETO** — **A.5 cerrada (cierre 54): [ADR-025](../adr/ADR-025-cockpit-producto-propio.md)**, el cockpit migra a producto propio; Airtable interino curado al mínimo |
+| **B** Dashboard / Cockpit | flujo del operador, racionalización de campos, Métricas/Costos | Dev 1 | 🔧 **B.4 ✅** · **B.2 ⛔ RETIRADA** (ADR-025: sin botón en Airtable free; disparo interino = Execute manual; la mitad n8n queda viva para el producto propio) · **B.6: guía ejecutable LISTA** (cierre 54: [mapa-campos §6](../archivo/mapa-campos.md) + checklist interactiva) — la ejecución es de Mani a mano (12 pasos; el paso *Descartes* espera records del lunes) · B.3/B.5 quedaron subsumidos en esa guía |
+| **C** Motor de búsqueda | N por proyecto (ADR-024), `Voces.activo`, corte por proyecto, webhook single-flight (ADR-023) | Dev 2 | ✅ COMPLETO · **V-run ✅ (cierre 53)** · **spillover gap RESUELTO en el repo (cierre 54, enmienda ADR-024 + replay con outputs reales: TP 6→9)** — pendiente de **re-import** (con el paso de infra antes, §Pendiente vivo) · **guard single-flight: prueba viva el lunes 20/07** (instrucción en §Pendiente vivo) |
+| **D** Archivado | confirmar que corridas por-proyecto no rompen Métricas/salud semanal | Dev 2 | ✅ **COMPLETO y VIVO** (cierres 48–49; re-importado el 2026-07-17, cierre 52): D.1/D.2 confirmados + matiz `runs_fallo`×`en_curso` + **D.3(b)** (→ `outputs.metadata`) + **D.4** (poda `tema`/`link_doc`) |
+| **E** Capa de datos | `Voces.activo`, campos de disparo, racionalización | Dev 1 | ✅ **E.1 ✅** · **E.2 ✅ mitad-repo** (la mitad-Airtable murió con B.2/ADR-025) · **E.3 espera el diseño del producto propio** (ADR-025 §Toca: irá en sus propios ADRs) |
+
+ADRs cerrados que gobiernan el refactor: [ADR-023](../adr/ADR-023-disparo-on-demand-boton-airtable.md)
+(disparo on-demand), [ADR-024](../adr/ADR-024-enmienda-adr016-n-por-proyecto.md) (N por proyecto).
+
+## Para la próxima sesión — arrancá por acá (🪦 SUPERSEDED, ver §ARRANCÁ POR ACÁ arriba)
+
+> 🪦 **Esta sección quedó superseded el 2026-09-02.** El arranque vigente es **§ARRANCÁ POR ACÁ**, al
+> principio del archivo. Lo de abajo es arqueología del refactor Voces→Proyectos y de Airtable.
+
+> ✅ **Al 2026-08-22 no hay bloqueantes.** n8n volvió, el fix del emoji partido está empujado y
+> `n8n:diff` da verde en los 5. Arrancá por el **cierre 115**, arriba del todo.
+>
+> ⚠️ **Esta sección viene del 17/07 y quedó MUY atrás** (habla del refactor de Voces→Proyectos, que
+> terminó, y de Airtable, que murió en D7). Para saber qué sigue **hoy**, leé **§Pendiente vivo** y
+> la **última entrada del log (cierre 115)**. Lo de abajo sirve como arqueología del refactor, no
+> como lista de tareas — y varias de sus instrucciones (curar el cockpit de Airtable, congelar
+> páginas) ya no aplican a nada.
+
+> **Reescrito el 2026-07-17 (cierre 54). La sesión de auditoría completa del cierre 53 SE HIZO** — los 3
+> frentes ①②③ están ejecutados en el repo (spillover, presupuesto de transcripción, ADR-025, guía de
+> curado, onboarding). Lo que queda es **aplicación manual + verificación del ciclo**, y después arranca
+> el producto propio.
+
+**Lo manual de Mani (en orden):**
+1. ~~Re-import del motor~~ ✅ **HECHO el 19/07** (los 3 workflows vivos, §Pendiente vivo).
+2. **Lunes 20/07:** prueba viva del **guard** durante el cron de 08:00 (§Pendiente vivo) + verificar que
+   el **descubrimiento** de 09:00 corrió bien post re-import (nunca se vio en vivo) + confirmar
+   `runs.trigger_type` en Supabase.
+4. **Curar el cockpit:** los 12 pasos de [mapa-campos §6](../archivo/mapa-campos.md) (checklist interactiva
+   publicada como artifact "Curado del Cockpit"). **Ya hecho por MCP (cierre 56): todos los campos de
+   las 9 tablas tienen description (el ⓘ)** — a mano queda visibilidad/permisos/filtros por página
+   (spec campo a campo en **§6.2**) y el **helper text de cada elemento** (los 105 textos escritos en
+   **§6.3**, copiables desde el artifact). El paso *Descartes* recién se puede después del lunes.
+5. **Equipo (Majo/Jero):** vaciar el backlog de calificación (51 `nuevo` viejos) + sembrar 3–5
+   referentes TikTok. El [onboarding](../onboarding-equipo-redes.md) ya está actualizado al refactor —
+   compartirles la versión nueva.
+
+**La verificación que cierra el ciclo:** el **26/07** (§Ciclo) — primera fila completa de `Métricas
+Global` (embudo + salud por referente + costos $). Con el presupuesto nuevo, `sin_guion` debería
+desplomarse vs. la corrida del 17/07 (6 de 16).
+
+### 🟢 El cockpit propio (ADR-025): D0–D4 construidos, deployado y verificado en prod
+
+Plan en [plan-cockpit-propio.md](../archivo/plan-cockpit-propio.md) (ADR-026..028). **App viva:**
+https://pipeline-creacion-contenido.vercel.app (root `apps/dashboard`).
+
+| Fase | Qué | Estado |
+|---|---|---|
+| **D0** Fundación | login magic link · 3 zonas con guardia por rol · migración `007` | ✅ código · ✅ infra · ✅ **login funcionando** (Resend SMTP + dominio `contact.retiagrowth.com`, cierre 65) · ✅ **equipo invitado**: `app.usuarios` tiene **5 filas** (Mani ×2, Alejandro `dev`, Jero `operador`, Alejo `operador`) |
+| **D1** Operar | qué corre + ▶ Correr ahora + corridas recientes | ✅ código · env cargadas · ⏳ falta el hecho-cuando en vivo (Jero disparando una corrida real) |
+| **D2** Entender | calidad/embudo/costos sobre migración `008` (3 vistas + tarifas) | ✅ código · migración aplicada · ✅ **devuelve datos desde el 29/07** (estuvo roto desde el día 1 por el grant faltante, cierre 68) |
+| **D3** Sombra | migración `009` (schema `app` completo) + `sombra:import`/`sombra:diff` | ✅ **CORRIDO el 30/07 (cierre 69): espejo perfecto ×2** — voces 3 · proyectos 6 · referentes 16 · ajustes 18 · propuestos 8 (candidatos y descartes en 0 de los dos lados) · ⏳ falta **el 3er pase con una edición del equipo de por medio** (es de Mani, 2 min) |
+| **D4** Fachada | `GET /api/engine/run-plan` (ADR-028), `?ambito=motor`/`completo` | ✅ mitad-app · ✅ **swap de nodos HECHO en los 3 `workflow.json` (cierre 69)**, verificado con replay A/B contra config real · ✅ **la fachada responde 200 en prod desde el 31/07** (par rotado, header ahora `X-Run-Plan-Auth`) · ✅ **re-import #1 HECHO y corrida real entera por la fachada** (cierre 70): hecho-cuando cerrado |
+| **D5** Corte de config | dominio por dominio a Postgres, sin tocar n8n: Ajustes → Referentes → Voces+Proyectos | 🟢 **corte 3/4 (Voces + Proyectos) HECHO Y EN PROD (cierre 74)**: pantalla `/curar/voces` (voces con sus proyectos adentro) + flip + [ADR-033](../adr/ADR-033-dueno-por-campo-durante-la-coexistencia.md) (un dueño por **campo**: `criterios_aprendidos`/`advertencia_criterios` siguen siendo de Airtable hasta D7, si no el loop de ADR-022 moría en silencio) · **sin migración** (el schema `009` ya modelaba bien los dos dominios, medido contra el dato vivo) · A/B contra la fachada de producción: **mismo plan, 0 diferencias** · carga verde y **verificado en prod**: `?ambito=motor` con 3 voces · 4 proyectos · N resuelta a 100 · *Storytelling* con sus 5 referentes, y los `criterios_aprendidos` llegando desde Airtable (ADR-033 vivo) · ⏳ faltan el **hecho-cuando** y el congelado de Airtable (§Pendiente vivo) · 🔧 **corte 2/4 (Referentes) HECHO Y EN PROD (cierre 73)**: pantallas `/curar/referentes` (con *A revisar* adentro) y `/curar/sugeridos` + flip + [ADR-032](../adr/ADR-032-referente-proyecto-es-n-a-n.md) (migración `012`: el vínculo con proyectos es N:M — el modelo de `009` tiraba 19 de 35 pares y apagaba *Storytelling*) · carga verde (15 referentes · **33 pares**, los 6 proyectos idénticos) y prod sirviéndolos · ⏳ faltan **congelar 3 páginas de Airtable + el aviso al equipo** (§Pendiente vivo) · 🔧 **corte 1/4 HECHO Y EN PROD (cierre 72): Ajustes.** Pantalla `/curar/ajustes` + la fachada sirve los 18 knobs desde `app.ajustes` · A/B Airtable↔fachada **0 diferencias** · ✅ **validado por la corrida real de las 19:18** (`ok`, `n_objetivo` resuelto por la fuente nueva) · ⏳ faltan **los 2 pasos manuales de Mani** (§Pendiente vivo) |
+| **D6** Feed de calificación | el espacio de trabajo: mazo de tarjetas + auditoría de descartes + históricos | 🟢 **HECHO Y EN PROD (cierre 75).** 3 pantallas: `/curar/feed` (tarjetas compactas que se abren, agrupadas por proyecto y heat desc, filtro sin-calificar/🔥/aprobados/todos), `/curar/descartes` (el `veredicto` que **nunca se pudo marcar** — no era diseño, Airtable no deja configurar el permiso de un campo sin records en la página) y `/curar/historicos` (lo aprobado de todas las semanas, sobre `outputs`, de a 25). Gobernado por [ADR-034](../adr/ADR-034-calificar-es-un-solo-acto.md): **calificar es un solo acto y el Estado se deriva** · **NO es un corte** — Airtable sigue siendo el dueño de `Candidatos` y `Descartes` hasta D7, así que las 2 tablas **siguen** en el catálogo de sombra (al revés del procedimiento del corte 1/4) y no hubo migración ni re-import · verificado en vivo: escritura de los 2 campos + `app.eventos`, `veredicto` escrito por primera vez, paginado sin saltos, los 2 registros de prueba restaurados · ⏳ falta el **hecho-cuando** (una semana de calificación real) y congelar 2 páginas más de Airtable |
+| **+ Transcribir** | 4ª zona: pegar enlaces → script literal + dedup, migraciones `010`/`011` ([ADR-031](../adr/ADR-031-transcriptor-a-pedido.md)) | ✅ código · ✅ migraciones aplicadas · ✅ la zona lee · ✅ **funciona end-to-end**: `app.transcripciones` tiene 2 filas `listo` con script (una del 30/07) + sus 2 `eventos`. ⚠️ *No se puede saber desde la base si eso corrió en prod o en local, así que **queda por confirmar que `SUPADATA_API_KEY`/`ANTHROPIC_API_KEY` estén en Vercel** (mismo viaje que el fix del header).* **Fuera de D0–D8**: pedido nuevo del equipo, no toca la migración de Airtable |
+
+**Infra HECHA (cierres 63–64, Mani):** migraciones 007–009 corridas (9 tablas + 4 vistas) · `app`
+en *Exposed schemas* · 2 usuarios en `app.usuarios` (cuentas de Mani; Majo/Jero en el beta) ·
+deployado en Vercel con **las 8 env vars** (2 públicas + service_role + Airtable PAT/base + webhook
+motor ×3 + run-plan ×2) · Site/Redirect URL de Auth. **Verificado por curl:** run-plan con header
+devuelve la config real; sin header 403; ambito typo 400.
+
+> ✅ **RESUELTO (cierre 65): el login por magic link funciona end-to-end con Resend SMTP.** Config:
+> host `smtp.resend.com` · port 465 · username literal `resend` · password = API key `re_...` · Sender
+> en el dominio verificado **`contact.retiagrowth.com`** (SPF/DKIM en el DNS de Squarespace de la
+> agencia). **Gotchas del debug, para no repetirlos:** Resend exige dominio verificado (sin verificar
+> solo entrega al mail dueño de la cuenta, rechaza el resto con 403 → Supabase 500); la cuenta Resend
+> es de Daniel (su mail personal); 30x.com no se pudo usar (sin acceso a su DNS). El error
+> real se diagnostica en **Supabase → Auth Logs** (500 = SMTP falló para invitado · 422 = mail no
+> invitado, esperado), no en Vercel (salía `{}`). Detalle en el log del cierre 65.
+
+**Lo que queda del cockpit, al 2026-08-01 (cierre 75).** D0–D4 y **D5 y D6 completos y en
+producción**. El orden de acá en adelante:
+
+1. ~~Publicar el corte 3/4~~ ✅ **hecho el 31/07.** Queda su hecho-cuando (2 min) y el congelado de
+   *Voces* y *Proyectos* en Airtable, que en este corte tiene un matiz (ADR-033).
+2. ~~Corte 4/4~~ ✅ **CONFIRMADO CON MANI: no existe.** La numeración salió de contar Voces y
+   Proyectos por separado, pero van juntos por FK. Con Ajustes, Referentes, Voces y Proyectos
+   adentro, **D5 está completo** — verificable en `lib/config.ts`, donde los 4 dominios salen de
+   Postgres. Lo que queda en Airtable son las 3 tablas que **escribe n8n**, y eso es D7.
+3. ~~D6 — el feed de calificación~~ ✅ **hecho el 01/08 y en prod** (fila D6 de la tabla de arriba).
+   Queda su hecho-cuando, que es el único que no se puede apurar: **una semana entera de
+   calificación pasando por la app**.
+4. ~~D7 — corte de escritura~~ ✅ **HECHO Y EN PROD el 01/08** (cierres 76 y 77): Airtable salió del
+   sistema, `grep -c api.airtable.com Workflows/*/workflow.json` da `0 0 0`, y el paso 3 del
+   expand/contract cerró (el `id` del contrato es el uuid). Mató las 3 llamadas que le quedaban a
+   Airtable en la app y la traducción de ids (ADR-033, que murió cumplida).
+5. **D8 — apagado de Airtable + la poda del schema.** 📐 **Decidido y escrito el 2026-08-05:
+   [ADR-059](../adr/ADR-059-lo-que-no-se-usa-no-existe.md).** La balde 2 resultó ser **5 vistas y
+   12 columnas** (no las "4 y 6" que este doc recordaba) más las 6 `airtable_id`; el inventario
+   completo vive en
+   [plan-cockpit-propio §D8](../archivo/plan-cockpit-propio.md#la-balde-2--el-inventario-medido-el-2026-08-05).
+   Manda el consumo de código, con dos excepciones: **`clients.parent_id` se queda** (ADR-051 §4 le
+   dio trabajo nuevo) y **`runs.costo_estimado` se va con su línea del contrato**.
+   - ✅ **[`022`](../../core/schema/022_poda_balde_2.sql) APLICADA por Mani el 05/08 y verificada
+     por su efecto** (PostgREST: las 5 vistas fuera, las 3 columnas fuera, **cero `airtable_id`**,
+     las 6 vistas de `app.` intactas, `parent_id` en su lugar). Prod después: `/` 307 · `/login`
+     200 · `run-plan` 403 sin header y **`version: 2`** con header. Y el dedup, medido con
+     `verificar-corrida.mjs`: **intersección 0 entre las 2 últimas corridas**.
+   - 🟡 **[`023`](../../core/schema/023_poda_write_only.sql) ESCRITA, con su gate `§0` sin firmar.**
+     **5 columnas, no 7**: `processed_items.url`/`.seguidores`/`.flag_viral`/`.idioma` +
+     `outputs.source_items` + `transcripciones.pedido_por`. 🔎 **`run_id` y `primera_vez` salieron de
+     la lista**: las lee `verificar-corrida.mjs` (la herramienta que verifica el dedup) y
+     `test-nodos.mjs` tiene 4 asserts sobre `run_id`. *Tercera vez que el método sub-cuenta
+     consumidores: el corpus no incluía los `.mjs` de herramientas.*
+     ✅ **El lado "dejar de escribir" YA SALIÓ el 05/08**: `Preparar procesados` y `Armar filas
+     archivado` empujados con `n8n:push` (`n8n:diff` limpio en los 5), y `lib/transcripciones.ts`
+     va en el deploy de Vercel de este commit. **Falta ver correr una corrida del motor y un
+     archivado, y firmar el gate.**
+     🩸 **El orden no es estética:** PostgREST rechaza el insert entero con `PGRST204` y los dos POST
+     son `onError: continue` ⇒ el 400 se traga, el motor cierra en verde **sin memoria de dedup**
+     (⇒ duplicados re-pagados) y el archivado **borra calificados sin archivarlos**. Hay un guard
+     nuevo en `test-nodos.mjs` que se pone rojo si alguien devuelve una columna al batch del dedup.
+   ✅ **LA COLA DEL RE-IMPORT QUEDÓ VACÍA.** `fields.uuid` y los tres `uuidDe` ya habían muerto con el
+   contrato v2 (ADR-048 §5) y **el Sheet salió el 05/08**: [ADR-057](../adr/ADR-057-el-sheet-historico-por-instancia-o-ninguno.md)
+   cerrada entera. El archivado quedó en **17 nodos** y con ella se fue **la última dependencia de
+   Google del pipeline** (credencial OAuth, consent screen y su runbook).
+   🔑 **Cómo se hizo, porque es el patrón para la próxima topología:** los 3 nodos se borraron **a
+   mano en el editor de n8n** y se reconectó `Registrar outputs` → `Preparar borrado candidatos`;
+   los dos cambios de `parameters` (`Config` sin `sheet_id`/`sheet_tab`, `Armar filas archivado` sin
+   la fila del Sheet) fueron por `n8n:push`. **NO fue un re-import**: importar crea un workflow con
+   id NUEVO y se lleva el webhook, el target del dispatcher, el `errorWorkflow` y la activación.
+   Total: 3 clics + un push, con `n8n:diff` limpio en los 5 después.
+   🟡 **Y quedó claro que el re-import ya no es un límite técnico.** `PUT` reemplaza el array `nodes`
+   entero, así que borrar nodos por API se puede: el que se niega es **nuestro** `n8n:push`, porque
+   *"un push que crea nodos también puede borrarlos"* y falta la red de seguridad. Escrito para
+   retomarlo en [plan-multi-tenant §14.2](./plan-multi-tenant.md) — ahora sin nada esperándolo.
+   ✅ **"Nada de Airtable" — HECHO en el repo el 05/08** (pedido de Mani). Borrados
+   `core/scripts/setup-airtable.mjs`, `core/contracts/airtable-cockpit.md` (sin reemplazo a
+   propósito: **el modelo vivo son las migraciones**) y `apps/dashboard/scripts/cortar-feed.ts` con
+   su npm script. `verificar-corrida.mjs` **volvió a correr entero**: su bloque del feed lee
+   `app.candidatos` por PostgREST en vez de `api.airtable.com`. Menciones: README **1→0**,
+   one-pager **2→0**, onboarding **18→2** (las 2 son el aviso de que ya no existe), PLAN **15→4**,
+   ROADMAP **29→14**, CLAUDE.md reescrito. Lo que queda es **historia** (items `[x]`, nombres de
+   archivo de ADRs, el porqué de decisiones viejas) y se deja a propósito.
+   🔌 **La cuenta de Airtable quedó DESCONECTADA (Mani, 05/08): no se cancela, simplemente no se
+   usa más.** No hay nada que hacer ahí.
+   🎯 **Y el export final NO hacía falta** — era el último bloqueante.
+   `Métricas Proyectos` y `Métricas Global` eran **proyección derivada y regenerable** (lo decía el
+   propio contrato congelado): las 4 vistas de `app.` las reconstruyen desde `runs.metricas` +
+   `outputs`, **desde el 2026-06-29** — más historia que la que esas tablas tuvieron (se partieron
+   el 15/07). Verificado vista por vista contra prod. **Cancelar Airtable no pierde nada.**
+6. **D7.5 (alternativa a D8, sin orden fijo):** que la app escriba `outputs` al calificar, para
+   matar el archivado. Es enmienda de ADR-014 y toca `core/`: va con `/grill-with-docs`.
+
+**Las 2 decisiones abiertas se CERRARON el 2026-07-16 (cierre 49, consultadas a Mani):**
+el **descubrimiento NO respeta `Voces.activo` a propósito** (despensa para voces pausadas —
+documentado en el plan §Descubrimiento y el README del descubrimiento para que nadie lo "arregle") ·
+**`notas_equipo` + `viral_por_tamano` van a `outputs.metadata`** (D.3 salida (b); la (a) — que entren
+al destilado — se decidirá con el corpus que (b) acumula).
+
+*(Cerrada antes, mismo día: los 2 proyectos con 2 voces — **1 proyecto = 1 voz** es regla firme, dato ya
+limpio. Sigue abierto, aparte: si un **referente** puede cruzar voces — [mapa-campos §2.5](../archivo/mapa-campos.md).)*
+
+**Contexto que ahorra media hora de re-derivar:**
+- **El arranque del motor cambió (C.3):** `Config → Barrer runs zombie → Leer corridas vivas → Guard
+  single-flight → Abrir run`. El guard aplica a los 3 triggers; vivo/zombie lo decide
+  `ventana_corrida_min` (Config, **60** desde el 31/07). No "arregles" el orden del barrido: que corra
+  antes del guard es lo que evita que un zombie trabe el motor. Y la ventana tiene que quedar **por
+  encima** de la corrida más larga posible: si queda debajo, el barredor mata una corrida en vuelo y
+  el guard deja arrancar otra en paralelo.
+- 🚨 **Antes de aflojar cualquier techo del motor, preguntá si POSTERGA o si QUEMA** (ADR-044). El
+  corte de `cap_top_n` pasa dentro de `Heat-score v1`, **antes** de `POST processed_items`: lo capado
+  vuelve la corrida siguiente. Los presupuestos de tiempo de `Transcribir` corren **después** de ese
+  POST: lo que se quedan afuera ya está en la memoria de dedup y se pierde para siempre. Desde la
+  pantalla de Ajustes los dos se ven igual.
+- **No leas el costo de un nodo por su nombre.** `Traducir (Claude Haiku)` decía "Haiku" y se leía
+  como barato; era el nodo más lento del motor y el único sin presupuesto, porque lo caro no era la
+  llamada sino el `sleep(1000)` × 170 videos. El costo de un Code node es *llamadas × latencia ×
+  serialidad*, y eso solo se ve leyendo el loop.
+- El mapa de la superficie ya está completo: **[mapa-campos.md](../archivo/mapa-campos.md)** (§4 campos, §5 páginas).
+  **No re-derives nada de ahí** — y leé §1 antes de grepear: el grep de campos **no sirve** en este repo.
+- Hay **tests** del motor ahora: `test-nodos.mjs`. Si tocás `Armar plan` o `Armar candidato`, corrélos.
+- **Un campo nuevo + un filtro nuevo = poblar el dato antes** (casi dejamos el motor en cero; cierre 46).
+- **Un `httpRequest` de n8n corre una vez POR ITEM** (cierre 67). Después del fan-out entran cientos,
+  así que todo lookup **de corrida** va `executeOnce` o dispara cientos de requests idénticos y muere
+  por timeout. Vale para cualquier nodo HTTP nuevo, no solo los del dedup. Y el corolario que costó
+  caro: **un fallo tragado por `onError` no desaparece, se convierte en datos malos** — este mismo
+  timeout, cuando era fail-open, produjo los 15 duplicados del 20→21/07.
+- El **primer ciclo completo post-re-import cierra el 26/07** (§Ciclo): el archivado del 19/07 sale
+  parcial **por diseño**. No lo leas como veredicto.
+
+
+## Log de avance — anterior al 2026-08-31
+
+**2026-08-26 (cierre 116) — Orden y filtro en las 4 pantallas de video, y un orden que no se podía leer (Claude, con Mani).**
+
+**Qué se hizo:** [ADR-076](../adr/ADR-076-ordenar-es-una-vista-no-una-consulta.md) + las 7 tareas de
+[plan-orden-y-filtro](../archivo/plan-orden-y-filtro.md), completas y verificadas contra prod pantalla por
+pantalla. Salió del pedido de Majo (*ordenar una colección por likes*) y se generalizó porque el
+mismo hueco estaba en las 4 pantallas que dibujan `TarjetaVideo`, que además ya tenían **tres
+implementaciones sueltas de "filtrar"** sin conocerse. Nuevo: `domain/orden.ts` (18 tests) y
+`components/video/orden.tsx`. **Cero migraciones, cero n8n, cero `core/`.**
+Commits `b66d044` · `b8c86ea` · `53d8186` · `b98c8ad` · `e66b287` · `97c62f8` · `9b60877` ·
+`7caa88b` · `c7bc827`.
+
+> # ✅ PUSHEADO Y LIVE — `d88c419..5915a14`, el mismo 26/08
+> La verificación funcional se hizo en `localhost:3000` **contra la base de producción** (datos
+> reales, código local). Después se pusheó y se confirmó el deploy con **dos señales
+> independientes**: la huella del HTML de prod cambió y quedó estable en 3 requests seguidos, y
+> **Vercel reporta `success` contra el SHA exacto** (`gh api .../commits/5915a14/status`).
+> *La primera sola no alcanzaba: probaba que había un build nuevo, no que fuera el mío.*
+
+**🩸 El bug que ningún test iba a atrapar, y la regla que dejó (ADR-076 §9).** En Históricos los
+criterios leían `Historico` crudo mientras la tarjeta dibuja `videos.get(clave)` — el mapa de
+`fusionar()`. Difieren justo donde duele: `outputs.titulo` guarda **la url** en las 129 filas de
+`transcripcion_a_pedido`, y `fusionar` la descarta con `esTituloDeVerdad` mientras el campo crudo no.
+Resultado: *Título A-Z* ordenaba por un valor **que no se ve**, dejando arriba una pared de **320
+tarjetas que dicen "sin título"**. No fallaba ni tiraba error: desde afuera era indistinguible de
+estar roto. Es [ADR-072](../adr/ADR-072-el-video-es-la-unidad-una-llave-una-tarjeta.md) §4
+cobrándose lo que anunció — *una url disfrazada de título miente dos veces, en la tarjeta y en el
+próximo cruce que alguien escriba encima*. **Estos criterios eran ese próximo cruce.** La regla que
+queda: **se ordena por lo que la tarjeta muestra**; un orden que no se puede leer en pantalla es
+indistinguible de uno roto.
+
+**🩸 Y una medición mía que era falsa, destapada por la pantalla y no por releer.** Reporté *"título
+0 de 57"* en la colección de Majo y de ahí salió una consecuencia entera del ADR (*"Título A-Z
+ordena todo-nulos"*). **Es 57 de 57.** Mi cruce leía `titulo` sólo de `app.videos_meta` (5 filas)
+cuando `fusionar()` lo toma de las tres fuentes. *La lección de ADR-072 al revés: allá se contó un
+match de más, acá uno de menos, las dos por medir una parte y concluir sobre el todo.*
+
+**🔑 La simplificación que ordenó el diseño: el default de las 4 pantallas es `null` = *no
+reordenes*.** Las cuatro ya llegan ordenadas por alguien (`agrupar`, `armarRegistro`,
+`ordenarDescartes`, el orden de inserción), así que el criterio por defecto no tiene que
+**reproducir** esas reglas sino **no tocarlas** — con un criterio "near-miss" propio habría dos
+implementaciones de ADR-021 desincronizándose. Y el desempate sale gratis: `Array.prototype.sort` es
+estable por spec desde ES2019, así que un empate cae de nuevo al near-miss o a la fecha, nunca a un
+uuid. Clavado en un test, porque es la clase de cosa que alguien "optimiza" sin saber que la usaban.
+
+**🟢 La regla de "una faceta necesita 2+ valores" quedó vista por sus dos lados, en producción.** En
+Colecciones **no se dibuja ninguna** (los 57 son `idioma=en` y los 57 de Instagram); en el Feed sí
+(`en 144` / `otro 2`) y en Históricos también, con `origen` (`transcribir 129` / `feed 95`, que
+coincide exacto con lo medido en la base). *No ver las facetas no es que estén rotas.*
+
+**🟢 Hallazgo nuevo, ENCONTRADO Y TAPADO el mismo día: `borrar` de colecciones era una action
+huérfana.** Existía en `curar/colecciones/actions.ts:75`, escrita y documentada, y **no la importaba
+ningún componente** ⇒ no había forma de borrar una colección desde la UI. Tercera vez que este repo
+se come el mismo patrón (`BotonBuscar` sin renderizar, el modo selección entero del plan de
+colecciones). Se descubrió al ir a limpiar la colección de prueba, que hubo que borrar por PostgREST.
+
+Cableado en `indice.tsx` reusando el `BotonBorrar` que ya existía (el mismo de Voces y Referentes,
+que confirma en el lugar en vez de con un `window.confirm`). **Dos decisiones que valen:**
+· la tarjeta se reestructuró en *contenido + pie con `border-t`*, la forma de `TarjetaVideo`, porque
+un botón adentro del `<a>` que envolvía todo era un nido interactivo inválido y dos tabs para dos
+actos distintos;
+· **sólo el fallo muestra mensaje.** La página es `force-dynamic` y la action hace `revalidatePath`,
+así que un borrado exitoso hace desaparecer la tarjeta — y eso **es** el acuse de recibo. El error va
+por colección y pegado a su tarjeta, no al aviso del formulario de crear (la lección que ese archivo
+ya citaba). La advertencia dice la verdad de ADR-073 y por eso tranquiliza: *"Se va la lista de N.
+Los guiones limpios y la metadata comprada se quedan."*
+
+Verificado end-to-end en una colección desechable: aviso con 0 videos, `Cancelar` vuelve al estado
+inicial, aviso con 1 video, `Sí, borrar` ⇒ la tarjeta desaparece y la base confirma **0 miembros
+huérfanos, `Test` intacta en 57 y `videos_meta` en 5**.
+
+**Y después también adentro de la colección** (pedido de Mani), que **no es el mismo caso**: en el
+índice la tarjeta desaparece y eso alcanza, pero acá la pantalla que estás mirando dejó de existir
+⇒ `router.push` al índice. Quedarse mostraría una colección borrada hasta que alguien recargue, y
+ahí `notFound`. Va **al final de la pantalla** y no junto al nombre: es la única acción de ahí que
+no se deshace, y al lado del título quedaba a un pixel del gesto de volver.
+🔑 **La advertencia se extrajo a `domain/colecciones.ts` (`advertenciaDeBorrado`, 3 tests)** porque
+ahora la dicen dos pantallas — *dos frases distintas para el mismo acto es cómo alguien aprende que
+una es otra cosa*. Verificado: la advertencia dice lo mismo en los dos lados, y borrando desde
+adentro la URL pasa de `/colecciones/<id>` a `/colecciones` con la lista ya sin ésta.
+
+**✅ Verificación humana §12 cerrada el mismo día** ([verificaciones-humanas](../verificaciones-humanas.md)):
+el invariante de los nulos, con una colección propia de 3 videos reales + 1 link sintético. Likes ↓
+y ↑ dan vuelta los tres reales y **el sin métricas no se mueve del último lugar**. La colección se
+borró (cascade limpio, `videos_meta` intacta en 5). Residuo honesto: 3 filas en `app.eventos` con el
+`usuario_id` del dev — verificación, no adopción.
+
+**Qué NO hace:** no monta la barra en Transcribir (0 de 130 con título: sería un adorno) ni en
+LinkedIn (tabla vacía), no agrega filtro por referente (decisión de Mani; es lo primero que se va a
+pedir después), y **no pagina**. El techo está declarado en el ADR: esto funciona porque las 4
+pantallas traen todo a memoria (209 / 82 / 420 / 57 y ningún lector tiene `limit`). Si el Feed vuelve
+a paginar, el orden tiene que mudarse a la query — salvo en Colecciones, donde no se puede sin
+materializar `fusionar()`.
+
+**La sesión arrancó con DOS preguntas, y la primera también dejó cola.** *"¿Soporta referentes en
+cualquier idioma?"* → **sí**, y la cadena tiene 6 eslabones de los que Supadata es uno solo (Apify
+colecta agnóstico · `Heat-score` **premia** lo no-español con `boost_idioma` +0.3 · Supadata
+transcribe con `mode=auto` · Haiku traduce si no es `es` · el gate juzga multilingüe · `normLang`
+sólo etiqueta). Probado en la base: los 2 candidatos con `idioma='otro'` **volvieron traducidos al
+español**, o sea que un idioma fuera del diccionario de 5 pasó la cadena entera. **Pero apareció una
+grieta que quedó sin arreglar y está anotada arriba en §Pendiente vivo**: el `|| 'es'` del nodo
+`Transcribir`, que hace que un idioma no reconocido nunca se traduzca — y que además pone al motor y
+al transcriptor de la app a discrepar, contra un invariante que `lib/transcribir.ts` tiene escrito.
+
+**Docs actualizados esta sesión** (auditados uno por uno, no a ojo): ADR-076 + su fila en el índice ·
+`CLAUDE.md` (rango de ADRs + el plan en el mapa) · `plan-orden-y-filtro.md` (marcado ejecutado) ·
+`verificaciones-humanas.md` (§12 cerrada) · `apps/dashboard/README.md` (el mapa del código) ·
+**`onboarding-equipo-redes.md`**, donde apareció un agujero aparte: **el manual de Majo y Jero no
+mencionaba Colecciones ni una vez** (0 coincidencias; el doc es del 05/08 y ADR-073 es del 21/08). Se
+le agregó la fila en la tabla de pantallas, la sección §4.2 de ordenar/filtrar y, en §9, la deuda
+declarada de que Colecciones y la limpieza de guiones **todavía no tienen su sección propia**.
+*No se tocaron* `PLAN.md` (su §3.1 está capada a las ADR fundacionales por regla escrita),
+`context.md` (los 6 sustantivos del dominio ya estaban y esta feature no agregó ninguno),
+`dev-doc.md` ni `mapa-campos.md` (n8n y Airtable, sin cambios).
+
+**Qué sigue:** medir cuántas veces Supadata devuelve `lang` vacío y decidir el `|| 'es'` · escribirle
+a Colecciones su sección del manual · el filtro por referente, que es lo primero que van a pedir.
+Skills sugeridas: `/diagnose` para la grieta del idioma, `/tdd` si se toca el nodo.
+
+**2026-08-09 (cierre 106) — El cockpit de LinkedIn queda listo para configurar, y el ▶ disparaba la máquina equivocada (Claude, con Alejandro).**
+**Qué se hizo:** las Fases 0, 1 y 3 del plan de integración de LinkedIn. Commits `8737b0e` (ADR-066: las interferencias), `b73086b` (ADR-067: perfil de voz) y `0453739` (feed y descartes), los tres pusheados. El cockpit pasó de **1 pantalla a 4**. Antes, limpieza pedida: se borraron las 2 filas `prueba rls` de `app.referentes_linkedin` (`be8e3a1`) — la voz "Alejo" **no se tocó porque ya no existía**, la había borrado el cierre 102.
+
+**🔴 El hallazgo que reordenó el trabajo:** `operar/actions.ts` tiene **tres** disparos (`correrAhora`, `buscarAhora`, `archivarAhora`) que hacen POST a los webhooks de los workflows de **reels**, y ninguno miraba el pipeline: se guardaban solo con `exigirTenant("operar")`, que autoriza **la zona** — que LinkedIn declaraba. Con `30x/linkedin` y `estadox/linkedin` en `active`, el ▶ estaba vivo apuntando a la máquina equivocada desde el 03/08. **Medido antes de cerrarlo: cero `runs`, cero `processed_items`, cero `outputs`** ⇒ nadie lo apretó.
+
+**🔑 Y la parte que importa para el futuro:** la guarda quedó **además** de sacarle la zona a LinkedIn, y no es redundancia. Sacar la zona cierra la puerta *hoy*; el día que LinkedIn recupere `operar` con su motor propio, la guardia de zona **vuelve a autorizar el POST al motor de reels, en silencio**. La zona contesta *"¿este cockpit tiene esta pantalla?"* y lo que hay que preguntar es *"¿es el dueño de esta máquina?"*. Es la misma lección que ya se pagó un nivel más arriba con las 7 pantallas de `curar`: **una guardia se pone donde está la consecuencia, no donde está la ruta.**
+
+**🩸 Medir dio vuelta un supuesto del diseño.** ADR 002 daba por inventariadas las voces de 30X y desconocidas las de Retia; en el sistema **`app.voces` tiene 3 filas y las 3 son de `retia`**, mientras 30X y EstadoX tienen **cero** — siendo las dos cuyo cockpit está activo. Y como **no tienen cockpit de reels**, no existía ninguna pantalla desde donde darles de alta una voz. Por eso la pantalla de Voces también crea la voz, con `activo: false` forzado (**guarda, no default**: en Retia una voz nacida activa entraría al plan del motor de reels sin que nadie lo pidiera).
+
+**⏸️ Qué quedó a medias, y por qué:** la **Fase 4** (ajustes de LinkedIn) no se hizo. Es la única con migración (`028`) y toca `app.ajustes`, que reels usa todas las semanas; la disciplina de la `027` pide ensayarla contra un Postgres local antes de tocar prod, y en esta máquina **Docker no responde y no hay `psql`**. Sin ensayo es la `019` otra vez. También quedó **`retia/linkedin` en `draft`**, a pedido: prenderlo hoy le mete a Majo y Jero un cockpit casi vacío justo antes de D3.
+
+**🧪 Método:** casi reporto un bug inexistente — un `🔥` **válido** dio `23514` porque **el shell mutila los emoji a `??`** en el body de curl. Con escape JSON pasa el check y muere en la FK. La lección generalizable: **una sonda de vocabulario cerrado necesita un control negativo que falle**. Las 4 tablas de LinkedIn siguen en **0 filas** después de todos los sondeos.
+
+**Verde:** `typecheck` · **280 tests** (+26) · `build` · `validate` **2224 checks**.
+**Qué sigue:** **D3** (sin cambios, único item del ROADMAP §3), prender `retia/linkedin`, cargar la primera voz y el banco semilla — y después **el motor en n8n**, que es donde va Alejandro. El bloque de arriba trae la lista medida de lo que le falta al tooling (`n8n-sync.mjs` no conoce el alias `linkedin`, `validate.mjs` no exige `workflow.json`, no hay `clients/*/linkedin.yaml`, no hay cron, y **`run-plan?ambito=linkedin` da 400** aunque el manifest ya lo declare). **Skills sugeridas:** `/grill-with-docs` antes de construir el workflow — los 3 bloqueos son de definición, no de código.
+
+**2026-08-08 (cierre 105) — El histórico abre bien en Excel, y la receta que todo el mundo cita era la equivocada (Claude, pedido de Mani).**
+**Qué se hizo:** el CSV pasó de **UTF-8 + coma** a **UTF-16LE + TAB**. `domain/csv.ts` (delimitador + `aUtf16le` nueva, +4 tests), el `Blob` de `historicos/lista.tsx`, y las docs que lo afirmaban ([ADR-057](../adr/ADR-057-el-sheet-historico-por-instancia-o-ninguno.md) §consecuencias y [verificaciones-humanas](../verificaciones-humanas.md) §1). Commit `2e6a906`, pusheado y deployado.
+
+**El síntoma:** *"se ve muy bien en Numbers, pero en Excel pierde el formato y es texto sucio"*. **No era la codificación** —el BOM estaba desde el día 1 y los acentos llegaban bien—: **Excel no detecta el delimitador**, lo toma del ajuste regional. La Mac de Mani está en región **Colombia**, donde el separador de lista es `;`, así que un archivo con comas le cae **entero en la columna A**, con las comillas de escape a la vista y el `SCRIPT` multilínea partiendo la fila en dos. Numbers lo abría bien porque **sí** sniffea el delimitador: la diferencia estaba en el lector, no en el archivo, que era RFC 4180 impecable.
+
+**🩸 El aprendizaje, y es el que hay que llevarse: la receta correcta según internet estaba mal, y solo se cayó al abrir Excel de verdad.** `sep=,` como primera línea es lo que recomienda todo el mundo, se implementó, **y arregla el delimitador rompiendo los acentos**: cuando Excel lee esa directiva **deja de mirar el BOM** y cae a MacRoman ⇒ *M√©tricas*. Se probaron las cuatro combinaciones en el Excel real:
+
+| | columnas | acentos |
+|---|---|---|
+| BOM UTF-8 + coma (lo que había) | ❌ | ✅ |
+| BOM UTF-8 + `sep=,` | ✅ | ❌ *M√©tricas* |
+| BOM UTF-8 + tab | ❌ | ✅ |
+| **UTF-16LE + tab** | ✅ | ✅ |
+
+*Un archivo UTF-16 Excel lo trata como tab-delimited sin preguntarle al locale, y por eso es la única que pasa las dos.* **Lo generalizable:** cuando el bug vive en cómo un programa ajeno lee el archivo, ni el test ni el hexdump alcanzan — hay que abrir el programa. El test verde y los bytes correctos convivían con un archivo ilegible.
+
+**⚖️ El costo, elegido y escrito:** ya no es un CSV de manual. Se sigue llamando `.csv` y el botón sigue diciendo *Descargar CSV* (es el nombre del entregable, ADR-057), pero pesa el doble y un parser necesitaría `encoding="utf-16"` y `sep="\t"`. Se acepta porque **el consumidor declarado es Excel** (Majo y Jero) y hoy no hay ningún consumidor máquina. **Numbers no paga nada** — se verificó. *Con `sep=,` habría quedado Numbers con una fila basura arriba **y** Excel con los acentos rotos: la opción "barata" era peor en los dos lados.*
+
+**🧬 `aUtf16le` existe porque no hay forma nativa:** `TextEncoder` solo emite UTF-8, así que un `new Blob([texto])` mandaría UTF-8 y perdería lo único que hace que el archivo abra bien. Recorre **unidades de código** y no caracteres, y eso es lo que preserva los emoji de calificación (pares suplentes) que ADR-057 verificó contra prod.
+
+**Verde:** `typecheck` · **253 tests** (+4) · `build` · `validate` **2206 checks**.
+**✅ Y esto cierra medio hueco viejo:** el *"nadie hizo clic al CSV"* que arrastraban los cierres 101–103. El archivo **se abrió con los ojos en Excel y en Numbers**: 7 columnas cada una en su celda, acentos y emoji intactos, el guion multilínea dentro de **una** celda. ⚠️ **Pero el archivo se generó llamando a las funciones, no apretando el botón en prod** — el tramo Server Action → `Blob` → descarga sigue sin ojo humano. Es lo mismo que faltaba antes, más chico.
+**Qué sigue:** **D3** (la demo de 10 min con Majo y Jero), que sigue siendo el único item sin marcar del ROADMAP §3 y ahora tiene el histórico verificado en el Excel donde ellos lo van a abrir. **Skills sugeridas:** `/diagnose` si aparece cualquier otro *"se ve mal en X"* — el método de esta sesión (reproducir el síntoma en el programa real, tabla de variantes, control incluido) es exactamente su loop.
+
+**2026-08-07 (cierre 104) — El login se abre con contraseña, y medir el síntoma dio vuelta el diagnóstico (Claude, pedido de Mani).**
+**Qué se hizo:** [ADR-065](../adr/ADR-065-la-puerta-se-abre-con-contrasena.md) entera — `domain/credenciales.ts` (+10 tests), `entrarConContrasena` en `app/login/actions.ts` (`enviarMagicLink` sin tocar), `/login` rehecho con el link plegado como repuesto, y **`/mi-cuenta`** para que cada uno se ponga la suya sin depender de un admin. Docs: ADR + índice, README de la app (§stack, mapa y un paso `3-bis` de setup), `verificaciones-humanas` §4-bis y el rango de ADRs del CLAUDE.md. Commit `15bfec4`, pusheado.
+
+**🩸 El aprendizaje de la sesión es de diagnóstico, no de código.** El pedido era *"me toca mandar un correo cada vez que quiero acceder"*, y la lectura obvia —la sesión vence— **estaba mal**: la cookie dura 400 días y el proxy refresca bien. Lo que pasaba es que **la sesión es una sola cookie por dominio y perfil**, así que entrar con la segunda cuenta borraba la primera. *Arreglar el síntoma sin medirlo habría sido alargar una sesión que ya duraba más de un año.*
+
+**🔒 Y dos decisiones que solo aparecieron al construir:** (1) el largo mínimo se valida **al elegir** la contraseña y nunca al entrar —reusar la constante en los dos lados es un bug con fecha de activación: el día que suba, el que tenga una más corta queda afuera sin que nadie toque su cuenta—; (2) el mapeo de errores devuelve un **estado y no un texto**, porque el estado viaja en la URL y un mensaje propio para `email_not_confirmed` habría publicado ahí la diferencia que la función existe para esconder.
+
+**Verde:** `typecheck` · **248 tests** (+10) · `build` · `validate` **2206 checks**. Deployado y **verificado por su contenido, no solo por su status**: `/login` en prod ya sirve el campo de contraseña, `/` da 307 y `/mi-cuenta` sin sesión da 307 al login. Sondeo contra prod sin escribir nada: mail inexistente y mail real con contraseña mal ⇒ **misma respuesta** (`400 invalid_credentials`).
+**Qué quedó a medias:** ⏳ **nadie hizo clic todavía** — el camino feliz (entrar con una contraseña correcta) no se puede probar desde un agente sin setear una, que es escritura en prod. Y los 4 ajustes de Supabase son de Mani.
+**Qué sigue:** avisarle al grupo, los ajustes de Supabase, y **A7 + el clic a la tanda** con dos perfiles de Chrome. **D3 sigue siendo el único item sin marcar del ROADMAP §3.**
+
+**2026-08-07 (cierre 103) — ADR-064 construida, y ensayarla contra un Postgres real corrigió dos cosas de la ADR y encontró una guarda que faltaba (Claude, con Mani).**
+**Qué se hizo:** la `027` (tabla `app.tandas`, `transcripciones.tanda_id`, la vista de cabeceras `app.v_tandas`, policy, `app.autores_de_tandas()` y el backfill de las 9 tandas), `domain/tanda.ts` (+11 tests), `lib/tandas.ts`, y la pantalla de Transcribir reescrita alrededor de la tanda. **La migración queda SIN aplicar y va antes del deploy.**
+
+**🩸 El patrón, otra vez: construir una ADR la corrige.** Dos cosas del texto no sobrevivieron a escribirlas. (1) *"el título es opcional, **con default**"* se leía como *guardar* ese texto en la fila; es una **proyección de dos columnas que ya están ahí** (cuántos links y cuándo), guardarla la congela —ADR-041 ya contestó esta pregunta al revés— y obligaba a que el formato de fecha existiera dos veces, un `to_char` en SQL y `lib/fechas.ts`, que es de donde salió la hora corrida 5 h de Entender. Ahora `titulo` es nullable y el default lo dibuja `tituloDeTanda`. (2) El §1 nombraba **"quién"** en una lista de columnas, y esa palabra escondía dos decisiones: ver abajo.
+
+**⚖️ `creada_por` existe porque la pantalla la muestra, y mostrarla abrió una excepción a ADR-051 §3.** La `023` había dropeado `transcripciones.pedido_por` tres días antes justamente por write-only, así que la columna solo se justifica si se lee. **Decisión de Mani: se muestra** — *"sería bueno saber de quién es la tanda"*, y no es auditoría, es a quién preguntarle por esos 50 links. Pero la policy de la `025` esconde a los dueños, así que las tandas de Mani habrían dicho *"(sin acceso a la ficha)"*. Mani lo resolvió de frente: **"no importa si es dueño, sponsor u operador"**. La excepción se hizo **angosta y en la base**: `app.autores_de_tandas()` **no lista personas**, resuelve el nombre de quien **firmó un trabajo que la sesión ya ve** — nadie aparece por existir. `usuarios_visibles()` queda intacta y la pantalla de equipo sigue sin la agencia. *La línea está en la palabra listar: un directorio no es una firma.*
+
+**🧪 Y lo más reutilizable de la sesión: la migración se ensayó ENTERA contra un Postgres local antes de tocar prod.** Un fixture de ~30 líneas con la forma medida de prod (110 filas, 9 grupos). Resultado: las **9 tandas** con el reparto exacto **52·48·2·2·2·1·1·1·1**, **cero huérfanas**, cero grupos fusionados, **idempotente** (segunda corrida = mismo estado), y la policy aislando de verdad (una sesión de otra empresa ve 0 tandas y el `with check` le rechaza el insert). 🔴 **Y encontró una guarda que faltaba**: `app.v_tandas` es `security_invoker` y cruza `app.transcripciones`, así que sin `select` sobre ella la pantalla muere con `42501` — el modo de falla que la `021` §4 documenta y que el fixture reprodujo solo. En prod el grant está desde la `021`, pero el §0 ahora **lo afirma en vez de asumirlo**, y la guarda se verificó **poniéndola roja** (corre sin el grant → aborta y no deja basura). *El SQL Editor no es el lugar donde uno se entera de un error de sintaxis, y resulta que no hacía falta que lo fuera.*
+
+**✅ La `027` la aplicó Mani el mismo día, y se verificó por su efecto contra prod** (la lección de la `019`, no la de "corrió sin error"): `v_tandas` da **9 tandas** con el reparto **52·48·2·2·2·1·1·1·1**, suma **110**, y `tanda_id=is.null` da **0**. `autores_de_tandas()` contesta **`42501`** con `service_role` y no `PGRST202`: existe, y el `grant` quedó solo para `authenticated`, que es el rol con el que entra la app. *El ensayo local predijo el resultado de prod fila por fila.*
+
+**✅ Y Mani cerró el tab Entender:** *"el operador ve todo excepto los costos"*. Es el reparto de ADR-052, y desde la `025` §3 lo sostiene la base y no la UI (un `operador` obtiene 0 tarifas, un `dev` las 8). De los "dos clics" queda **A7**.
+
+**Verde:** `typecheck` · **238 tests** (+11) · `build` · `validate` **2197 checks**. Deployado (`0acb333` a `main`) y prod respondiendo: `/` **307** · `/login` **200**.
+
+**🔧 Gotcha de herramienta, para no repetir la vuelta:** el **MCP de Vercel está conectado a una cuenta sin proyectos** (`manigreeens-projects` devuelve `projects: []`), así que un agente **no puede mirar el estado del deploy** de `pipeline-creacion-contenido` desde acá. Lo que sí sirve, y es lo que quedó usado: el smoke por `curl` contra la URL de prod (`/` 307 · `/login` 200), que es el mismo que la `022` dejó escrito.
+
+**Qué quedó a medias:** ⏳ **nadie hizo clic** — la pantalla está verificada a nivel query, dominio, build y ahora contra el dato real de prod, pero abrirla pide un login por magic link. Mismo hueco que arrastran el CSV y el feed paginado. Lo que falta ver con los ojos: **abrir una tanda y renombrarla**.
+**Qué sigue:** **D3**, la demo de 10 min con Majo y Jero (calificar → ver el re-rank → bajar el histórico). Es el **único** item sin marcar del ROADMAP §3, no depende de código, y hoy tiene más para mostrar que cuando se escribió: el histórico pasó de 31 a **140 filas** y el CSV a **16 columnas** (ADR-062).
+
+**2026-08-07 (cierre 102) — El transcriptor entra al sistema, el sponsor pasa a operar, y el checklist del MVP queda con un solo item (Claude, sesión larga con Mani).**
+**Qué se hizo:** tres ADRs (**062, 063, 064**), dos construidas y deployadas, una decidida y sin código. Migración `026` aplicada. **V2 y V4 cerradas por el ojo de Mani**, más el CSV y el alta por `ajustes/equipo` ⇒ **B4 completa** y el ROADMAP §3 queda con **D3 solo**. Commits `041ad27` · `9e6ef6c` · `66c3691` · `5983156` · `d7e156f`.
+
+**🩸 El patrón de la sesión, y es el mismo de la anterior: el pedido llega como una cosa y medirlo lo parte en dos.** *"Que las transcripciones pasen a Históricos"* topó con que el glosario define **Transcripción a pedido** como *"no es un Candidato"* — meterla en una lista llamada *"todo lo que el equipo aprobó"* era mentir con la palabra *aprobó*, así que lo primero que se decidió fue el **término**, no el código. Y *"agrupar visualmente los links, es puramente visual"* topó con que `leerTranscripciones` trae **las últimas 50 y punto** sobre 110 filas: **la pantalla ya oculta más de la mitad sin avisar**. Las dos veces, lo que parecía cosmético tenía debajo algo que no lo era.
+
+**🎯 La trampa que casi me lleva puesto, y quedó escrita en ADR-064 para que nadie la repita:** reusar el `run` que ADR-062 acababa de crear como si fuera la tanda. **No lo es.** Ese run es el *procesamiento* (de a 64, corte a los 45 s); la tanda es el *pegote*. 100 enlaces dan 2-3 runs, un run puede tocar varias tandas, y una tanda procesada en dos sesiones da runs de días distintos. Agrupar por él le habría mostrado al equipo **los pedazos en que la máquina decidió trabajar**, no sus pegotes. *Dos entidades que se parecen no son la misma, y la que importa es la del usuario.*
+
+**🔬 Lo que hay que copiar de esta sesión: el sondeo que escribe cero filas.** Se usó tres veces y cazó dos errores que ningún test tenía. La forma: mandar el POST **con la forma exacta que usa la app** y un solo campo deliberadamente inválido (un `run_id` o un `instance_id` inexistente). Si vuelve **`23503`** (FK), pasó la validación de schema entera y lo único mal es lo que pusiste mal. Si vuelve **`23514`** o **`PGRST204`**, hay un check o una columna que no sabías. Así se descubrió que `outputs.tipo` **sí** tiene check duro (media frase del comentario de la `001` decía que no; la otra media decía que la `002` lo sellaría, y lo selló) y así se verificó la `026` después.
+
+**🧨 Y lo que casi sale mal:** para acotar el gasto de V5 iba a bajar `Videos a transcribir por corrida` como tope. **Habría quemado videos** — ese presupuesto corre después del `POST processed_items`, así que lo capado queda en la memoria de dedup y se pierde para siempre (ADR-044). *La red de seguridad de una prueba puede ser el daño, y desde Ajustes se ve idéntica a `cap_top_n`, que sí postergaría.*
+
+**Qué quedó a medias:** **ADR-064 sin construir**, decidida entera (migración + backfill de 9 tandas + pantalla + renombrar). Es el próximo task y no necesita más grill.
+
+**Gotchas nuevos:** un `run` que abre la app necesita **quién lo cierre si la pasada muere** — el transcriptor dejó 5 de 10 colgados en `en_curso` a la hora de deployar, y ahora tiene su barrido (espejo del nodo del motor, ventana fija de 5 min porque el `maxDuration` de la zona es 60 s). · **RLS es por membresía de empresa, no por rol**, así que darle zonas nuevas a un rol **no pide migración**: si te pide una, el modelo está mal repartido. · **`/curar/historicos` saltó de 31 a 140 y no es un bug** (ADR-062 metió las transcripciones ahí; 32 del feed + 108 a mano) y el CSV tiene **16 columnas**, con `ORIGEN` al final para no correr las 15 de ADR-057.
+
+**Qué sigue:** construir **ADR-064**, y **D3** (la demo), que es el último item del checklist y no depende de código. **Skills sugeridas:** `/tdd` para la tanda (el backfill de 9 grupos y el default del título se prestan a test-first); `/diagnose` si algún run del transcriptor vuelve a quedar colgado pese al barrido.
+
+**2026-08-07 (cierre 101) — Dos de las tres corridas de fuego que faltaban se cerraron sin correrlas, y la tercera se corrió por $0.24 (Claude, pedido de Mani).**
+**Qué se hizo:** **V6, V5 y D2**. El ROADMAP §3 pasa de 6 items abiertos a **3, y los 3 son de ojo humano** (V2 a mitad, V4, D3). Commits `957172e` · `8290a87` · `038487a`.
+
+**🩸 El patrón de la sesión: dos enunciados pedían ejercitar algo que el sistema ya garantiza, y pedían romper o muestrear algo que ya no existe.** No es que estuvieran mal escritos: envejecieron con D7 y con el refactor. **V6** pedía romper la credencial de Supabase para ver que el workflow igual entregara — se listaron los **31 nodos HTTP** de los 5 workflows y **comparten `Config.supabase_url`**, así que no hay palanca: romper el registro rompe la entrega. Pero el reparto de `onError` **es** el invariante, declarado nodo por nodo. **V2** pedía muestrear un candidato español para ver que el script fuera la transcripción tal cual — en `Traducir` un `es` nunca entra al `order` y el reparto es `script: (cache[id] || transcript)`, o sea **el script ES el transcript por construcción**, con test verde desde antes. Y no había material igual: **169 `en` + 1 `otro`, cero español** en los 170 candidatos. *Cuando una verificación pide mirar algo que un `===` ya prueba, el enunciado envejeció.*
+
+**🛡️ V6 cerró como check, no como simulacro: el #6 de `auditar-workflows.mjs`.** Exige `onError: continueRegularOutput` en todo `httpRequest`, con `FAIL_CLOSED` como única excepción — **9 nodos con su porqué escrito**. Lo que importa es la dirección: **el default es "sos sumidero"**, así que un nodo HTTP nuevo entra pidiendo su `onError` y quien lo quiera fail-closed escribe por qué en una línea que se lee en el review. **Se verificó poniéndolo rojo con 3 mutaciones sobre una copia** (onError sacado de un nodo de registro · dado a uno de la lista · un nodo de la lista renombrado): los 3 disparan, exit 1. *Un check que solo sabe decir ✓ no prueba nada — y este se escribió justamente porque el simulacro que reemplaza no se podía montar.*
+
+**✅ V5 se corrió con ventana de 3 días y no de 1, y la diferencia era pasar en falso.** Con `dias=1`, si Apify no traía nada la intersección daba **0 por vacío, no por dedup**. Con 3 la ventana cubre entera la corrida del 06/08: **Apify volvió a traer 69 videos, sobrevivieron 4, y se le pagó a Supadata por 4 y no por 69.** `intersección: 0 ✓` por `run_id` (4 filas nuevas contra 48), feed en 171 con 0 sin-guion y 0 urls duplicadas. Corrida `ok`, 13.8 min, **~$0.24**. `Días de recencia` restaurado a 100 y verificado **por la fachada**, no solo en la tabla.
+
+**🩸 El gotcha que casi cuesta datos, y es el más reutilizable de la sesión:** se evaluó bajar **`Videos a transcribir por corrida`** (250) como tope de gasto de la prueba. **Habría quemado videos.** Ese presupuesto corre **después** del `POST processed_items` (ADR-044), así que lo capado ya está en la memoria de dedup, vuelve sin transcript y el gate lo descarta `sin_guion` para siempre. Quedó en 250. *La red de seguridad de una prueba puede ser el daño, y desde Ajustes se ve idéntica a `cap_top_n`, que sí postergaría.*
+
+**Qué quedó a medias:** **V2, solo la mitad de la traducción** — y se descubrió por qué no se puede cerrar desde la base: el **transcript original no se persiste en ningún lado** (`app.candidatos` guarda solo el script traducido, y hay **cero solape** entre las 57 `transcripciones` y las URLs de los candidatos). Compararlo después de la corrida pide volver a pagarle a Supadata, así que la forma barata es juzgar contra **el video**, no contra el transcript.
+
+**Qué sigue:** las 3 verificaciones de ojo (**V2 · V4 · D3**, en [verificaciones-humanas.md](../verificaciones-humanas.md)) más los arrastres del cierre 100 que no se tocaron: el clic al CSV, el alta por `ajustes/equipo`, el reintento de Transcribir (su fila **sigue en `pendiente`**, nadie recargó la pantalla) y la prueba de RLS de LinkedIn con filas. **Nada de eso lo puede hacer un agente.** Lo que sí queda de agente es la voz huérfana *"Alejo"* (decisión de Mani: moverla a `retia` o borrarla) y las 2 filas `prueba rls` sin limpiar. **Skills sugeridas:** `/diagnose` si el reintento de Transcribir no arranca solo al recargar; `/grill-with-docs` si se retoma **D7.5** (que la app escriba `outputs` al calificar y muera el archivado), que es enmienda de ADR-014 y toca `core/`.
+
+**2026-08-06 (cierre 98) — El feed pagina, y el 71% de su payload eran tres campos que nadie dibujaba (Claude, con Alejo).**
+**Qué se hizo:** el **#7 de [plan-multi-tenant §12](./plan-multi-tenant.md)**, el último item numerado antes de LinkedIn. La pantalla del feed pasó de **~405 KB a ~16 KB** por carga.
+
+**🔬 El diagnóstico del plan estaba a medias, y medirlo antes de escribir código lo partió en dos.** §10 decía *"el feed carga sin paginación"*, o sea un problema de **cuántas filas**. Medido contra las 165 de prod: el payload eran 337 KB y **`script` solo era 207 de esos** — más `relevancia_razon` (30) y `notas_equipo` (3,3) = **240 KB, el 71%, en tres campos que la tarjeta CERRADA no dibuja**. El propio `tarjeta.tsx` ya lo decía en un comentario desde D6 (*"el script se lee solo cuando el título no alcanza"*) y aun así viajaban los 165. *El problema no era solo cuántas filas: era qué traía cada una.*
+
+**⚖️ Dónde se trazó la línea, y por qué no en el lugar obvio.** Se fueron **solo los tres textos largos**; **todos los escalares se quedan** en la fila (voz, idioma, likes, seguidores, engagement, url, relevancia_score). Medido: entre todos suman ~15 KB, así que sacarlos no compraba nada y le habría costado al modal mostrar un spinner para su propio encabezado. Así el detalle pinta badges y subtítulo al instante y lo único que espera es la prosa.
+
+**🩸 Keyset y no `offset`, y no por gusto — probado contra prod sin escribir una fila.** Con el filtro *Sin calificar* activo, **cada tarjeta que alguien califica sale del conjunto filtrado**. Simulando 3 calificaciones (excluyéndolas por id, read-only): `offset 25` devolvió las posiciones 29–31 ⇒ **se salteó exactamente 3 candidatos que nadie habría visto nunca**; el keyset devolvió las 26–28. `historicos` puede usar offset porque ahí no se edita nada. Verificado además que keyset(25+25) es **idéntico** a un `limit 50` corrido: intersección 0, sin huecos.
+
+**🧹 Y el congelado de `visibles` quedó sin trabajo, así que se borró.** Era el `Set` que impedía que una tarjeta desapareciera de abajo del cursor al calificarla (plan-cockpit §D6.4) — la protección contra el misclick irrecuperable. Con el filtro **en la query**, `cargados` solo cambia cuando se le pide algo al server, y calificar no le pide nada: **la regla dejó de depender de mantener un `Set` sincronizado y pasó a ser estructural**. Queda escrito en `mazo.tsx` con su condición: *si el filtro vuelve al cliente, el congelado tiene que volver con él*.
+
+**⚠️ Lo que el cambio creó y hubo que cerrar en el mismo movimiento: el filtro pasó a tener DOS expresiones** — `pasaFiltro` en memoria (la usan los contadores) y la condición de PostgREST. Es la forma exacta del bug que el archivado pagó en el cierre 93 (el `IF` y el code node discrepando sobre la forma del dato). Quedaron declaradas juntas en un `Record<Filtro, …>` exhaustivo: **agregar un filtro no compila** hasta decidir los dos lados.
+
+**➕ De regalo, la misma familia en la misma pantalla:** la página cargaba `leerDescartes()` **entero** —los 38 con sus scripts, **77 KB**— para terminar en un `.filter().length`. Ahora es un `head` count.
+
+**🔎 Los contadores de los chips siguen siendo el avance real** (no el tamaño de la página): 4 `head` counts sobre la tabla entera + los deltas de la sesión, cada uno desde la calificación **original** de la fila, así que re-clickear tres emojis vale un solo delta y el ajuste sobrevive a un cambio de filtro.
+
+**Verde:** `typecheck` · **185 tests** (+10) · `build` · `validate` 2053 checks. Contra prod: los 4 contadores dan 165/0/0/165, y los filtros de emoji se verificaron contra `outputs` —donde sí hay datos— porque **en `candidatos` el 0 no distinguía "filtro correcto" de "filtro que no matchea"**: `eq.🔥`→12 y `in.(🔥,👍)`→36 = 12+24, que es el reparto real.
+**Qué quedó a medias:** ⏳ **nadie hizo clic.** Está verificado a nivel query contra prod y de unidad, pero la pantalla no se abrió — hace falta un login por magic link. Mismo hueco que arrastra el botón *Descargar CSV*.
+
+---
+
+**Y la misma sesión siguió con dos cosas más: el `.env` y el arranque de la Fase 5.**
+
+**🔴 El `.env` guardaba la API key de Anthropic FILTRADA Y REVOCADA.** Da 401 (*"API key is invalid"*), y comparada por hash contra el commit `d98d45a` es **exactamente la que se filtró** y que el cierre 93 dio por revocada. O sea que este archivo venía guardando la key quemada. **El pipeline NO está roto:** los 3 workflows del live traen otra key, la misma en los tres, verificada con un 200 — lo desactualizado es solo la copia local, así que hoy no se puede probar un prompt de Claude fuera de n8n. *Y esto corrige el cierre 93, que dice que las del live "coinciden con el `.env`": ya no.* 🔒 Copiar la key viva al archivo lo **bloqueó el guard del entorno**, y se dejó así a propósito: la línea quedó marcada con el diagnóstico y el paso para que lo haga un humano.
+
+**✅ Lo que sí se arregló del `.env`:** faltaban las **5 `N8N_WF_*`** (`N8N_API_KEY` **sí estaba** — el error del script engañaba). Se sacaron de la API: la instancia tiene **61 workflows y solo 5 activos**, emparejados **100% por conjunto de nombres de nodo** contra los `workflow.json`, con 5 ids distintos, y después **`n8n:diff` verde en los 5** — que es la segunda vía que descarta un mapeo cruzado (un alias mal apuntado haría que `n8n:push --apply` escriba los parameters de un workflow en otro). *Ahora `n8n:diff` corre desde la máquina de Alejo.* Se podaron además `AIRTABLE_*` y `GOOGLE_SHEET_*` (medido: no los lee nadie) y se corrigieron 4 comentarios que mentían.
+
+**🚀 Fase 5 (§12 #9) ARRANCÓ — la primera pantalla de LinkedIn + sus policies.**
+- **[`024_rls_linkedin.sql`](../../core/schema/024_rls_linkedin.sql) APLICADA por Alejo el 06/08 y verificada por su EFECTO**: `pg_policies` da las **4 filas**, todas `tenant` y todas con **`instancias_visibles`** (grano instancia — el error fácil era copiar el `clientes_visibles` de su hermana de reels). Como el SQL Editor corre el script como una unidad, que las policies existan prueba que las guardas del `§0` y los `grant` del `§1` pasaron. ⚠️ **No tuvo la red que tuvo la `021`**: aquella no cambiaba nada porque el BFF leía con `service_role`; con el flip en prod, estas se evalúan desde que entran. 🔧 **La `024` sí se puede re-correr** (`drop policy if exists` antes de cada `create`), al revés que la `021` — Postgres no tiene `create or replace policy` y un segundo intento moría con `42710`, justo cuando uno duda de si el primero pasó, que es la duda que dejó la `019`.
+- **Pantalla de Referentes**: `domain/linkedin.ts` (+17 tests), `lib/referentes-linkedin.ts`, `actions-linkedin.ts`, `pantalla-linkedin.tsx`, y `curar/referentes/page.tsx` **ramificando por `cockpit.workflowId`**. Las 4 tablas entraron al mapa `TABLAS` de `scoped.ts`.
+- 🔑 **Dónde va el ramificado, que era la decisión de diseño:** en la **página**, no en `lib/`. `TenantContext` **no lleva el pipeline** y se dejó así — es de tenancy, y de quién es un dato no depende de qué pipeline lo produjo; meterlo ahí obligaba a las ~60 funciones de `lib/` a recibirlo para que dos lo usaran. `exigirTenant` ya devuelve el `cockpit` con su `workflowId`.
+- 🩸 **Hallazgo:** los cockpits de LinkedIn **ya eran alcanzables** (2 de 3 `active`, y hay una cuenta con membresía en 30X y EstadoX desde el 05/08) y su zona `curar` dibujaba **las 7 tarjetas de reels**, seis de ellas apuntando a pantallas que devuelven vacío sin fallar. ADR-056 resolvió el nav **por zona** y nadie miró un nivel más abajo. El índice ahora es por pipeline y **lista lo que existe**.
+- ✅ **La media deuda que eso dejó, cerrada el mismo día:** `exigirPantallaDeCurar` (`lib/auth.ts`). Escribir la URL a mano entraba igual, porque la guardia de `exigirTenant` es por ZONA y `curar` existe en los dos pipelines. Las 7 páginas preguntan ahora por SU pantalla y el que no corresponde cae al índice de `curar`, no a la raíz (no es un problema de permisos: esa pantalla no existe en ese pipeline). 🔑 **Y la lista quedó UNA**: `PANTALLAS_CURAR` + `CURAR_POR_PIPELINE` en `domain/pipelines.ts`, el índice **deriva** sus tarjetas de ahí y la guardia pregunta a lo mismo — el primer arreglo había dejado dos listas libres de divergir, con el peor síntoma posible (una tarjeta que lleva a un redirect).
+- 🔎 **Y la rama `capa-2-flip-scoped` se revisó: no tiene nada que rescatar.** Su commit de LinkedIn son 33 líneas de doc **idénticas a la §14.6 de `main`** salvo una palabra del título; su `app/sonda/page.tsx` está estampado *"NO MERGEAR"*; y la rama está atrás (sin `022`, `023`, ADR-059, la salida del Sheet ni la paginación). Mergearla sería una regresión.
+
+**Verde al cierre:** `typecheck` · **207 tests** (+32 en el día) · `build` · `validate` **2062 checks** · **`n8n:diff` limpio en los 5**.
+**Qué sigue:** la **prueba de §14.6 con filas** (#6 del Pendiente vivo, escrita entera ahí) + el **check #1 contra prod** (#7) → el gate de la **`023`**, que sigue esperando corridas (última en la base: **04/08 21:12**; la mitad de escritura salió el 05/08, así que **ninguna corrida ejerció el código nuevo**: archivado el domingo, motor el lunes) → seguir la Fase 5 por candidatos/voces, el workflow en n8n y su cron → `core/templates/` + los runbooks `agregar-workflow.md`/`agregar-cliente.md`, que F5 pidió siempre y nunca se escribieron (y son la auditoría honesta de todo esto: *"si algún paso de la guía exige modificar el núcleo, el diseño no está listo"*).
+
+**2026-08-05 (cierre 97) — La balde 2 medida y podada, y Airtable fuera del repo hasta la última mención (Claude, con Mani).**
+**Qué se hizo:** el inventario que D7 apartó y nunca listó, la sesión de grilling que lo decidió (**[ADR-059](../adr/ADR-059-lo-que-no-se-usa-no-existe.md)**), la **`022` aplicada y verificada por su efecto**, la **`023` escrita y gateada** con su mitad de escritura ya en el live, y la purga de Airtable del repo entero.
+
+**🩸 El inventario dijo "5 vistas y 12 columnas" donde el recuerdo decía "4 y 6" — y casi nada era huérfano.** De las 5 vistas, **4 tenían dueño escrito**: ADR-019 §4 conserva `v_senal_tema` *a propósito* y **descartó por escrito esta misma migración**; ADR-009 tenía `v_corpus_aprobados` "en pausa"; `v_historico_seleccionados`/`v_selecciones_por_dia` son criterio de aceptación del ROADMAP §C3. Y 2 columnas estaban declaradas en `ingesta-registro.md`. *Medir el código no alcanzaba: había que medirlo contra las decisiones.*
+
+**🔬 El método sub-contó consumidores TRES veces, y las tres por el mismo hueco.** (1) `v_outputs_recientes` figuraba huérfana y su consumidor era **§Verificación de un contrato**: un humano en el SQL Editor, invisible a grep. (2) Lo mismo, más barato, con las otras tres vistas y sus ADRs. (3) `processed_items.run_id` y `primera_vez` figuraban write-only y las lee **`verificar-corrida.mjs`**, justo la herramienta que prueba que el dedup no trae duplicados — el corpus medía `apps/dashboard` y los `workflow.json` y dejaba afuera los `.mjs`. **La regla que queda: un objeto también está vivo si lo cita un runbook o una herramienta del repo.**
+
+**⚖️ La decisión de Mani fue "manda el consumo de código"** — *"no aporta tener cableados muertos, o que cambiaron y ya no son así"* — con dos excepciones decididas de frente: **`clients.parent_id` se queda** (ADR-051 §4 le dio trabajo nuevo hace tres días, y es del modelo de tenancy que se está construyendo) y **`runs.costo_estimado` se va con su línea del contrato**, porque el costo de este sistema **se calcula** (`metricas × tarifas` → `v_costos_semana`), no se guarda.
+
+**🚨 Y el hallazgo que partió la poda en dos: dropear una columna write-only NO es gratis.** Medido: **PostgREST rechaza el insert entero con `PGRST204`** si el body trae una columna inexistente. Y los dos POST que las mandaban son **`onError: continueRegularOutput`**, así que el 400 **se traga**: el motor cerraría **en verde sin escribir la memoria del dedup** (⇒ la corrida siguiente re-trae y re-paga: los 15 duplicados del 20→21/07 otra vez) y el archivado cerraría **en verde habiendo borrado los calificados sin archivarlos**. De ahí: **`022` = lo que nadie escribe** (corre sola) y **`023` = lo que alguien escribe**, después del push, con gate humano.
+
+**✅ La `022` se aplicó y se verificó por su EFECTO, no porque corriera** (la lección de la `019`): 5 vistas fuera, 3 columnas fuera, **cero `airtable_id` en toda la base**, las 6 vistas de `app.` intactas, `parent_id` en su lugar. Prod después: `/` 307 · `/login` 200 · `run-plan` **`version: 2`**. Y el invariante que Mani puso como condición, medido: **intersección 0** entre las 2 últimas corridas.
+
+**🧹 Airtable salió del repo, no solo del sistema.** Borrados `setup-airtable.mjs`, `core/contracts/airtable-cockpit.md` (**sin reemplazo a propósito: el modelo vivo son las migraciones, no una prosa que las describa**) y `scripts/cortar-feed.ts`. **`verificar-corrida.mjs` volvió a correr entero** — estaba medio muerto desde D7 porque su bloque del feed pegaba a `api.airtable.com`; ahora lee `app.candidatos` y el reparto sale con nombres de proyecto. Menciones: README 1→0 · one-pager 2→0 · **onboarding 18→2** (§2 pasó de *"Airtable, donde viven el 95% del tiempo"* a las 4 zonas del cockpit) · PLAN 15→4 · ROADMAP 29→14. Lo que queda es historia y se deja.
+
+**🎯 Y el export final —el último bloqueante para apagar Airtable— no hacía falta.** `Métricas Proyectos` y `Métricas Global` eran *"proyección derivada y regenerable"* según el propio contrato congelado: las 4 vistas de `app.` las reconstruyen desde `runs.metricas` + `outputs` **y cubren desde el 2026-06-29**, más historia que la que esas tablas tuvieron. *Lo que parecía el único dato irrecuperable era una caché de algo que el sistema ya sabe calcular.* La cuenta queda **desconectada, no cancelada** (decisión de Mani).
+
+**🔻 Y al final de la sesión salió el Sheet, con lo que ADR-057 quedó cerrada entera.** Los 3 nodos se borraron **a mano en el editor** (Mani) y los 2 cambios de `parameters` por `n8n:push`. El archivado quedó en **17 nodos**, sin una sola dependencia de Google, y **la cola del re-import quedó vacía**. 🩸 *Lo que se fue con el Sheet y hay que tener presente: el append NO era continue-on-fail a propósito —si fallaba, cortaba antes de borrar los candidatos—, así que era la red que protegía la curación. Hoy el único escritor del histórico sí es continue-on-fail y tiene el borrado aguas abajo: es exactamente el modo de falla que gatea la `023`.*
+
+**Verde:** `typecheck` 0 · **175 tests** (+1: el guard de la `023`) · `build` · `validate` **2053 checks** · `auditar-workflows` sin hallazgos · `test-nodos` verde · **`n8n:diff` limpio en los 5**.
+**Qué sigue:** ver correr un motor y un archivado → firmar el gate de la **`023`** → paginación del feed (§12 #7) → **Fase 5, LinkedIn**, que arranca por §14.6 (sus 4 tablas sin policy). Sin apuro: la red de seguridad de topología en `n8n-sync` ([§14.2](./plan-multi-tenant.md)) — ya no hay nada esperándola.
+**Skills sugeridas:** `/diagnose` si la corrida del lunes cierra verde pero `verificar-corrida.mjs` cae a la ventana de `primera_vez` · `/grill-with-docs` antes de tocar la topología por API.
+
+
+**2026-08-05 (cierre 96) — El mismo flip, hecho dos veces el mismo día: lo que sobró se tiró y lo que faltaba se escribió (Claude, pedido de Mani).**
+**Qué se hizo:** una sesión que arrancó a construir el flip de la Capa 2, lo construyó entero y verificado, y al ir a mergear **descubrió que ya estaba en `main`** hecho por Alejandro. Se descartó el código duplicado y se quedó lo que la otra sesión no tenía: **[ADR-058](../adr/ADR-058-el-flip-de-la-capa-2.md)**, el hallazgo de LinkedIn sin policies (§14.6 del plan), dos términos de glosario, la enmienda a ADR-047, seis comentarios que el flip volvió falsos, y **el operador entrando a Entender**.
+
+**🩸 El hallazgo que reencuadró la sesión entera, y salió de medir en vez de leer.** El plan §0, el handoff y `CLAUDE.md` daban **5 usuarios y 5 membresías, todas de Retia**. Medido contra prod: **6 usuarios, 7 membresías en 3 empresas**, una persona **no dueña con membresía en dos** (la primera del sistema) y **una voz de `30x`**. O sea que **el disparador de la Capa 2 escrito en ADR-047 —*"antes de que un segundo cliente real tenga usuarios en producción"*— ya se había cruzado y nadie lo había anotado.** El segundo cockpit no estaba dado de alta: estaba **en uso**. *Es la tercera vez este mes que el estado real solo aparece midiendo, y la segunda en que un doc daba por cierto lo contrario.*
+
+**⚠️ Y el flip se hizo DOS VECES, por dos sesiones que no se vieron.** Las dos llegaron al mismo diseño: mismo campo `origen`, mismos dos valores, mismos dos constructores, mismas mediciones de la fachada. **Que converjan no valida el diseño — mide que estaba forzado por la forma del código.** La lección accionable no es "coordinar mejor": es que **el ADR escrito antes de construir habría ahorrado el día**, que es exactamente lo que el repo ya manda (*`core/` solo cambia con ADR*) y lo que las dos sesiones saltearon. Quedó escrito en el propio ADR-058, no solo acá.
+
+**📐 ADR-058 cierra el item #3 que el cierre 95 dejó abierto.** Registra tres cosas que el código no explica: por qué la autoridad va en el `TenantContext` y no en un parámetro (**elegir mal entre dos funciones sueltas es silencioso justo en la dirección peligrosa** — declarar `"fachada"` en una pantalla saltea RLS sin romper nada, ningún test se pone rojo); por qué **no se aplicó** la regla de ADR-047 al cumplirse su disparador (se escribió cuando retrasar el segundo cockpit costaba cero, y para cuando llegó costaba sacarle la herramienta a alguien que la usaba); y por qué `lib/tenant.ts` se queda en `service_role`, con el selector en Capa 1 sola.
+
+**🩸 Las 4 tablas de LinkedIn no tienen policy, y lo interesante es por qué no se vio** (§14.6). La `020` las crea con RLS enabled y cero policies, apoyada en que la Capa 2 las cubriría (*"nacen del lado correcto del disparador y NO hay que acordarse de volver"*); la `021` **no las nombra ni una vez**. El check #1 de la propia `021` es exactamente el que lo caza y dio *"cero filas, sin excepciones"* — porque corrió en Docker sobre `001→018` + `021`, **sin la `020` en el medio**. *El agujero no estaba en la verificación sino en el corpus sobre el que se corrió.* Falla cerrado y hoy nada las lee; muerde en la Fase 5, disfrazado de *"todavía no hay datos"*.
+
+**🧹 Seis comentarios que el flip volvió falsos, y dos eran peores que los otros cuatro.** Cuatro cabeceras de `lib/` seguían diciendo *"con service_role — `app.*` tiene RLS sin policies, el browser no llega solo"*. Los otros dos mentían en la **justificación**, que es lo caro: `admin.ts` decía que `runs`/`outputs` no tienen policies (la `021` se las puso, con grant a `authenticated`) y `tenant.ts` justificaba usar admin con que `usuarios_clientes` no es alcanzable desde el browser (la `021` le puso policy). La razón verdadera para seguir con admin ahí es otra —**es la tabla con la que se decide el scope, y scoparla sería circular**— y ahora está escrita.
+
+**👁️ El operador entró a Entender** (`b8a3832`), a pedido de Mani. De las tres exclusiones de la tabla de zonas era **la única sin motivo escrito**: venía de repartir una zona por verbo y quedó por inercia. Gana precisión de entrega y separación del gate (la salud por referente ya la tenía en Curar). **El filo es el gate de costos:** dice `rol !== "sponsor"`, así que el operador **ve lo que cuestan los proveedores**. Se aceptó por una razón **de hecho y no de diseño** —hoy todos los operadores son gente de adentro, confirmado contra las 7 membresías— y el supuesto quedó escrito en **tres** lugares (el gate, `roles.ts`, ADR-052 enmendado) porque quien toca el gate puede no leer el ADR y viceversa. 🚨 **El día que alguien de una empresa cliente reciba `operador`, ese gate le publica el margen — y falla hacia MOSTRAR, así que no se rompe: filtra.**
+
+**🔬 Y una cosa sobre cómo se verificó el flip, que vale para el próximo cambio de este tipo.** Después del flip **ninguna pantalla puede probar que funcionó**: la Capa 1 filtra por el cockpit abierto *antes* de que RLS opine, así que un operador de Retia ve sus 3 voces con RLS y sin. Hizo falta un instrumento aparte —una sonda temporal que lee sin filtro de tenant por los dos caminos y los pone al lado— y **no vale con cuenta dueña**: `clientes_visibles()` le devuelve todas las empresas, así que sus dos números coinciden por diseño. La sonda vivió solo en la rama descartada; si hace falta volver a medir, son 20 líneas.
+
+**Verde:** `typecheck` 0 · **175 tests** · `build` · `validate` **2046 checks** · `n8n:diff` **limpio en los 5**.
+**Docs alineados con lo medido:** plan §0 reescrito (decía 5 usuarios y *"el aislamiento sigue siendo solo la Capa 1"*), §12 fila 8 a ✅, la cabecera del plan, ADR-047, ADR-052, plan-cockpit §2.1, el glosario (**Cockpit** y **Fachada**, que se usaban en todos los ADRs y no estaban definidos en ninguno).
+**Qué sigue:** los dos clics de §Pendiente vivo (el CSV y el tab del operador) → **D8** (apagado de Airtable + `fields.uuid` + sacar los nodos del Sheet: los tres esperan el mismo re-import) → **paginación del feed** (§12 #7) → **Fase 5, LinkedIn**, que arranca por §14.6 (sus 4 tablas sin policy) y sigue bloqueada por lo no-técnico de ADR-055. Deuda vieja: 18 menciones a Airtable en el onboarding, 3 en el one-pager.
+**Skills sugeridas:** `/grill-with-docs` antes de D8 (borrar nodos es topología y hay tres cosas esperando el mismo re-import: conviene decidir el orden antes) · `/diagnose` si algo del flip aparece raro en una pantalla · `/handoff` al cerrar.
+
+**2026-08-05 (cierre 95) — El flip de la Capa 2 en producción: el aislamiento entre empresas dejó de ser TypeScript (Claude, con Alejandro).**
+**Qué se hizo:** el **paso 2 de 2 de la Fase 6** (ADR-047) escrito, deployado y verificado. La `021` llevaba dos días aplicada e **inerte**; ahora las 17 policies se evalúan de verdad. Commit `d8edea2`, Production en Vercel.
+
+**🩸 El flip no era una línea, y el plan decía que sí.** §14.3 afirmaba *"la fachada y n8n no se tocan"* — cierto como intención, **falso como código**. `run-plan` llega a `scoped()` por dos saltos: `route.ts` → `lib/config.ts` → `leerAjustes`/`leerVoces`/`leerProyectos`/`leerReferentes`, **las mismas funciones que usan las pantallas** (el corte de D5 las hizo compartidas a propósito). Flipear `scoped()` a secas dejaba a la fachada en `42501 permission denied for schema app` —sin sesión no hay `auth.uid()` contra el que evaluar una policy— y **al motor sin plan que leer**. *Nadie lo tenía escrito porque `lib/config.ts` no aparece grepeando consumidores de `scoped`: la dependencia es transitiva.* Habría fallado cerrado y barato (500 en el primer nodo, cero pesos), pero se habría descubierto **el lunes 8:00 con el cron**.
+
+**La forma elegida: la autoridad viaja en el contexto.** `TenantContext` gana `origen: "sesion" | "fachada"`, estampado en los **dos únicos** constructores que existen (`armarContexto` y `contextoDeFachada`). Se prefirió sobre dos puertas separadas (`scoped` + `scopedDeFachada`) porque **no hay nada que hilar** —cada función ya recibe `ctx`— y porque falla en la dirección correcta: **un constructor nuevo no compila** hasta declarar de dónde saca la autoridad, la misma disciplina que el mapa de tablas. Efecto colateral: `scoped()` es **async** (el cliente de sesión necesita `await cookies()`), así que los **36 call sites** pasaron a `(await scoped(ctx))`. No se cachea el cliente entre requests: un cliente cacheado es la sesión de otra persona. 📐 **Falta el ADR** — es estructural y sin él alguien va a borrar el discriminante por redundante.
+
+**🎯 Y la prueba que hasta hoy era imposible de hacer.** El plan pedía probar con **Jero**; la cuenta que sirve es otra. `alejandro.davila@30x.com` es **no-dueña** (⇒ las policies se evalúan, sin bypass) y tiene membresía en **`30x` y `estadox`**, no en `retia`. Es el único perfil que **separa las dos capas**: RLS le habilita las dos empresas —es lo máximo que puede saber la base— y solo el `.eq()` de `scoped.ts` la acota al cockpit abierto. *Ese escenario no existía en producción hasta hoy: era un comentario en la `021` y pasó a ser un hecho.* Verificado en pantalla: **la voz de 30X no apareció en EstadoX** (`30x` tiene 1 voz, `estadox` 0 — esa sola fila es todo el test) · **ni un `42501` navegando**, o sea que los grants de `authenticated` son correctos en prod y no solo en Docker · selector de equipo con **2 opciones, sin Retia** · **ADR-056 en las dos direcciones** (`Transcribir` escondida por el pipeline, `Entender` por el rol) · **las 4 URLs a mano rebotaron**, incluida `/retia/reels/curar/feed`, que es por donde se habrían filtrado los 165 candidatos · todo lo demás en **0**, cero fugas.
+
+**Lo medido sin browser:** fachada contra el live **200 · 403 · 400 · 403 · 200 · 200** (`version: 2`, 3 voces · 5 proyectos · 18 ajustes · 16 referentes) — el cron del lunes tiene su plan. Con la anon key, `app.*` da **42501** y `runs`/`outputs` dan **200 con 0 filas**: fail-closed en las dos formas. `typecheck` 0 · **174 tests** (+1: todo contexto de pantalla nace `sesion`) · `validate` **2037 checks** · `build` limpio.
+
+**⏳ Lo que NO se verificó, y es la otra mitad del riesgo:** todo lo de arriba corrió sobre cockpits **vacíos**. Las pantallas **con datos** (`/retia/reels`) siguen sin abrirse con una sesión, y **`Entender` —las 12 vistas `security_invoker`— es la zona de más riesgo del flip entero**. Está en §Pendiente vivo con los números que tiene que mostrar cada pantalla, porque **acá la alarma se invierte**: en los cockpits vacíos cualquier número era sospechoso; en Retia el peligro es **el cero**, que es el fallo silencioso (una policy que no matchea) y no se distingue mirando si "se ve bien".
+
+**📄 De paso, dos datos que el handoff tenía viejos:** hay **6 usuarios y 7 membresías** (decía 5 y 5 — se sumaron "Alejandro 30X" y "Manuel 30X" después del cierre 94), y **`danieltovartech@gmail.com` está en `auth` pero no en `app.usuarios`**, así que esa cuenta cae en `/sin-rol` si intenta entrar.
+
+**Qué sigue:** el login dueño de §Pendiente vivo (cierra el flip **y** el clic del CSV de una sola vez) → el ADR del `origen` → **D8** (apagado de Airtable + `fields.uuid` + sacar los nodos del Sheet: los tres esperan el mismo re-import) → la deuda de docs (18 menciones a Airtable en el onboarding, 3 en el one-pager).
+
+**2026-08-04 (cierre 94) — Auditoría del refactor contra prod: dos de los tres pendientes cerrados, y el que se arregló destapó dos más (Claude, pedido de Mani).**
+**Qué se hizo:** una auditoría medida (base por PostgREST, n8n por su API, los 4 feedback loops), el **arreglo del archivado empujado al live y verificado con una corrida real**, el backfill de los 9 `outputs` que salieron con metadata vacía, los docs corregidos donde mentían, y [ADR-057](../adr/ADR-057-el-sheet-historico-por-instancia-o-ninguno.md) abierto.
+
+**🔑 La key de Anthropic ya estaba rotada y nadie lo había anotado.** El commit filtrado sigue vivo en el repo local, así que se pudo comparar: su key **no es** la que corre hoy y da **401** contra la API ⇒ revocada. Los 3 workflows del live traen una sola key y coincide con el `.env`. *El pendiente #1 del cierre 93 llevaba un día cerrado en la realidad y abierto en el handoff.*
+
+**📄 Y tres docs decían cosas falsas sobre las migraciones.** `CLAUDE.md` y el plan multi-tenant (§0, §12, §14.1, §14.3) daban la `020` y la `021` por **no aplicadas**. Medido: las 4 tablas `*_linkedin` responden y `app.clientes_visibles()` existe (el `42501` con `service_role` es *"existe pero no tenés EXECUTE"*, no *"no existe"*). Van **20 de 21**; la única que falta es la `019`. *El mismo modo de falla del cierre 93 con la `019`, al revés: dar por no aplicado lo que sí entró.*
+
+**🩸➜✅ El archivado archiva de nuevo, y el diagnóstico salió de la ejecución, no del código.** Se bajó la ejecución 123 con `includeData=true`: `Leer Candidatos calificados` emitió **9 items planos** y el IF mandó **`[0 true, 9 false]`**. Fix + `alwaysOutputData` (la 0-calificados dejaba el run abierto: **segunda regresión de D7**), push, y una corrida real: **9 → 0 calificados · 79 → 88 outputs · IF `[9 true, 0 false]`**.
+
+**🩸🩸 Y ahí aparecieron dos bugs que llevaban tapados desde D7, los dos por `fields.uuid`.** El contrato v2 (ADR-048 §5) lo mató y dice que *"los tres `uuidDe` se fueron juntos"* — el motor ×2 y el descubrimiento ×1 se migraron, **los dos nodos del archivado no**. `Armar filas archivado` dejaba `metadata.proyecto`/`.voz` **vacíos en todos los outputs**; `Destilar criterios` armaba `recs` vacío siempre ⇒ **el loop de ADR-022 estaba muerto**, pagando las llamadas a Haiku y tirando el resultado (los 9 daban 5+4, los dos por encima del mínimo: tenía que destilar 2 proyectos y destiló 0). *La lección: **arreglar el nodo que corta el flujo destapa todo lo que estaba tapado detrás**, y por eso la corrida de verificación importa más que el diff.* Arreglados en el repo; el `--apply` quedó pendiente (lo bloqueó el clasificador de permisos) y es el único comando que falta.
+
+**✅ Y al final de la sesión cerró todo lo que quedaba.** Mani corrió la `019` (esta vez sí: se
+verificó por su **efecto**, `app.usuarios` quedó en `id, nombre, creado_en, es_dueno`) ⇒ **21 de 21
+migraciones** y la ventana del expand cerrada. Se empujaron al live los dos nodos del uuid y
+`n8n:diff` quedó limpio en los 5. Smoke-test post-`019`: `/` y `/retia/reels` → 307, `/login` → 200,
+`run-plan` → 200, `instancias?workflow=short-form-content` → la instancia de `retia/reels` y
+`?workflow=linkedin` → las 2 `active` (la `draft` de Retia afuera, como se diseñó). **La lista de
+pendientes quedó vacía; lo que sigue es el flip de `scoped.ts`.**
+
+**📐 ADR-057 se abrió y se cerró el mismo día: el Sheet se muere, con el export construido primero.**
+`/curar/historicos` ahora tiene **Descargar CSV** con **las 15 columnas del Sheet en su orden** (incluida `ESTADO`, que acá siempre vale `aprobado`: una columna que desaparece rompe a quien lea por posición). **Lo que inclinó la decisión no fue el ahorro sino de quién es el dato:** el Sheet deja el histórico de cada empresa en un archivo de Google colgado de una cuenta personal, donde el aislamiento del cockpit no llega — parametrizarlo hacía eso 3 veces en vez de 1. **El paso 2 (sacar los nodos) va en el re-import de D8**, que ya espera por `fields.uuid`; hasta entonces conviven los dos y el equipo nunca se queda sin el descargable. Es un **Server Action, no una route**, para que el export pase por la misma `exigirTenant` que la pantalla y no haya una segunda copia de esa guardia. Dos detalles que cuestan poco y deciden si se siente igual de bueno: **BOM** (sin él Excel abre *ComunicaciÃ³n*) y **citar siempre** — la columna que importa es `SCRIPT`, con saltos de línea y comillas, y un escapado condicional acierta en las 14 fáciles y falla justo en la que corre las columnas. Verificado contra prod: las 31 filas aprobadas reales, releídas con un parser RFC 4180 independiente ⇒ 31 registros, 15 columnas en todas, acentos y emoji intactos.
+
+**📄 Y quedó a la vista una deuda que no es de esta sesión: el onboarding del equipo y el one-pager del jefe todavía describen Airtable como el tablero**, tres días después de que saliera del sistema. Se actualizó solo lo del Sheet (es lo que tocaba ADR-057); las **18 menciones a Airtable del onboarding** y las 3 del one-pager quedan como task aparte. *El onboarding además está compartido como Google Doc, así que arreglarlo acá no alcanza.*
+
+<details><summary>El enunciado del ADR-057 cuando se abrió, antes de decidirlo</summary> El Sheet Histórico es global (§14.4) y hay dos salidas: parametrizarlo por instancia, o matarlo porque `outputs` ya es el histórico canónico y `/curar/historicos` lo muestra. Lo que las separa **no es técnico**: el onboarding le promete al equipo *"el archivo de lo ya elegido"* y el one-pager le promete al jefe un **descargable a Excel**, y el cockpit todavía no exporta. Recomendación escrita: matarlo, **condicionado a construir el export primero**. </details>
+
+**2026-08-03 (cierre 93) — El refactor llegó a prod y la Capa 2 quedó escrita; tres cosas rotas aparecieron por medir, no por leer (Claude, pedido de Mani).**
+**Qué se hizo:** el **merge a `main`** (paso 3, `ad2de5b`), los docs de los 5 workflows migrados a la forma nueva de ADR-053, la **`021` de RLS** escrita y verificada contra un Postgres 16 real, y el repo limpiado a una sola rama. Mani aplicó la `020`, la `021` y el alta de EstadoX y 30X.
+
+**🔑 Hay una API key de Anthropic commiteada y pusheada a GitHub, y `main` nunca la tuvo.** La rama `refactor/multi-tenant-fase-0-adrs` (`d98d45a`, *"n8n snapshots"*) commiteó 5 snapshots del live; 4 traen la key en claro adentro del `jsCode` (motor ×6, motor ×6, descubrimiento ×4, archivado ×2). `.n8n-snapshots/` **sí** está en `.gitignore` (línea 12), así que entró con `add -f` o antes de la regla. La rama se borró en local y en `origin`, **pero borrar no es el arreglo**: hay que **rotar**. Es el punto 1 de §Pendiente vivo. *El validador de secretos corre sobre el working tree, no sobre las ramas: un `git add -f` se le escapa entero.*
+
+**⛔ La `019` no se aplicó, y todo indicaba que sí.** Mani la corrió, no dio error visible, y `app.usuarios` **sigue teniendo `rol` y `client_id`**. Es el gate humano del §0 abortando la transacción entera — exactamente para lo que existe. *La lección de método: una migración con gate no se da por aplicada porque se haya corrido; se da por aplicada cuando se mide su efecto.* Se midió por PostgREST, no por memoria.
+
+**🩸 El archivado no archiva nada desde el 01/08 y cierra en verde.** Lo encontró el task del README (`c7c282e`) y se **verificó contra prod, independientemente**: la corrida del 02/08 cerró `estado: ok` con `metricas.archivados: 9`, el último `outputs` es del **26/07**, y los 9 candidatos calificados el 01/08 siguen vivos en `app.candidatos`. La causa: `IF — hay calificados` pregunta por `$json.records`, el sobre de **Airtable**; PostgREST devuelve el array pelado ⇒ `false` siempre. Entró en `6e86481` (D7), cuando el nodo de lectura migró a PostgREST y el IF quedó con la forma vieja. Los nodos de abajo sí se migraron (usan `_filas`), **por eso nada explota**. Y `metricas.archivados` cuenta lo **leído**, no lo archivado, así que el registro tampoco lo delata. *La tercera vez este mes que un cambio de D7 deja un contador mintiendo en cero mientras la ejecución termina verde.*
+
+**🩸 La Fase 6 tenía un agujero que ningún plan tenía escrito: las 27 vistas no eran `security_invoker`.** En Postgres una vista corre con los permisos de **su dueño**, así que escribir policies sobre las tablas base y dejar las vistas como estaban habría dejado toda la zona *Entender* sin RLS — y no se habría notado, porque con un tenant devuelven las filas correctas igual. **Medido con un A/B:** apagando `security_invoker` en `v_metricas_calidad`, un operador de Retia pasa a ver **2 filas en vez de 1**, las de EstadoX incluidas. Sin error y sin aviso. Es la familia de la `015`.
+
+**Y dos cosas más las encontró la corrida, no el diseño**, las dos habrían roto *Entender* el día del flip: con `security_invoker` la vista necesita que **el usuario** alcance todo lo que cruza, así que `clients`/`instances`/`workflows` (los cruzan `v_outputs_recientes` y `v_salud_referentes`) y las 6 vistas de `public` necesitan sus propios grants. *Este archivo llegó a decir por escrito que el registro no necesitaba policies "a propósito", y era falso.*
+
+**La `021` va partida en dos a propósito**, con el mismo expand/contract de la `016`/`017` y la `018`/`019`: **paso 1** (aplicada) escribe grants, 2 funciones de alcance (`security definer` + `stable` + `search_path` pinneado), 17 policies y `security_invoker` en las 12 vistas, y **no cambia nada** porque el BFF sigue en `service_role`; **paso 2** es el flip de `scoped.ts`, una línea, y ahí el aislamiento se vuelve real. ADR-047 dice que la Capa 2 es *"la fase con más riesgo de romper lo que funciona"* — partirla deja el paso caro verificable sin que nadie pueda perder el cockpit.
+**🔒 Y la razón por la que RLS NO reemplaza al filtro de `scoped.ts`, escrita en la migración para que nadie lo borre por redundante:** RLS acota a **todas las empresas del usuario** (es lo máximo que puede saber la base, que no sabe qué cockpit hay abierto); `scoped.ts` acota **al cockpit abierto**, que es más angosto.
+
+**✅ Verificado contra un Postgres 16 real:** `001→018` + `021` de cero, con el seed de prod y **una segunda empresa con datos propios** — el escenario que en producción todavía no existía. Operador de Retia: ve 1 fila donde hay 2, y pedir explícito `where client_id = 'estadox'` da **0**, no un error. Dueño sin membresías: ve las 2. Anónimo: `permission denied for schema app`. **Las 12 vistas responden** como operador (ninguna con `42501`) y el dueño ve **el doble** en todas — ese "el doble" es la señal de que la vista scopea.
+
+**Los docs de los 5 workflows dicen la forma nueva** (`ad2de5b`): cada uno abre con **§Operación** — cambiar un workflow es `n8n:push`, el re-import queda **solo para topología** — y los placeholders quedaron rotulados como tales. De paso se corrigieron dos cosas que no eran viejas sino **falsas**: la tabla de placeholders del archivado tenía 3 de 6 filas muertas y nombraba dos credenciales inexistentes (`Airtable PAT`, `Supabase Registro`), y `CLAUDE.md` decía que la `018` no estaba aplicada.
+
+**Limpieza del repo:** de 8 ramas a **1**. Se mergeó el README del archivado (`c7c282e`, el task), se sacó el worktree, se borraron 6 ramas locales ya en `main` y las 2 de `origin`. Quedan `main` y las dos del bot de Vercel.
+
+**Verde:** `typecheck` 0 · **165 tests** · `validate` **2028 checks / 7 workflows** · `n8n:diff` **limpio en los 5** contra el live.
+**⚠️ Lo que NO se vio corriendo:** el cockpit de LinkedIn y los dos selectores nuevos. El alta se aplicó, pero **nadie abrió una pantalla** — la prueba de §Qué tiene que verse después del paso 7 sigue pendiente.
+**Qué sigue:** los 3 de §Pendiente vivo (rotar · firmar la `019` · el `IF` del archivado) y después el **flip de `scoped.ts`**. Skills sugeridas: `/diagnose` para el IF del archivado (hay un modo de falla medido y un fix de un nodo), `/grill-with-docs` antes del flip.
+
+**— Addendum del mismo cierre, después de las tres preguntas de Mani —**
+
+**🔑 Rotar la key de Anthropic NO es un `n8n:push`, y eso es contraintuitivo.** La key **no es una credencial de n8n**: va inline en el `jsCode` de **6 nodos** (motor ×3, descubrimiento ×2, archivado ×1; medido contra los `workflow.json`, no hay ninguna credencial `anthropic*` en la instancia). Y `n8n-sync` **aprende el valor del live**, así que un push antes de cambiarla a mano **reescribe la key vieja**. El orden correcto y la red de seguridad —el placeholder entra en conflicto y se descarta, o sea falla cerrado— quedaron escritos en §Pendiente vivo. *Es la primera vez que "los placeholders se aprenden del live" juega en contra en vez de a favor, y valía anotarlo.*
+
+**⛔ La `019` volvió a rebotar, y el error es el correcto.** `P0001: 019: falta confirmar el deploy del refactor`. No es un bug: es el gate del §0 haciendo su trabajo. Falta borrarle el `-- ` a la línea 23 (`insert into _cierre_membresias values (true);`) **antes** de pegar el archivo en el SQL Editor.
+
+**🩸 El bug del archivado, reproducido a pedido y con números.** Se disparó a mano contra `retia/reels`. **Antes:** 9 calificados · 79 `outputs` · último 26/07. **Después:** 9 · 79 · 26/07, y la corrida `ok` en **3,3 s** con `archivados: 9`. Leyó 9, reportó 9, escribió 0, borró 0, cerró verde. *Los 3,3 s son la señal más barata que hay: la corrida del 26/07 archivó 61 y no se hace en ese tiempo.* El barrido de higiene no borró nada (se contó antes: **0** candidatos `nuevo` de más de 20 días). El próximo task arranca con el antes/después ya medido.
+
+**✅ Y esa misma corrida cerró el último pendiente del cierre 90.** Escribió `params.execution_id: "123"`, verificado contra `GET /api/v1/executions/123`: mismo `workflowId`, `status: success`, `startedAt` a 0,6 s del `runs.inicio`. **ADR-054 verificado end-to-end en una corrida real.** El bloque de §Pendiente vivo que lo pedía quedó marcado como cerrado.
+
+**2026-08-03 (cierre 92) — Los dos ejes del día: las membresías listas para prod, y LinkedIn entrando como pipeline (Claude, con Alejandro).**
+**Qué se hizo:** el merge de `refactor/membresias` con `main` (verde, sin aplicar), y LinkedIn construido hasta donde se puede construir sin las respuestas que faltan. **Dos ADRs nuevos (055, 056), la migración `020`, el manifest del workflow y la superficie del cockpit.** Nada aplicado en prod: el runbook ordenado está arriba, en §Pendiente vivo.
+
+**🩸 El conflicto del merge que git NO ve, y es el que importa.** El merge chocó en un solo archivo (el log de este handoff, trivial). El de verdad no lo marca nadie: las dos páginas que `main` agregó en el cierre 89 llaman `zonaInicial(usuario.rol)`, y en esta rama **`usuarioActual()` ya no devuelve `rol`** — ADR-051, *sin cockpit no hay rol*. Lo destapó `typecheck`, no git. Pasaron a leer `sesion.rol`, que **es lo correcto y no solo lo que compila**: es el rol en ESE cockpit, y la misma persona puede ser operadora en una empresa y sponsor en otra. *Merge limpio ≠ merge correcto: acá el compilador fue la red, y por eso el merge va de `main` hacia la rama y no al revés.*
+
+**🔑 El hallazgo del eje de LinkedIn, y no estaba en ningún plan: la zona `transcribir` no existe ahí.** LinkedIn ya es texto, así que su etapa `enriquecer` es `n/a`. Eso suena a detalle del manifest y **no lo es**: significa que *"qué zonas tiene este cockpit"* deja de ser una pregunta del **rol** y pasa a ser también del **pipeline**. De ahí sale **ADR-056**: las zonas visibles son `zonasDe(rol) ∩ zonasDePipeline(workflowId)`, aplicada en los dos lados de la costura que ya existía —el layout esconde, `exigirTenant` impide—. Y se keyea por `workflowId`, **no** por el slug de la URL: el slug es de la instancia y renombrar un cockpit no puede cambiarle las zonas.
+
+**El selector se partió en dos, por un comentario de Alejandro en el medio de la sesión** (*"debería haber un selector de equipos que muestre solo el equipo al que pertenece"*). Uno plano mentía en los dos sentidos: con LinkedIn adentro, alguien de **una** empresa vería dos opciones en un control que significaba *cambiar de empresa*; y alguien de dos empresas tendría empresa y pipeline mezclados en el mismo string, o sea que **saltar de equipo y saltar de trabajo serían el mismo gesto**. Ahora son `SelectorEquipo` + `SelectorPipeline`, cada uno con su propia condición de aparecer. La del equipo (`> 1 membresía`) es lo que hace que **nadie vea el nombre de una empresa ajena**.
+
+**ADR-055 cerró una pregunta que llevaba abierta desde el 28/07:** dónde se construye la máquina de LinkedIn. Se decidió **acá, como pipeline N+1**, y con eso muere `maquina-linkedin/ADR 001 §3` (se escribió allá el **ADR 004**, y ese repo pasó a ser el de **diseño**; este es el de construcción). Se descartó el repo propio porque duplicaría cockpit, login, membresías, dedup e histórico —todo lo que acaba de costar el refactor— y le daría al equipo **dos logins para dos pipelines de la misma empresa**.
+**Lo que ADR-055 importa de la entrevista a Fernando, y es lo que destraba el proyecto:** la etapa 1 se bifurca en dos carriles y **la fuente del copiable NO es LinkedIn, es Pinterest e inglés**. El material que se rebrandea es visual y nunca nació en LinkedIn — buscarlo ahí era buscarlo en el peor sitio, y encima en el único que no se deja rastrear. El riesgo *"LinkedIn no se deja scrapear"*, que era el bloqueante #1, **se resolvió por rodeo, no por fuerza**.
+
+**Una tabla que ADR-049 no había previsto: `app.voces_linkedin`.** La firma (R-2), el espaciado (R-3) y la separación mínima (R-4) **no tienen sentido sin saber que hablamos de LinkedIn**, y `app.voces` es de grano empresa y la comparten los dos pipelines. Meterlas ahí era exactamente la tabla ancha llena de nulls que ADR-049 descartó. La regla del propio ADR-049 la autoriza: *¿cambia de forma según el pipeline? es propio.*
+**Y una trampa de FK que casi queda para el final:** `instances.workflow_id` referencia `workflows`, así que sin una fila `linkedin` ahí **el cockpit no se puede crear**. La `020` lo registra ella misma en vez de dejarlo como un paso suelto que alguien tiene que acordarse de correr.
+
+**🔴 Lo que sigue bloqueado y NO es técnico** (está en ADR-055 §Consecuencias y en el README del workflow, para que no haya que re-derivarlo): no hay **definición de "funcionó"** —lo que hay es *"impresiones y reacciones"*, volumen puro, y construir sobre eso converge en el post motivacional con máximas reacciones y cero clientes—, **no existe el banco de referentes** (*"no tengo el listado"*), y **faltan los few-shot** (3–4 posts perfectos por cuenta, el pedido más barato del proyecto). Por eso **no hay `workflow.json`, y el manifest lo dice**: lo que se construyó es la detección, la curación y el cockpit, que es lo que sí se puede sin esas respuestas.
+
+**✅ Verificado contra un Postgres 16 real, no de palabra:** se corrió **`001→020` completo** en Docker, con el renombre `piloto`→`retia` en el medio, los gates humanos de la `017`/`019` descomentados y **el mismo seed que prod** (5 usuarios, 2 devs). Las 20 pasaron limpias: 5 usuarios → **5 membresías** · `es_dueno` en los dos correctos · la `019` dejó `app.usuarios` en `id, nombre, creado_en, es_dueno` · las 4 tablas de LinkedIn con `instance_id` **not null y sin default** · **`app.plataforma` intacto** (`instagram, tiktok`) · `linkedin` en `workflows`.
+
+**🩸 Y el hallazgo salió de CORRER el SQL del alta, no de leerlo: la membresía es por EMPRESA, no por cockpit.** Un `retia/linkedin` en `active` le habría dado a Jero —y a Alejo, y a Manuel 30X— un cockpit de LinkedIn **vacío, sin motor y sin datos**, más un selector de pipeline que no pidió nadie. Nace `draft`; `estadox` y `30x` quedan `active` porque ahí **no hay ninguna membresía** y los ven solo los dos dueños, así que sirven de banco de pruebas del cockpit sin tocarle la pantalla al equipo. *Es el mismo tipo de cosa que ADR-051 ya dice —"la membresía decide a qué cockpits entrás"— y que igual no se ve hasta que hay dos pipelines.*
+
+**Verde:** `typecheck` 0 · **165 tests** (157 + 8 de `pipelines.test.ts`) · `build` · `validate` **2019 checks / 7 workflows** · `auditar-workflows` sin hallazgos.
+**⚠️ Lo que NO se vio corriendo, dicho como tal:** **ninguna pantalla**. El cockpit de LinkedIn no existe hasta que se apliquen la `020` y el alta, y los dos selectores nuevos no se pueden ver con un solo cliente y un solo pipeline. Lo verificado es compilación, tests, rutas registradas en el build y las migraciones contra Postgres — **no el navegador**. La prueba de pantalla es el paso 4 del runbook, y va con la cuenta de Jero.
+**Qué sigue:** el runbook de §Pendiente vivo, que arranca en el **paso 3** (el merge). Después: **Capa 2 (RLS)**, que con la segunda empresa dada de alta **deja de ser diferible** — su disparador escrito en ADR-047 es justamente *"antes de que un segundo cliente real tenga usuarios en producción"*, y el paso 7 crea esas empresas.
+
+**2026-08-03 (cierre 91) — Revisión de estado de los dos ejes, y tres huecos que solo aparecen midiendo (Claude, pedido de Mani).**
+**Qué se hizo:** una revisión completa del estado real —qué está hecho, qué está live, qué falta, qué está roto— por los dos ejes que cambiaron juntos (**la API key de n8n** y **el producto pasando de individual a repartido**), y después la alineación de los docs con lo medido. **Cero código, cero cambios en prod.** Todo lo que sigue se leyó de Supabase y de la API de n8n el 03/08, no del handoff — que es el punto: el estado real ya no se podía reconstruir leyendo.
+**Lo verde, para que quede el número:** `clients` 1 (`retia`) · `instances` 1 (`retia`/`reels`) · `app.usuarios` 5, las 5 en `retia` · 5 workflows activos y `n8n:diff` **limpio en los 5** · 158 tests + `typecheck` + `build` · `validate` 1897 · `auditar-workflows` sin hallazgos. **Las Fases 0–4 están en producción y no hay nada roto para Retia hoy.**
+
+**🩸 Los tres huecos, y los tres muerden con la SEGUNDA empresa, no con esta.** Están escritos para ejecutarse en **[plan-multi-tenant §14](./plan-multi-tenant.md)** — cada uno con evidencia, qué lo destraba y hecho-cuando. Acá el titular:
+· **El Google Sheet del histórico es UNO SOLO** (§14.4). En el archivado, `instance_id` viaja por el body pero `sheet_id`/`sheet_tab` son **constantes del nodo `Config`**. Con un solo workflow sirviendo a todas las instancias, los aprobados de la empresa B se appendean al Sheet de Retia. **No estaba anotado en ningún ADR ni en el plan.** La regla que lo arregla ya existe (ADR-035: *n8n lee su config por la fachada*), pero toca `core/contracts/run-plan.md`, así que necesita ADR.
+· **La `018`/`019` está escrita y no está en ninguna parte** (§14.1). `origin/refactor/membresias`, un commit (`3f2d43f`), merge-base **anterior** al merge de las Fases 0–4 (le faltan 4 commits de `main`). `app.usuarios_clientes` no existe en prod. **Si la `018` no backfillea las 5 filas en la misma transacción, los 5 usuarios pierden el cockpit — Jero incluido.**
+· **El aislamiento entre empresas hoy es solo TypeScript** (§14.3). RLS está *enabled* en todo pero **sin una sola policy**; el BFF lee con `service_role`. Probado con la anon key: `app.candidatos` → 401, `public.runs` → 200 con **0 filas**. No hay fuga hacia afuera, y por eso no es una emergencia — pero adentro del BFF un `.eq()` olvidado no lo atrapa nada.
+
+**🟡 Y el hallazgo que cambia el eje 2: la razón que da ADR-053 para no cubrir topología ya no es cierta.** El ADR descarta empujar nodos nuevos porque *"el repo guarda un nombre sin id"*. **`GET /api/v1/credentials` existe y responde 200** con las 12 credenciales y su `{id, name, type}` — el mapa nombre→id se puede **aprender de la instancia**, igual que los placeholders. Y los nombres del repo **ya coinciden** con los reales (`Supabase account` ×26, `Run Plan Header` ×4, `Webhook Motor Header` ×3). O sea: cubrir topología pasó de ser un límite de la API a ser una decisión de red de seguridad (`nodes` **reemplaza**, así que un push que crea nodos también puede borrarlos). Anotado como **hallazgo abierto dentro del propio ADR-053** y como §14.2. *(De paso: `/variables` y `/projects` dan **403 por licencia** — no sirven para config por tenant, vale saberlo antes de diseñar sobre ellos.)*
+
+**🧹 Dos fuentes de verdad, y la que vivía en `core/` era la equivocada.** `core/n8n/error-workflow-registro.json` era la versión de **5 nodos** con la rama `Insertar run de fallo` que ADR-054 borra. Se eliminó y `core/n8n/README.md` quedó como puntero a `Workflows/workflow-registro-fallos/`. La razón de fondo, que vale para cualquier JSON futuro: **`n8n:diff` compara contra `Workflows/*/workflow.json`, así que un workflow guardado fuera de esa carpeta queda fuera del bucle de feedback por construcción** y se desactualiza en silencio. Se repuntaron `ROADMAP.md` (B5, ahora `[x]`) e `ingesta-registro.md`.
+
+**Docs alineados:** `plan-multi-tenant.md` (§0 estado medido + §12 con columna de estado + §14 pendientes + la fila del Sheet en §10) · `handoff` §Pendiente vivo (el bloque decía que faltaban 5 pasos que **están hechos**) · `CLAUDE.md` (`core/schema/` decía 15 aplicadas; son 17) · `docs/adr/README.md` (dos líneas en blanco partían la tabla en tres) · `run-plan.md` y `plan-cockpit-propio.md` (el *"re-import coordinado"* ya casi nunca lo es) · el README del descubrimiento (pedía placeholders de Airtable y anunciaba un cron que se sacó a propósito en `270d107`).
+
+**🔑 `.env` y `.env.local`: Airtable podado de los dos y el PAT revocado.** La app no lo lee en ningún archivo (verificado sobre `app/`, `lib/`, `domain/`: el único `process.env` dinámico es `leerClave` en `lib/transcribir.ts`, y solo pide Supadata y Anthropic) y los workflows tienen 0 llamadas a `api.airtable.com` desde D7. Quedaron sin credencial `setup-airtable.mjs` y `verificar-corrida.mjs`, **a propósito y con el aviso en su cabecera** — para que el próximo que los abra sepa en 5 segundos que no están rotos, sino jubilados.
+
+**⚠️ Lo que NO se hizo, y es deliberado:** ninguno de los tres huecos se arregló. Se **registraron**. Los tres necesitan una decisión (dos de ellos un ADR) y ninguno bloquea a Retia hoy.
+
+**Un dato para calibrar, no es tarea:** la última corrida real fue el 03/08 02:36 UTC y su `params` **no tiene `execution_id`** — es anterior al push de ADR-054 (05:2x UTC). El live ya lo escribe y el handler ya cierra por ahí, pero eso **todavía no se probó con una corrida de verdad**. Se cierra solo en la próxima.
+
+**Skills sugeridas para la próxima sesión:** `/grill-with-docs` para el ADR del Sheet por instancia (§14.4) — es el más barato de los tres y el único que rompe aislamiento; después el mismo skill para la Capa 2 (RLS), que es la decisión grande.
+
+**2026-08-03 (cierre 90) — Tocar un workflow deja de ser un re-import, y el error handler que nunca había funcionado (Claude).**
+**Qué se hizo:** dos ADRs y sus dos implementaciones, las dos ya en producción. **[ADR-053](../adr/ADR-053-el-repo-es-la-forma-el-live-es-el-estado.md):** `core/scripts/n8n-sync.mjs` parchea los workflows por la API pública de n8n en vez de re-importarlos. **[ADR-054](../adr/ADR-054-cada-run-lleva-su-execution-id.md):** cada run graba el id de su ejecución y el error handler cierra por ahí. Commits `c560754` y `3d54a15`.
+**El principio de ADR-053, que es lo que hay que entender antes de tocarlo:** *el repo es la forma, el live es el estado.* Nunca se empuja el repo entero — se toma el live como base (que ya tiene credenciales, ids internos de Apify y settings de instancia) y se le aplican los `parameters` del repo. **Los placeholders no se mapean en el `.env`: se APRENDEN del propio live**, alineando cada string del repo contra su gemelo (`const KEY = '<ANTHROPIC_API_KEY>'` contra `const KEY = 'sk-ant-…'` enseña el valor). Se descartó la tabla `<<X>> → $VAR` porque es una segunda verdad que se atrasa sola el día que alguien cambia una URL en n8n.
+**La semántica del PUT se MIDIÓ contra la instancia, con workflows desechables, no se supuso.** Y tres de esas mediciones cambiaron el diseño: `settings` **mergea** (por eso `binaryMode`/`timezone`/`errorWorkflow` sobreviven sin mandarlos — era el riesgo que más miedo daba y resultó ser ninguno), `nodes` **reemplaza** (siempre va el array completo), y un PUT sobre un workflow **activo** lo deja activo con `webhookId` y `path` intactos. El `versionId` **no** sirve de rollback (no cambió en uno de dos saves), así que el snapshot es propio, en `.n8n-snapshots/` (gitignored).
+**El diff clasifica en vez de listar, y esa es la diferencia entre útil e ignorable:** el diff crudo daba **26 diferencias**, todas normalizaciones de n8n. Clasificadas (drift · topología · orden · defaults que n8n borra · campos que agrega · resourceLocators de Apify), quedó **1 accionable**. Un diff ruidoso se aprende a ignorar y ahí se esconde el drift real.
+**🩸 El hallazgo que encontró el diff, y que estaba corriendo hace meses:** en el motor, `Armar candidato` abría dos ramas y **el orden estaba invertido** — `Resumen del run → Cerrar run` corría ANTES que `Preparar candidatos → POST Candidatos`. O sea: `Cerrar run` escribía `estado: 'ok'` **con métricas de N candidatos antes de insertarlos**, y `POST Candidatos` no tiene `onError`, así que un fallo suyo dejaba un run registrado como exitoso con la tabla vacía. En el orden del repo, el mismo fallo corta el workflow, el run queda `en_curso` y lo levanta el barredor de zombies. **Se midió cómo ordena n8n v1** (3 ramas cuyos órdenes por X y por Y eran distintos): **por Y, arriba primero, desempata X**. Arreglado con `npm run n8n:orden -- motor --apply`.
+**🩸 El segundo hallazgo: el *Error Workflow* nunca funcionó, ni un día.** Apareció al versionarlo (no estaba en git). Buscaba el run por `instance_id=eq.<<INSTANCE_ID>>` —placeholder literal— y ADR-048 además le había sacado el piso: la instancia viaja en el payload del webhook, que el Error Trigger **no recibe**. Y aunque se resolviera, `instance_id` identifica al **tenant**, no a la **corrida**: con el dispatcher (una ejecución por instancia) y tres pipelines compartiendo instancia, tocaba la fila equivocada o varias. **La llave pasó a ser `$execution.id`** — medido: existe adentro del workflow, el Error Trigger recibe *ese mismo* id, y PostgREST filtra `params->>clave` (así que **no hizo falta migrar**, que importa porque la cola está trabada: la `017` espera y `018`/`019` ya están pedidas).
+**Lo que se borró y por qué:** la rama `¿Había run abierto?` → `Insertar run de fallo`. No es implementable: `runs.instance_id` es `not null references instances(id)`, así que un run de fallo huérfano exige inventar un tenant, y eso es la Capa 1 de ADR-047. Cubría caerse *antes* de abrir el run — 4 nodos, dos de ellos requests a Supabase, o sea que su modo de falla dominante es "Supabase no responde", donde tampoco se podría escribir la fila.
+**⚠️ Gotchas para el próximo (los tres están en §Pendiente vivo):** (1) **el diff va después de CADA import** — el mismo `<<SUPABASE_URL>>` se coló dos veces y las dos en silencio, porque `onError: continue` termina la ejecución en verde con el request roto; (2) **importar crea un workflow con id NUEVO**, nunca actualiza en el lugar (hay que tocar `N8N_WF_*` en el `.env` y re-apuntar `settings.errorWorkflow`); (3) **cambios de topología no van por `push`** — el push los detecta y se niega, van por re-import.
+**Verde:** `validate` **1897 checks** · `auditar-workflows.mjs` sin hallazgos · `n8n:test` **15/15** · `n8n:diff` con **los 5 workflows en sync**. n8n quedó con 61 workflows, 56 archivados, **5 activos y todos correctos**.
+**Qué sigue:** sin cambios de fondo — merge de `refactor/membresias` + `018`/`019` → **Capa 2 (RLS)** → paginación del feed → LinkedIn. Lo único nuevo es la verificación de §Pendiente vivo: mirar que `params.execution_id` aparezca después del cron del lunes.
+**Skills sugeridas para la próxima sesión:** `/diagnose` si el `execution_id` no aparece en la corrida real; `/grill-with-docs` antes de meterse con la Capa 2 (RLS), que es la decisión grande que queda.
+
+
+**2026-08-03 (cierre 89) — El 404 que dejó la Fase 3: la base del cockpit no era una ruta (Claude, reporte de Alejandro).**
+**Qué pasó:** Alejandro reportó *"el cockpit no está funcionando del todo"* → **404 Page not found**. El diagnóstico empezó descartando lo caro: `clients` y `instances` en prod son `retia` / `retia`+`reels`+`active`, las **5 filas de `app.usuarios` con `client_id = retia`**, la raíz responde `307 → /login`, `typecheck` y **158 tests** verdes. **No era el refactor.**
+**La causa, y es un hueco que la Fase 3 dejó abierto:** solo existían páginas para las **zonas**. `/retia/reels` y `/retia` eran 404 aunque el cockpit exista — y lo agrava que `baseDe()` / `rutaDe(c)` del **propio dominio** construyen justo esa URL (`rutas.test.ts` ya la testea como válida). Encima **no había `not-found.tsx` en toda la app**, así que cualquier ruta sin match caía en el 404 default de Next: pantalla en blanco, sin decir qué pasó y sin salida.
+**Arreglado en `e5c6668` (pusheado a `main`, 3 archivos nuevos, nada modificado):** `app/[cliente]/[pipeline]/page.tsx` → zona inicial del rol · `app/[cliente]/page.tsx` → primer cockpit suyo de esa empresa · `app/not-found.tsx` → pantalla con el botón a `/`. Los tres reusan `resolverContexto` + `zonaInicial`, que ya existían; ajeno o inexistente sale por `redirect("/")`, que es la salida de emergencia que `app/page.tsx` ya se documentaba como ser.
+**🟢 El efecto colateral que salió mejor de lo planeado: los bookmarks pre-Fase 3 se arreglaron solos.** Las rutas viejas tienen **uno o dos segmentos** (`/operar`, `/curar/feed`), así que ahora las atrapan las rutas dinámicas nuevas: `resolverContexto` no encuentra ningún cliente llamado `curar`, devuelve `null` y rebotan al cockpit correcto. **No hay que avisarle nada a Jero** — contra lo que decía §Pendiente vivo (*"los bookmarks viejos murieron"*), ya no mueren. El `not-found` quedó para lo que ni eso matchea (3 segmentos o más).
+**Una decisión chica, dicha para que no se re-litigue:** el `not-found` **no redirige a propósito**. El que llega ahí se equivocó de mucho y un salto silencioso le esconde que la URL está mal; además `redirect()` adentro de un `not-found` es frágil (en respuestas streameadas termina siendo un salto de cliente). Los que se equivocaron de poco ya rebotan solos por las rutas de arriba.
+**Verde:** `typecheck` · **158 tests** · `build` (el mapa de rutas muestra `/[cliente]` y `/[cliente]/[pipeline]` registradas) · `validate` **1786 checks**.
+**⚠️ Lo que NO se verificó, y es honesto decirlo:** el redirect **corriendo**. La cadena completa necesita sesión iniciada y no había navegador disponible en la sesión. Se comprueba en 10 segundos con el deploy arriba: `/retia/reels` tiene que caer en `/retia/reels/operar`.
+**Qué sigue:** sin cambios respecto del cierre 88 — merge de `refactor/membresias` + `018`/`019` → **Capa 2 (RLS)** → paginación del feed → LinkedIn. Y para *ver* las tres empresas separadas hace falta darlas de alta: hoy hay un cliente y una instancia, así que el `SelectorCockpit` existe pero el layout no lo dibuja (`opciones.length > 1`).
+
+
+**2026-08-03 (cierre 88) — El refactor multi-tenant entró a produccion: los 6 pasos del runbook, con Alejandro al teclado (Claude).**
+**Que se hizo:** se ejecutaron los 6 pasos de punta a punta en una sola sesion. Alejandro corrio el SQL y n8n; yo verifique cada paso contra la base y contra la API de n8n, nunca de palabra. El estado y la tabla de resultados estan arriba, en **Pendiente vivo**.
+**Lo que mas cuesta y no estaba escrito: LAS CREDENCIALES DEL RE-IMPORT.** Dos intentos fallidos, los dos por una credencial elegida mal de un desplegable — `Webhook Motor Header` donde iba `Run Plan Header` (dispatcher) y donde iba `Webhook Descubrimiento Header` (descubrimiento). **La causa raiz era del repo:** los `workflow.json` referencian credenciales *por nombre y sin id*, y el nombre de Supabase que declaraban (`Supabase Registro`) **no existe en n8n** — la real es `Supabase account`. Sin match, n8n las pide a mano: 25 clicks. **Corregido en el repo** (25 referencias en los 3 workflows), asi que el proximo import engancha solo. La tabla nodo→credencial quedo en Pendiente vivo.
+**Como fallo, que es la parte buena:** los dos errores dieron **403 en el primer nodo**, antes de Apify/Supadata/Haiku. Dos intentos fallidos, cero pesos. El fail-closed de ADR-028 hizo exactamente lo suyo.
+**La prueba que cierra el refactor, y va con datos:** segunda instancia de `retia` + el mismo `external_id` que ya existia → **entro**. Dos filas, mismo video, dos instancias. Antes de la `017` era imposible, y ese era el peor hallazgo del diagnostico (el dedup global le habria dado a la segunda empresa un *"el motor no trae contenido"* sin un solo error). Filas de prueba borradas, conteos de vuelta en la linea base.
+**Dos cosas que dije mal y corregi en el momento, por si sirven de calibracion:** (1) di por viejo un workflow porque su `Config` tenia `instance_id` — la Fase 4 **conserva** ese campo, lo que cambia es que ahora es una expresion que lee el body; lo resolvi comparando nodo por nodo contra el repo en vez de por una heuristica. (2) dije que la corrida con el cap en 10 tardaria 5-10 min: **el cap abarata, no acorta** — lo lento es Apify, que hace una llamada por referente (16), y tardo 16,7 min.
+**Una trampa de herramienta, para el proximo:** un `PATCH` a PostgREST con **acentos** en el cuerpo fallo en silencio desde el shell (JSON mal codificado, la respuesta era un objeto de error que parecia una lista vacia). Con el texto sin tildes entro. Si un PATCH "no matchea" y la fila existe, mira la codificacion antes que el filtro.
+**Verde:** `validate` · `auditar-workflows.mjs` sin hallazgos.
+**Que sigue:** nada bloquea la operacion. Construccion, en orden: merge de `refactor/membresias` + `018` + `019` → **Capa 2 (RLS)** → paginacion del feed → LinkedIn.
+
+
+**2026-08-02 (cierre 87) — ADR-051/052 implementados: membresías, el flag de la agencia y el sponsor sin costos. Rama aparte (Claude, con Alejandro).**
+**Dónde vive:** rama **`refactor/membresias`**, salida de `7118171`. **Aparte a propósito:** la rama `refactor/multi-tenant-fase-0-adrs` ya está verificada y su merge desbloquea prod (Transcribir está roto ahí, ver abajo); meterle encima un refactor de las guardias la hace más grande y más lenta de revisar. Esta se mergea después.
+**Migraciones: `018_membresias.sql` + `019_membresias_cierre.sql`.** Otra vez **dos archivos, y por el mismo motivo que la 016/017**: la `018` NO borra `usuarios.rol` ni `usuarios.client_id` —el código desplegado todavía las lee— y la `019` las tira recién después del deploy, con gate de confirmación humana. **Verificadas corriendo 001→019 sobre Postgres 16 en Docker**, con el renombre de Mani aplicado en el medio y 5 usuarios / 2 devs sembrados igual que prod: 5 membresías, 2 dueños, y `app.usuarios` termina en `id, nombre, creado_en, es_dueno`.
+**🚨 Una interacción entre la `018` y el renombre que hay que respetar: el renombre va PRIMERO.** La FK de `usuarios_clientes` a `clients` es **RESTRICT y no CASCADE** —con cascade, borrar una empresa le saca el acceso a su equipo en silencio— así que si la `018` corre antes, el `delete from clients where id = 'piloto'` del renombre **falla** en vez de borrar las membresías. Falla ruidoso, que es lo correcto, pero es un paso extra en medio de una transacción ya escrita. **Probado: el delete de un cliente con gente adentro es error de FK.**
+**El código:** `domain/tenant.ts` reescrito (visibilidad por membresía, no por árbol; `empresasAlcanzables`, `rolEn`, `ROL_DE_DUENO`), 12 tests nuevos · `lib/tenant.ts` (lee `usuarios_clientes` con el cliente admin: quien decide qué ve alguien no puede ser una tabla que ese alguien lea desde el browser) · `lib/auth.ts` (**`usuarioActual()` ya no trae `rol`**; `exigirZona` desaparece y la guardia se unifica en `exigirTenant`, que además autoriza la zona **contra el rol de ESE cockpit**) · `app/page.tsx` con el orden dado vuelta · el layout y 3 pantallas.
+**🔒 Y el bug que esto cierra, que era el motivo real de la conversación:** `scoped.ts` filtraba el grano empresa por `client_id in (visibles)` —las empresas del **usuario**— sin mirar qué cockpit estaba abierto. Ahora es `= ctx.clientId`, **la empresa del cockpit**. Con un tenant no se veía; con dos, una pantalla de EstadoX habría mostrado los proyectos de 30X sin un solo error. Hay un test que lo fija (*"el contexto lleva la empresa DEL COCKPIT, no la del usuario"*).
+**ADR-052 aplicado:** el `sponsor` deja de ver el bloque de costos de Entender, y el corte está **en el servidor** (`veCostos ? leerCostos(ctx) : []`): esconder la tarjeta en React dejaría los números viajando al browser igual.
+**Verde:** `typecheck` 0 · **157 tests** · `build` · `validate` **1804 checks / 5 workflows**.
+**⚠️ Lo que sigue sin resolverse y no es mío:** el orden de prod. Hoy la `016` está aplicada pero **Vercel sirve `main` (código viejo, `run-plan` v1)** — verificado. Esa ventana **tiene roto pegar enlaces en Transcribir**: el código vivo hace upsert con `on_conflict=plataforma,external_id` y la `016` reemplazó ese unique. Probado contra la base real, sin escribir: el viejo da `42P10`, el nuevo `201`. **Lo cierra el merge de la otra rama**, no esta.
+**El orden completo, para no perderlo:** renombre `piloto`→`retia` → merge de `refactor/multi-tenant-fase-0-adrs` + deploy → re-import de los 4 workflows + apagar crons viejos → corrida de verificación → `017` → merge de `refactor/membresias` + deploy → `018` → `019` → **Capa 2 (RLS)**, que con clientes externos ya no es diferible.
+
+**2026-08-02 (cierre 86) — Fase 4 del refactor multi-tenant: `run-plan` v2, el motor por instancia y el dispatcher (Claude, pedido de Mani).**
+**Qué se hizo:** la fase que **obliga al re-import**, entera y en el repo. El contrato sube a **`version: 2`** con `?instancia=<uuid>` **obligatorio**, `<<INSTANCE_ID>>` deja de existir como placeholder, nace `GET /api/engine/instancias`, y nace [`Workflows/workflow-dispatcher/`](../../Workflows/workflow-dispatcher/). `typecheck` 0 · **158 tests** · `build` · `validate` **1786 checks / 5 workflows** · `auditar-workflows.mjs` sin hallazgos · `test-nodos.mjs` verde con dos secciones nuevas. **Nada aplicado en prod: el re-import es de Mani.**
+**🚨 La tensión que el plan no tenía resuelta, y que cambió el diseño: los crons se quedaban sin instancia.** El motor tenía 3 triggers y el archivado 2, y **ni el cron ni el manual tienen payload**. Un cron que sobrevive a esta fase no corre como antes: corre y **aborta**, después de `Abrir run`, dejando una fila en `en_curso` para siempre — el mismo fallo mudo que ya costó una sesión (*"parecía una corrida lenta"*), una vez por semana. Así que **los dos crons se mudaron al dispatcher con su horario intacto** (lunes 8am · domingo 6pm), y eso corrige una línea de ADR-050 que decía lo contrario (*"cada workflow conserva su trigger natural"*) mientras su propio diagrama ya decía esto. Está escrito como [enmienda en el ADR](../adr/ADR-050-dispatcher-una-ejecucion-por-instancia.md#enmienda-del-2026-08-02-implementación--los-crons-sí-se-mudan-y-el-archivado-necesitó-un-webhook), no en silencio.
+**🔎 Y el hueco que apareció al mirar los triggers: el archivado no tenía webhook.** Era cron + manual, o sea **ninguna puerta por la que recibir una instancia** — y la necesita, porque su `candidatos?estado=neq.nuevo` sin filtro archiva los calificados de **todas** las empresas dentro de una corrida, los escribe en el `outputs` del tenant equivocado y después **los borra**. Le entró `Disparo por instancia (webhook)`. Costo: un placeholder más (`<<WEBHOOK_PATH_ARCHIVADO>>`) y un segundo cron en el dispatcher.
+**El `Ejecutar manual` se conservó, y sin reintroducir un default silencioso.** `Config.instance_id` es una expresión que lee el body del webhook y cae a `''`; para una corrida manual se pega el uuid en ese `''` (anotado en el nodo). **En git va vacío siempre**, y vacío ⇒ `run-plan` 400 ⇒ no arranca. Es lo contrario del default que ADR-048 descartó: aquel caía al piloto (y escribía en la empresa equivocada, en verde), este aborta.
+**Lo que se relevó y NO eran 7 URLs, eran 13.** El checklist del cierre 82 se quedó corto: faltaban los **cuatro `runs` del single-flight y del barredor** en los tres workflows (sin `&instance_id=eq.` la corrida de una empresa le bloquea el arranque a otra, y el barredor le marca `fallo` los zombies ajenos) y el **DELETE de `Barrer candidatos sin calificar`**, que sin filtro le borra el feed sin calificar a las otras empresas. Todas están puestas; la lista completa, abajo.
+**☠️ `fields.uuid` murió, y con él los tres `uuidDe`.** Quedaba anotado que *"muere en el próximo re-import que haga falta por otra cosa"* — este es ese. El mapa era identidad desde el paso 3 de D7, así que `uuidDe[d.proyecto_id] || null` y `d.proyecto_id || null` son lo mismo: verificado siguiendo el id hasta `Armar plan de corrida`, donde `projects` se keyea por el `p.id` del plan. **Se le agregó test:** `Preparar candidatos` y `Preparar descartes` no estaban cubiertos por `test-nodos.mjs` y son los que escriben el cockpit — sus dos modos de falla (fila sin `instance_id` ⇒ tenant equivocado; `proyecto_id` perdido ⇒ todo al grupo *(sin proyecto)*) entregan **en verde**, mal.
+**Un detalle del contrato que no se parcheó:** el manifest v1 exige ≥1 `outputs` con `registered: pending|yes`, y **el dispatcher no produce nada** (ADR-050 §4: no registra, no escribe). Quedó declarado como `senal_de_corrida / pending`, que es lo más honesto que admite el contrato hoy, con el comentario puesto en el yaml. Es un hueco chico de `workflow-manifest.md`, no una decisión de diseño — si molesta, es una enmienda de una línea.
+
+> ### 📋 EL CHECKLIST DEL RE-IMPORT (es de Mani, y va en este orden)
+> 1. ✅ **`016` aplicada** por Mani el 2026-08-02, y verificada contra la base (el detalle, en §Pendiente vivo). El `@casper_smc` duplicado ya estaba limpio. **Con esto, el deploy de la rama dejó de estar bloqueado.**
+>
+> > 🧪 **Y con la `016` puesta, el contrato v2 se probó CONTRA LA BASE REAL antes de gastar el re-import** (dev server local + las credenciales del `.env`, todo lecturas): `?instancia` ausente ⇒ **400 `instancia_ausente`** · inexistente ⇒ **403 `instancia_desconocida`** · sin header ⇒ **403 `header_ausente_o_distinto`** · instancia real ⇒ **200 con `version: 2`**, 3 voces · 5 proyectos (los 6 menos el de voz apagada, o sea el gate vivo) · 16 referentes · 18 ajustes, y **`fields.uuid` ausente en las cuatro listas**. El endpoint nuevo: sin `?workflow` ⇒ 400 · `short-form-content` ⇒ la instancia · un pipeline que no existe ⇒ **200 con lista vacía**, que es lo que evita que el dispatcher entre a su rama de fallo por un caso normal.
+> > **Lo que esto NO prueba:** nada del lado de n8n. Los `jsCode` y las URLs nuevas recién se ejercitan en la corrida del paso 5.
+> 2. **Re-importar los 3 workflows + importar el dispatcher.** Placeholders, por workflow — `<<INSTANCE_ID>>` **ya no está en ninguno**:
+>    · **motor (5):** `<<DASHBOARD_URL>>` `<<SUPABASE_URL>>` `<<WEBHOOK_PATH_MOTOR>>` `<ANTHROPIC_API_KEY>`×3 `<SUPADATA_API_KEY>`
+>    · **archivado (7):** los 2 de siempre + `<<WEBHOOK_PATH_ARCHIVADO>>` **(nuevo)** + `<<GOOGLE_SHEET_ID>>` `<<NOMBRE_PESTANA_SHEET>>` `<<CREDENCIAL_GOOGLE_SHEETS>>` `<ANTHROPIC_API_KEY>`
+>    · **descubrimiento (4):** `<<DASHBOARD_URL>>` `<<SUPABASE_URL>>` `<<WEBHOOK_PATH_DESCUBRIMIENTO>>` `<ANTHROPIC_API_KEY>`×2
+>    · **dispatcher (3):** `<<DASHBOARD_URL>>` `<<WEBHOOK_URL_MOTOR>>` `<<WEBHOOK_URL_ARCHIVADO>>` — **URLs completas**, no paths
+>    ⚠️ **`<ANTHROPIC_API_KEY>` y `<SUPADATA_API_KEY>` muerden a mitad de corrida**, no al principio.
+> 3. **Apagar los crons viejos en n8n** (motor lunes 8am, archivado domingo 6pm). El repo ya no los tiene, pero n8n conserva lo importado: si quedan vivos, el piloto corre dos veces y una muere a mitad.
+>
+> > 🔑 **De dónde salen los valores del paso 2, para no inventarlos:** `<<WEBHOOK_PATH_ARCHIVADO>>` y su URL se generaron el 2026-08-02 y viven en el **`.env` de la raíz** (`ARCHIVADO_WEBHOOK_PATH` / `ARCHIVADO_WEBHOOK_URL`), 32 hex como los otros. **El header del archivado es EL MISMO que el del motor** (`MOTOR_WEBHOOK_HEADER_*`, credencial `Webhook Motor Header` en n8n): el dispatcher dispara los dos destinos desde **un solo nodo httpRequest**, que lleva una sola credencial. Separarlos obligaría a partir el dispatcher en dos ramas. *(El descubrimiento sí conserva su propio par: no lo dispara el dispatcher, lo dispara el botón.)*
+> 4. **Activar el dispatcher** recién después del paso 3.
+> 5. **Corrida de verificación** con el techo en 10 (la más barata). Reflejo de siempre: **`runs` no distingue "colgada" de "muerta", Apify sí** — cero llamadas ⇒ murió antes de scrapear, y el sospechoso #1 sigue siendo un placeholder sin rellenar.
+> 6. **Recién ahí la `017`**, que tiene gate de confirmación humana adentro. Y el techo vuelve a 250.
+>
+> **Con una sola instancia esto no prueba nada por sí solo** (el resultado es idéntico al de antes). Lo que lo prueba es el paso 7 de [plan §11.3](./plan-multi-tenant.md): con dos instancias, N videos distintos por instancia y ninguno cruzado, mirado con un `select`.
+
+**Qué sigue, y el cierre 85 le cambió el orden a esto mientras se escribía.** El plan §12 ponía la Capa 2 (RLS) en el anteúltimo lugar; **ADR-051 activó su disparador**, así que la secuencia de código pasa a ser: **`018_membresias.sql` + el refactor de las guardias → Capa 2 (RLS) → #7 paginación del feed → #9 Fase 5 (LinkedIn)**. Lo que la Fase 4 le deja a la 5 ya está: `?workflow=<slug>` en el dispatcher y `instances` como (pipeline × empresa) es todo lo que un pipeline nuevo necesita del núcleo.
+**🔁 Y lo que el cierre 85 le va a tocar a ESTA fase, para que no sorprenda:** ADR-051 saca `rol` de `usuarioActual()` y unifica las guardias en `exigirTenant`. De lo que se escribió acá, lo único que queda en su camino son los dos botones de Operar (`exigirTenant("operar")`); **la fachada no se toca** — `run-plan` e `instancias` se autentican por header compartido y no tienen usuario, así que las membresías les son ajenas por diseño.
+**🔧 Dos drifts pre-existentes que encontré y NO toqué** (no los creó esta fase, y arreglarlos a la pasada mezcla cambios): el manifest del descubrimiento declara `type: cron` lunes 9am pero su `workflow.json` **no tiene cron** desde la enmienda de ADR-020 (es el botón *Buscar ahora*); y el `dev-doc §3.2` lo lista igual. El manifest del archivado decía "diario 9:00" contra el `0 18 * * 0` del JSON — **ese sí quedó corregido**, porque el trigger es justo lo que esta fase cambió.
+
+**2026-08-02 (cierre 85) — El modelo de acceso: membresías en vez de herencia. ADR-051 + ADR-052, sin una línea de código (Claude, diseño con Alejandro).**
+**Qué pasó:** Alejandro trajo una idea —*"el cockpit tiene una especie de auth: los asociados con 30X solo ven 30X, y los únicos que ven todo son los devs"*— y al aterrizarla salieron **cuatro hechos que ADR-046 no tenía** y que le cambian el modelo de acceso. Salieron 2 ADRs; **nada construido todavía**, a propósito: `core/` solo cambia con ADR.
+**Lo que se descubrió, en orden de impacto:** (1) **las tres empresas son clientes EXTERNOS**, o sea que gente de afuera se loguea — el aislamiento deja de ser higiene y pasa a ser una promesa reclamable; (2) **una cuenta puede pertenecer a varias empresas** con un switch en el nav, lo que mata `usuarios.client_id` singular; (3) **los dueños son dos y además tienen que ser invisibles** para el cliente (el *"secret owner"* son dos requisitos pegados: acceso total **e** invisibilidad); (4) **el equipo de la agencia no es transversal** — Majo y Jero son de una empresa y no tocan las otras, así que "ser de la agencia" tampoco implica ver todo.
+**🔎 Y un hallazgo del código que ya está escrito, que el ADR arregla:** `scoped.ts` filtra el grano empresa por **`client_id in (visibles)` — el subárbol entero del usuario, sin importar qué cockpit esté abierto**. Con alguien que alcance más de una empresa, eso **mezcla voces, proyectos y referentes de varias en una sola pantalla**. Hoy no se ve porque hay un tenant; con el segundo sería otra vez un número que se ve razonable y está mal. La regla que lo cierra: **la membresía decide a qué cockpits entrás, no qué filas ves adentro.**
+**[ADR-051](../adr/ADR-051-el-acceso-es-membresia-explicita.md):** `app.usuarios_clientes (usuario_id, client_id, rol)` reemplaza a `usuarios.client_id` y a `usuarios.rol` · **el rol vive en la membresía** · `usuarios.es_dueno` como flag (y fuera de toda lista de personas) · **`clients.parent_id` deja de gobernar acceso** y queda como linaje. *La propuesta inicial era que el rol FUERA la empresa (`30X`, `EstadoX`, `Retia`); se descartó porque obliga a `EstadoX-operador`/`EstadoX-sponsor`/`EstadoX-dev` — tres roles nuevos por cliente— y pierde la pregunta de qué puede hacer alguien adentro.*
+**[ADR-052](../adr/ADR-052-el-sponsor-externo-no-ve-el-costo-del-proveedor.md):** el `sponsor` ve **una sola zona, Entender**… que es justo la que muestra `app.tarifas`. O sea que **la única pantalla del jefe de un cliente externo le mostraba lo que cuestan los proveedores de la agencia**. Se corta el bloque de costos, **en el servidor** (`display:none` sobre datos que ya viajaron no esconde nada).
+**🚨 Lo que esto le hace a la secuencia: la Capa 2 (RLS) deja de ser la última fase.** El disparador que ADR-047 dejó escrito —*"antes de que un segundo cliente real tenga usuarios en producción"*— **está activado**. Y encima los clientes externos **curan su propio feed**, o sea que escriben en la base desde el cockpit: la combinación que más le exige a RLS. La buena noticia es que con membresías la policy se abarata: `es_dueno or client_id in (select …)`, sin recursión — con herencia por árbol habría necesitado un CTE recursivo **por fila leída**.
+**⚠️ Y un refactor que hay que presupuestar: `usuarioActual()` deja de devolver `rol`**, porque el rol pasa a depender del cockpit abierto. Toca 7 lugares y **da vuelta un orden**: `app/page.tsx` hoy elige la zona inicial por el rol y después resuelve el cockpit; va a tener que resolver el cockpit primero. `exigirZona` sola deja de alcanzar y las guardias se unifican en `exigirTenant`. Es refactor de lo que se construyó en las Fases 2 y 3.
+**Decisión de Alejandro con el riesgo sobre la mesa: el alta de usuarios sigue MANUAL una vuelta más.** Vale saber cuál es el riesgo que se aceptó: una membresía con la empresa equivocada mete a alguien en el cockpit de otro cliente **sin un solo error**. La mitigación acordada no es código: la migración `018` deja escrita la query de verificación post-alta y correrla es parte del alta. **Disparador para automatizarla: el primer usuario que no sea de la agencia.**
+**Qué sigue:** la migración **`018_membresias.sql`** + el refactor de las guardias, y después la **Capa 2**. Ojo con el orden respecto de Mani: la `016` sigue sin aplicarse y **va primero**. `npm run validate` en verde (1688 checks).
+
+**2026-08-02 (cierre 84) — Fase 3 del refactor multi-tenant: un cockpit por (empresa × pipeline), con el tenant en la URL (Claude).**
+**Qué se hizo:** el árbol de rutas entero se movió a **`app/[cliente]/[pipeline]/(zonas)/`** (con `git mv`, así que el historial de cada archivo sigue). Las URLs pasan a ser **`/30x/reels/curar/feed`**. Nuevos: `domain/rutas.ts` (puro, 6 tests), `components/selector-cockpit.tsx`, `(zonas)/usar-cockpit.ts`. `typecheck` 0 · **157 tests** · `build` verde, con las 13 rutas de zona bajo los dos segmentos. **No toca prod hasta el deploy**, pero **este sí cambia lo que ve el equipo**: ver abajo.
+**🚨 Lo único con consecuencia para Majo y Jero: los bookmarks se rompen.** `/curar/feed` deja de existir; ahora es `/30x/reels/curar/feed`. La guía de [onboarding](../onboarding-equipo-redes.md) **no hardcodea URLs**, así que no hay que reescribirla — pero **entrar por la raíz `/` sigue funcionando y ahora es el camino recomendado**: resuelve el cockpit del usuario y su zona inicial, y es la salida de emergencia a la que caen todos los `redirect("/")`. Conviene avisarles antes del deploy y decirles que re-marquen.
+**Las tres reglas que quedaron escritas, porque son las que hacen que esto no se pudra:** (1) **ningún `href` ni `revalidatePath` se escribe a mano** — se arman con `domain/rutas.ts`, que es puro y testeado; con el prefijo variable, cada string a mano es una chance de mandar a alguien (o de revalidar) el cockpit equivocado. (2) **los segmentos crudos de la URL solo sirven para RESOLVER**: todo lo que se renderiza se arma con el cockpit que devolvió `exigirTenant`, o la pantalla puede terminar mostrando los datos de un cockpit y los links de otro. (3) los componentes cliente leen el cockpit de la URL con `usarCockpit()` en vez de recibirlo por props tres niveles abajo solo para armar un `href`.
+**⚠️ El layout NO es la guardia, y está comentado en el archivo para que nadie lo lea así:** en el App Router el layout y la página renderizan **en paralelo**, así que un chequeo ahí no llega a tiempo para proteger a la página. El layout valida para lo suyo (no dibujar el nav de un cockpit que no existe) y cada `page.tsx` valida lo suyo con `exigirTenant`. Es la misma división que ya tenía `proxy.ts` — que **no cambió y no tenía que cambiar**.
+**Dos cosas que se movieron y conviene saber por qué:** `cerrarSesion` salió de `(zonas)/actions.ts` a **`app/actions.ts`** — la usan el nav (adentro del tenant) y `/sin-rol` (afuera, donde el usuario justamente puede no tener tenant todavía), así que colgarla de un cliente estaba mal. Y `FilaProyecto` de Operar recibe el cockpit **por prop**: es un helper de servidor, no un componente cliente, así que no puede leer la URL.
+**Detalle de Next 16 que hay que tener presente al tocar rutas:** `params` es un **Promise** y se `await`ea; los componentes cliente usan `useParams()`. Está en `node_modules/next/dist/docs/`, que es lo que manda el `AGENTS.md` del dashboard. Y ojo con el `.next/` viejo: después de mover el árbol, `typecheck` tira errores fantasma de `.next/types/validator.ts` apuntando a las rutas viejas hasta que se borra la carpeta.
+**Qué sigue — Fase 4 (`run-plan` v2 + motor parametrizado + dispatcher):** es la que **obliga al re-import** y la que después habilita correr la `017`. El checklist de las 7 URLs de PostgREST que hay que tocar además de los 6 placeholders está en el cierre 82. Y sigue pendiente lo de Mani: limpiar el `@casper_smc` duplicado y aplicar la `016` **antes** de que Vercel deploye esto.
+
+**2026-08-02 (cierre 83) — Fase 2 del refactor multi-tenant: la Capa 1, el tenant que el compilador no deja olvidar (Claude).**
+**Qué se hizo:** la Capa 1 de [ADR-047](../adr/ADR-047-aislamiento-en-dos-capas.md) entera. `domain/tenant.ts` (puro, 13 tests nuevos) · **`lib/supabase/scoped.ts`** · `lib/tenant.ts` (el resolvedor) · `lib/auth.ts` con `exigirTenant` · **los 13 archivos de `lib/` que hacían IO** · los **21 de `app/`** que los llaman. `typecheck` en 0, **151 tests** verdes, `build` verde. **No toca prod**: es tipado y ruteo de un parámetro. Rama y PR: [#3](https://github.com/Agencia-Dani/pipeline-creacion-contenido/pull/3).
+**La pieza que importa es `scoped.ts`, y su garantía está verificada, no afirmada.** Envuelve el acceso a Supabase de forma que no se pueda construir una query sin `TenantContext`, y el mapa tabla→grano (24 entradas) vive ahí y solo ahí. Lo probé con dos archivos de prueba que **tienen que romper**: una tabla que no está en el mapa da `TS2345` con la lista de las válidas, y `scoped()` sin contexto da `TS2554`. Los dos casos son error de compilación, que es la única forma conocida de ganarle a un `.eq()` olvidado.
+**El typecheck produjo la lista de trabajo y no dejó terminar hasta vaciarla — 83 → 0.** Ese es el punto entero de la fase y funcionó tal cual: no enumeré un solo archivo a mano.
+**⚠️ El orden de deploy es un requisito, no una recomendación: la `016` va ANTES de este código.** El BFF pasó a pedir `client_id`/`instance_id` y a nombrar los uniques nuevos en los `onConflict` de `lib/transcripciones.ts`. Contra una base sin la `016` eso es columna inexistente y `42P10`. Es la misma trampa que la `014`, que también tenía que ir antes de su código. Quedó escrito en el README del dashboard, arriba del setup.
+**Lo que cambió de comportamiento y conviene saber (todo no-op con un tenant):** los knobs pasan a ser **por instancia** (la PK compuesta de la `016`, así que un `update` por `clave` ya no puede pisar el ajuste de otra empresa) · el single-flight del buscador pasa a ser **por instancia** (ADR-050) · calificar un candidato de otro cockpit ahora devuelve *"ese candidato ya no está en el feed"* en vez de escribirlo — el filtro entra en el `update`, no solo en el `select` · un usuario **sin `client_id` cae en `/sin-rol`**, igual que uno sin rol: las dos son la misma alta a medias, y el `insert` manual del alta ahora lleva cliente.
+**La fachada quedó a medio camino, a propósito y con el borde declarado.** `/api/engine/run-plan` no tiene sesión (se autentica por header compartido), así que resuelve su tenant con `contextoDeFachada`: acepta `?instancia=` **opcional** —forward-compatible con ADR-048— y si no viene cae a la única instancia activa. **Con dos instancias y sin parámetro responde 400 en vez de adivinar**, que es el fail-closed de ADR-028 §4 aplicado a lo que sabemos hoy: servirle al motor la config de otra empresa es peor que no servirle nada. El contrato **sigue en `version: 1`**; subirlo a 2 y volver el param obligatorio es la Fase 4.
+**Un detalle de tipos que va a volver si alguien toca `scoped.ts`:** el genérico recursivo (`Q extends Filtrable<Q>`) sobre el builder de supabase-js hace que tsc se rinda con `TS2589` *"type instantiation is excessively deep"*. Está resuelto con un tipo plano y un cast localizado, comentado en el archivo. Mismo motivo para el `as string` del schema: sin `database.types.ts` generado, los genéricos ya colapsan a `any` y el literal no compra tipado, pero sí arma una unión de 2×24 que revienta.
+**Qué sigue — Fase 3:** rutas `[cliente]/[pipeline]`, el `layout.tsx` resolviendo `(cliente, pipeline) → instance` en el servidor, y el selector de empresa/pipeline (visible solo si el usuario tiene más de uno). **El modelo ya está**: `resolverContexto(usuario, cliente, pipeline)` acepta los dos segmentos desde hoy y no los recibe de nadie — la Fase 3 es cablearlos, no rediseñar. Y sigue pendiente lo de Mani: limpiar el `@casper_smc` duplicado y aplicar la `016`.
+
+**2026-08-02 (cierre 82) — Fase 1 del refactor multi-tenant: la fundación de datos, partida en dos migraciones y verificada contra un Postgres real (Claude).**
+**Qué se hizo:** [`core/schema/016_multi_tenant.sql`](../../core/schema/016_multi_tenant.sql) + [`017_multi_tenant_cierre.sql`](../../core/schema/017_multi_tenant_cierre.sql). **Ninguna está aplicada en prod todavía** — se aplican a mano, y la `017` ni siquiera se puede correr hasta después del re-import. Rama `refactor/multi-tenant-fase-0-adrs`.
+**🧪 No es SQL "revisado": se corrió.** Se levantó un Postgres 16 descartable en Docker, se aplicaron las **15 migraciones en orden** sobre datos sembrados parecidos a prod, y encima la `016` y la `017`. Todo verde de cero, dos veces. Lo que eso probó, y que ningún review a ojo hubiera dado: la regresión de la `015` **no vuelve con dos tenants** (3 filas para 3 referentes), la misma cuenta vigilada por dos empresas devuelve **0.44 y 0.99 por separado** en vez de un número contaminado, y el `on_conflict` viejo del motor tira exactamente `42P10` en cuanto se corre la `017`. *(Stubs necesarios para que las 15 corran fuera de Supabase: `auth.users`, `auth.uid()`, los roles `authenticated`/`service_role`. Está en el scratchpad, no en el repo.)*
+**🚨 Tres trampas de orden que el plan no tenía, y una es cara.** El plan traía la de siempre (nullable → backfill → not null). Las otras dos salieron de preguntar **quién escribe cada tabla**:
+· **Un `unique` que n8n nombra en un `on_conflict=` NO se puede reemplazar antes del re-import.** PostgREST exige que el arbiter coincida con un unique existente; si no, `42P10` y el insert muere entero. Son dos: `processed_items?on_conflict=platform,external_id` (motor, **antes** de transcribir) y `outputs?on_conflict=external_id` (archivado, **al entregar** — o sea después de pagar Apify + Supadata + Haiku). Correr el §4.3 del plan tal cual en la Fase 1 **rompía el dedup del motor en la corrida siguiente**. Por eso los dos van por expand/contract: el unique nuevo nace en la `016`, el viejo muere en la `017`. **Es la razón entera de que la Fase 1 sean dos archivos.**
+· **Toda columna de tenant nace con un DEFAULT puente al piloto.** Entre la `016` y la Fase 2/4 hay una ventana donde el BFF y n8n siguen insertando sin mandar tenant. Sin default esas filas nacen en null y, apenas la Capa 1 empiece a filtrar, **desaparecen de las pantallas** — un candidato pagado que no se ve. Los defaults mueren en la `017`, y ese es el único motivo por el que son seguros.
+**⚠️ Y una corrección al SQL del plan que rompía el archivado:** el índice nuevo de `outputs` **no lleva `where external_id is not null`**. La `005` sacó ese predicado justamente porque Postgres no acepta un índice parcial como arbiter de ON CONFLICT y PostgREST no repite el predicado (`42P10`, verificado en vivo en su día). Copiarlo del plan reintroducía el bug que la `005` arregló.
+**🔎 Dos huecos de inventario, no de criterio:** (1) **`app.transcripciones` no estaba en la lista del plan** y es de grano instancia — traía además un **sexto** unique global (`plataforma, external_id`), de la misma familia que los cinco que el plan sí encontró. Se agregó a la tabla de granos de [ADR-046](../adr/ADR-046-el-cockpit-es-multi-tenant.md). (2) **Las vistas no son 8, son 12**: faltaban `v_embudo_descubrimiento`, `v_historico_seleccionados`, `v_selecciones_por_dia` y `v_senal_tema`; y `v_falsos_negativos` no existe con ese nombre — es `app.v_auditoria_descartes` (ADR-036).
+**Dos decisiones de diseño que vale la pena conocer:** `outputs.instance_id` **se deriva con un trigger** desde `runs`, no con un default — es el dato exacto en vez de una suposición (mismo principio que ADR-041) y de paso **no le suma un séptimo ítem al checklist del re-import**: el archivado sigue insertando igual. Y el tenant piloto **se autodetecta** en un bloque de guardas en vez de escribirse en el archivo, así que no hay un solo id en el repo.
+**Las guardas de la `016`, que abortan antes de tocar nada:** las 15 previas aplicadas · **`@casper_smc` duplicado** (probado: aborta con el handle en el mensaje) · exactamente 1 cliente y 1 instancia, con la salida manual documentada si algún día no.
+**📋 Lo que esto le AGREGA al checklist de la Fase 4 (URLs exactas, ya relevadas):** además de los 6 placeholders, el re-import tiene que meterle la instancia a **7 lecturas/escrituras que hoy no filtran nada**: `processed_items?select=external_id,platform&limit=50000` (⚠️ **la más importante: el constraint arregla la escritura, pero el dedup sigue leyendo GLOBAL hasta que este GET filtre**) · `processed_items?on_conflict=` → `instance_id,platform,external_id` · `outputs?on_conflict=` → `instance_id,external_id` · `candidatos?select=external_id&external_id=not.is.null` · `candidatos?estado=neq.nuevo`, `?estado=eq.nuevo&creado_en=lt.` (archivado) · `referentes_propuestos?select=handle,plataforma` · y **`v_senal_seleccion` en los dos workflows**, que ahora devuelve una fila por instancia: sin `&instance_id=eq.`, el heat-score aprende del vecino.
+**Verde:** `npm run validate` → 1670 checks, 0 errores. No se tocó código de app: typecheck/tests/auditor no tienen nada nuevo que mirar.
+**Qué sigue — Fase 2 (Capa 1), y su punto entero es no enumerar archivos a mano:** `domain/tenant.ts` + `lib/supabase/scoped.ts` + los ~15 de `lib/`; `npm run typecheck` produce la lista y no deja terminar hasta que esté vacía. **Antes de eso, lo de Mani:** limpiar el `@casper_smc` duplicado (desde el cockpit, mirando qué proyectos cuelgan de cada fila) y aplicar la `016` en el SQL Editor. La `017` **no**: esa espera al re-import.
+
+**2026-08-02 (cierre 81) — Fase 0 del refactor multi-tenant: los 5 ADRs (046–050). Cero código, a propósito (Claude, pedido de Alejandro).**
+**Qué se hizo:** se ejecutó la **Fase 0** de [plan-multi-tenant.md §3](./plan-multi-tenant.md) — cinco ADRs en `docs/adr/`, el índice actualizado, y nada más. `core/` solo cambia con ADR y los ADRs eran justamente lo que faltaba, así que **no se escribió una línea de SQL ni de TypeScript**. Rama: `refactor/multi-tenant-fase-0-adrs`.
+· **[046](../adr/ADR-046-el-cockpit-es-multi-tenant.md)** — el cockpit es multi-tenant: `client_id`/`instance_id` en `app` con **doble grano**, `clients.parent_id`, y los 5 uniques globales reparados. **Extiende ADR-003, no lo corrige:** cuando ADR-003 se escribió el cockpit era Airtable y el aislamiento lo daba la herramienta; cubrió el registro porque el producto no existía. Eso está dicho así en el ADR para que nadie lo lea como deuda sucia.
+· **[047](../adr/ADR-047-aislamiento-en-dos-capas.md)** — dos capas, con **el disparador de la Capa 2 escrito**: entra *antes de que un segundo cliente real tenga usuarios en producción*, y la instancia de prueba de la verificación **no** lo dispara (cliente ficticio, sin usuarios). Queda dicho por qué la Capa 1 no se salta ni con RLS puesto: la fachada y n8n **no tienen sesión de usuario**, ahí el único filtro posible es el tipado.
+· **[048](../adr/ADR-048-run-plan-v2-motor-por-instancia.md)** — `run-plan` v2 + `?instancia` obligatorio + `/api/engine/instancias`, y `<<INSTANCE_ID>>` **derogado como constante de instancia**.
+· **[049](../adr/ADR-049-un-pipeline-sus-tablas.md)** — un pipeline, sus tablas; el enum `app.plataforma` no se toca.
+· **[050](../adr/ADR-050-dispatcher-una-ejecucion-por-instancia.md)** — el dispatcher dispara **una ejecución por instancia**, con la tabla punto-por-punto de por qué **no** es el workflow padre que ADR-006 descartó (y ADR-006 ya lo autoriza como C9, textual).
+**⚠️ Lo único que se encontró y NO se parcheó — para Mani, es una decisión, no un bug de esta sesión.** [ADR-035](../adr/ADR-035-contrato-de-escritura-por-postgrest.md) declara en sus consecuencias que `core/contracts/run-plan.md` **sube a `version: 2`** por el flip de ids (record id de Airtable → uuid). **Ese bump nunca se ejecutó: el contrato sigue en `1`**, y con razón — el flip terminó siendo pass-through (`fields.uuid` viajaba en paralelo, el mapa `uuidDe` quedó identidad) y por eso el paso 3 de D7 no necesitó un tercer re-import. O sea que la decisión de ADR-035 está bien; lo que quedó viejo es esa línea suya. **No se editó ADR-035.** ADR-048 lleva una *Nota de numeración* explicando la historia y declarando que **él** es el que sube el contrato a v2 —el mismo idioma que ADR-035 usó para su propia nota de numeración con ADR-029—. Si Mani prefiere que ADR-035 lleve una enmienda apuntando acá, es una línea.
+**Verde:** `npm run validate` → **1670 checks, 0 errores** (la baseline en `main` es 1625; el delta son los 5 archivos nuevos entrando al escaneo de secretos — se verificó stasheando). No se corrió nada más porque **no se tocó código**: ni `typecheck`, ni `npm test`, ni `auditar-workflows.mjs` tienen nada nuevo que mirar.
+**Qué sigue — Fase 1, y el orden importa más que el SQL:** `core/schema/016_multi_tenant.sql` ([plan §4](./plan-multi-tenant.md)). Tres cosas que no se pueden invertir: (1) **🧹 limpiar el `@casper_smc` duplicado ANTES** —con `client_id not null` esa fila se congela en el modelo nuevo, y hay que mirar qué proyectos cuelgan de cada una antes de borrar, porque borrar la equivocada le saca fuentes a un proyecto (ADR-045 ya permite hacerlo desde el cockpit, sin SQL); (2) las columnas **nacen nullable → backfill → recién ahí `not null`**, o la migración falla sobre datos vivos; (3) `v_salud_referentes` es la vista delicada: la regla de la [`015`](../../core/schema/015_salud_referentes_una_fila.sql) —*"todo join nuevo tiene que garantizar UNA fila por referente"*— se respeta, porque agregar el eje de tenant es exactamente el cambio que reintroduce el fan-out.
+
+**2026-08-02 (cierre 80) — Sacar el techo de gasto: el cap no era el problema, y sacarlo así habría roto la corrida. Más: borrar records en el cockpit (Claude, pedido de Mani).**
+**Qué se hizo:** Mani trajo tres cosas — recencia ya en 100, "no debería haber cap para regular costos, quiero el motor lo más preciso posible trayendo el `N` por proyecto, revisá qué lo está afectando", y "dejame borrar voces, proyectos y referentes". La revisión del punto 2 dio vuelta el pedido: **el cap no era lo que frenaba, y sacarlo tal como estaba el motor habría matado la corrida y quemado videos para siempre.** Salieron 2 ADRs ([044](../adr/ADR-044-todo-nodo-caro-tiene-presupuesto.md), [045](../adr/ADR-045-se-borra-solo-lo-que-nunca-produjo-nada.md)) y todo el código está listo; el re-import es de Mani (§Pendiente vivo).
+**🚨 El hallazgo: `Traducir (Claude Haiku)` era el techo real y el único nodo caro SIN red.** Serial, con `sleep(1000)`, sin presupuesto. Los referentes son casi todos ingleses: **170 traducciones sobre 191 transcritos** el 31/07 (89%). `Transcribir` tenía presupuesto justamente porque el watchdog del task runner mata el **nodo entero** a los 900 s y la corrida muere sin entregar nada — pasó 3 veces el 07-10. A `Traducir` no se lo habían puesto nunca. *El sesgo que lo escondió: el nodo tenía "Haiku" en el nombre y se leía como barato. Lo caro no era la llamada, era el `sleep` × 170.*
+**🩸 Y la asimetría que hay que memorizar, porque decide qué se puede aflojar: el cap POSTERGA, el presupuesto QUEMA.** `POST processed_items` corre **antes** de `Transcribir` (ADR-029, enmienda del 31/07), así que el video que se queda sin presupuesto ya está en la memoria de dedup: vuelve sin transcript, el gate lo tira como `sin_guion` (ADR-030) y **no se reintenta nunca**. El corte de `cap_top_n` pasa *adentro* de `Heat-score v1`, antes de ese POST, y vuelve la corrida siguiente. Un techo seguro y uno destructivo, con el mismo aspecto desde la pantalla de Ajustes.
+**La coincidencia que confirmó el diagnóstico:** con `CONCURRENCIA = 8` a ~27 s/video, 840 s dan ~250 videos — **exactamente `cap_top_n = 250`**. Los dos techos estaban calibrados al mismo punto, así que bajar uno no destrababa nada. Y el aire sin usar era enorme: Supadata pago da 10 req/s y 8 en vuelo iniciaban 0.3.
+**⚠️ Lo que la revisión tuvo que decir y no era lo que el pedido esperaba: esto NO acerca ningún proyecto a su `N`.** El cuello es el **supply**: todos los proyectos, en todas las corridas, dicen `razon_faltante: supply`. Los 4 proyectos de comunicación comparten **7 cuentas** y piden 60 videos entre todos, y cada video va a **un solo** proyecto. La corrida más gorda que hubo entregó **139 de 400**. El dedup se come el 93% dos horas después de una corrida (491 pretrim → 35). Lo que estos cambios compran es que sacar el techo **no rompa nada**; la palanca de verdad sigue siendo sumar referentes, igual que dice ADR-043.
+**El otro hallazgo, anotado y no tocado:** `cap_top_n` **corta global, no por proyecto**. Medido en la propia corrida de verificación de Mani (`191ddc8b`, cap en 10): *Trading fast tips* se llevó los 10 y los cuatro de comunicación quedaron en `evaluados: 0`. Cuando muerde no recorta parejo, mata proyectos enteros. Con el techo en 0 no se plantea; repartirlo sería un ADR propio.
+**Borrar records (ADR-045):** la pregunta no era de UI sino de FK, y había dos mundos. **Los referentes salen limpios** (la puente cascadea y su historia se guarda por *handle en texto*, no por FK: `candidatos.referente`, `descartes.referente`, `v_senal_seleccion` desde `outputs`). **Las voces y los proyectos no**: `candidatos.proyecto_id`, `candidatos.voz_id`, `descartes.proyecto_id` y `proyectos.voz_id` son FK sin `on delete`. Se descartó el `cascade` (borraría 143 candidatos sin leer con el mismo click que borra un proyecto vacío) y el `set null` (cambia un error claro de Postgres por filas que se ven bien y no significan nada — la familia exacta que este repo viene cazando). Queda **la regla: se borra solo lo que nunca produjo nada**, y el rechazo dice **cuánta** historia hay y ofrece apagar. Hoy eso deja borrable solo *Trading Psychology*, y es correcto. Bonus: el `@casper_smc` duplicado ya se limpia sin SQL.
+**Verificación en vivo, contra la base real:** el rechazo (*«Comunicación en empresas tiene 24 videos en el feed…»*, modal abierta, URL sin cambiar) y el camino feliz, con un proyecto y un referente **de prueba creados y borrados** para no tocar el dato de Mani — la fila desaparece, la modal cierra, la lista refresca y `app.eventos` queda con el registro completo. 138 tests · typecheck · build · validador (1616 checks) · `auditar-workflows.mjs` sin hallazgos · `test-nodos.mjs` verde con sección nueva de `Traducir`.
+**El detalle de test que vale guardar:** el caso del presupuesto de `Transcribir` empezó a fallar al subir el pool a 24 — los 30 videos arrancaban en dos vueltas y ningún budget razonable llegaba a morder. Se arregló **fijando la concurrencia en 2 en ese test**, no aflojando el assert: el test prueba el presupuesto, no el throughput, y mezclarlos era lo que lo volvía frágil.
+**🔄 Y el cierre se dio vuelta a último momento, que es la mejor parte:** Mani re-importó, se puso el techo en 0, se verificó punta a punta… y al mirar qué iba a pasar en la corrida apareció lo que la revisión no había mirado. **`cap_top_n` no era freno de gasto: era el que raciona el supply.** `Leer procesados` lee `processed_items` **entera y sin filtro de fecha**, y el POST corre **antes** de transcribir ⇒ todo lo transcrito queda en la memoria de dedup para siempre, pase o no el gate, se entregue o no. Y la entrega la topan los `N` (`sum = 100`), no el cap. O sea: **con 0 se transcriben ~500, se entregan los mismos 100, y se queman ~265 que no vuelven.** Se revirtió a 250 en el acto. *Lo que lo destapó no fue leer más código: fue preguntarse "¿qué números va a dar esta corrida?" antes de dispararla, y darse cuenta de que el de entregados no se movía.*
+**Y el dato que reordenó la prioridad entera: el cuello está río abajo.** **143 candidatos sin calificar** contra **9 calificados en total** desde que el feed existe. Traer más videos no es el problema de esta semana, y la recomendación anterior (subir `Resultados por cuenta` de 40 a 50) queda **archivada hasta que el equipo esté al día**: hoy solo aumentaría lo que se quema.
+**La regla que deja, y vale para cualquier límite del sistema:** antes de aflojar uno, preguntá **qué está limitando de verdad**, no qué dice su nombre. Este se llama *Videos a transcribir por corrida* y se lee como presupuesto de plata; lo que gobierna es cuántas semanas dura el pozo de videos frescos.
+**Siguiente sesión:** la corrida (§Pendiente vivo tiene qué mirar, en orden de qué avisa antes). Después, lo que sigue abierto es que **el equipo consuma el feed** — todo lo demás río arriba está bloqueado por eso. Si en algún momento la capacidad de calificación sube, la solución de fondo para el `N` sigue siendo escalar lo que se le pide a Apify **por proyecto** (`ceil(N / (referentes × tasa))`), identificada en ADR-038 y todavía sin hacer.
+
+**2026-08-01 (cierre 78) — La primera revisión de UI/UX sobre el cockpit live: 10 observaciones, 3 bugs, 3 ADRs (Claude, pedido de Mani).**
+**Qué se hizo:** Mani usó la primera versión live y trajo 10 observaciones de layout/UX pensando en Majo y Jero. Se ejecutaron las 10 en un solo pase, sin tocar `Workflows/` ni `core/`: cero re-imports, cero migraciones. Commit `dce25a3`, deployado y verificado contra prod.
+**Lo que enseñó la sesión, y es el patrón: tres de las diez "preferencias" eran bugs, y ninguno se veía como bug.**
+· **«Todos los videos salen sin thumbnail»** → no era el expiry, que es lo que decía la hipótesis del cierre 77. Los CDNs de Meta mandan `cross-origin-resource-policy: same-origin` y **el browser bloquea el `<img>` cross-origin siempre**. La hipótesis se había verificado con `curl`, que da 200 porque **curl no aplica CORP**: la herramienta con la que medimos era ciega justo a la causa. *Corolario: para verificar algo que solo hace el browser, hay que medirlo en un browser.* (El expiry existía igual y se midió: **~5 días** contra una cadencia de 7, y por eso el proxy además cachea en Storage — ADR-037.)
+· **«No veo el botón del buscador»** → `BotonBuscar` estaba escrito y **no lo importaba nadie** desde el commit `270d107` que lo creó. Un `grep` de una línea lo dijo. La causa de fondo es de ubicación: el componente y su acción vivían en `curar/sugeridos/`, mezclando "aprobar es curar" con "disparar es operar", y nadie lo montó. Ahora `buscarAhora` está al lado de `correrAhora`.
+· **«Las barras negras se salen»** → se salían porque **no es un embudo**: `asignados` (1585) > `colectados` (700) porque del fan-out al gate se cuentan filas `(video × proyecto)`, no videos. Se partió en dos embudos con su propia base. *El CSS estaba gritando un error del modelo, no de estilo.*
+**Y la observación que obligó a discutir en vez de obedecer (ADR-038):** Mani pidió que Operar dijera «trae 15» en vez de «hasta 15», *"que sea un dato confiable"*. Pero `N` es un techo duro y la entrega es best-effort: las 3 corridas con `por_proyecto` dicen `razon_faltante: supply` en **todos** los proyectos. Cambiar la etiqueta habría convertido un dato honesto en una promesa incumplible. Se resolvió mostrando **tres números medidos** —`pide N · X cuentas · la última entregó Y`— con la razón y la palanca. *Se descartó un pronóstico calculado al mirar los datos: hay 3 corridas y son incomparables (49 · 4 · 1 para el mismo proyecto). Una mediana sobre eso es precisión falsa.*
+**La trampa que se esquivó:** para dejar un solo knob de cantidad, los 3 globales pasaron a `visibilidad = 'dev'` en vez de borrarse. Borrar la fila de `Días de recencia` **habría tirado la recencia de 100 a 7 en silencio**, porque `Armar plan de corrida` cae al `Config` del motor (que tiene 7). Habría sido la quinta de la familia "no falla, sale verde, deja un número peor".
+**Verificación:** 116 tests · typecheck · build · validador (1517 checks). Y contra **producción**: `/operar` sin la palabra «hasta» · `/api/miniatura` 200 con la imagen (1080×1920, redirigiendo a Storage), **307 sin sesión**, **400 al host fuera de la allowlist** · fachada intacta (3 voces · 15 referentes · **18 ajustes**, recencia 100 llegando al motor) · en el browser, las 2 miniaturas vivas renderizando y ninguna barra excediendo su riel.
+**Lo que queda:** subir `Resultados por cuenta de referente` a 40 (sigue en 20, y ahora es dev-only así que la pantalla no lo recuerda) y avisarle al equipo que la pantalla cambió — el onboarding ya está reescrito.
+
+**2026-08-01 (cierre 77) — La corrida que estrenó las escrituras, y el paso 3: D7 cierra (Claude, pedido de Mani).**
+**Qué se hizo:** Mani disparó la corrida que faltaba y con eso las escrituras de D7 dejaron de ser teoría; después salió el **paso 3 del expand/contract** a producción (commit `2260ec0`). D7 está cerrado del lado del código.
+**La corrida (17:24 UTC, `ok`):** 2 candidatos con `proyecto_id`/`voz_id` como FK uuid, 1 descarte, 3 `processed_items` con `run_id`, `registro_dedup: ok`. **Se corrió barata a propósito** —`Días de recencia` 7 + `Resultados por cuenta` 10 ⇒ 140 results de Apify en vez de 280, **≈$0.39**— y eso vino de medir antes: con las tarifas de `app.tarifas`, una corrida sale ~$1 y **la mitad es Apify, que se paga ANTES del dedup**. El knob que da ganas de tocar, `Candidatos por corrida`, **no ahorra un peso**: corta en `Armar candidato`, después de transcribir. ⚠️ Los 2 knobs quedaron recortados; hay que devolverlos.
+**El paso 3, y la decisión que lo hizo barato:** el `id` del contrato pasa a ser el uuid en voces/proyectos/referentes. **No hizo falta un tercer re-import**, y no por suerte: los cuatro consumidores en n8n resuelven el uuid con `uuidDe[x.id] = x.fields.uuid`, así que sirviendo los dos ids **iguales** el mapa queda **identidad**. De ahí que `fields.uuid` **no se borre** (sacarlo sí obligaría a re-importar) y que las columnas `airtable_id` sigan en las tablas hasta D8. *La regla que deja: cuando dos lados no se deployan juntos, un campo redundante cuesta menos que una corrida.*
+**🚨 Y apareció la CUARTA pérdida silenciosa de D7 — la arregla el mismo paso 3.** `Destilar criterios` indexa `projMeta` por el `id` del plan y busca por `candidatos.proyecto_id`, que desde D7 es uuid: con el `id` en record id **nunca matcheaba** ⇒ `byProj` vacío ⇒ **cero destilaciones, en verde, sin avisar** (ADR-022 muerto). No se había notado porque destilar pide ≥4 calificados y hay 0 — o sea habría aparecido la **primera semana que el equipo calificara**, que es peor. Misma familia que los 3 del grilling: no falla, sale verde, deja un número en cero. **El corolario de método: un corte de ids no termina cuando el contrato compila, termina cuando listaste quién INDEXA por ese id, no solo quién lo escribe.**
+**Verificación:** A/B contra la fachada de producción — mismo reparto referente→proyecto (3/3/6/5), mismos 16 pares fuera de ámbito (referentes de los 2 proyectos de Trading, apagados; el motor los saltea con `if (!projects[proy]) return`), demás campos idénticos. 114/114 tests · typecheck · build · validador (1517 checks) · `auditar-workflows.mjs` sin hallazgos. Y post-deploy contra prod: todos los ids uuid, `fields.uuid == id`, cruces válidos.
+**⚠️ Lo que sigue sin probarse, y es lo único:** `fecha_calificacion` (hallazgo 4). Lo escribe **la app al calificar**, no n8n, así que ninguna corrida del motor lo toca — hay 0 candidatos calificados. Son 2 min en `/curar/feed` y conviene hacerlo **antes de un domingo 18:00**, para que el archivado tenga trabajo real y cierre la cadena `fecha_calificacion` → `outputs.calificado_en` → `v_metricas_calidad` de una.
+**Siguiente sesión:** con el hallazgo 4 verde, arranca **D7.5** (que la app escriba `outputs` al calificar, para matar el archivado — enmienda ADR-014, es `core/`, va con `/grill-with-docs`) o **D8** (apagado de Airtable + la migración `014` de limpieza: balde 2 + las columnas `airtable_id`).
+
+**2026-08-01 (cierre 76) — D7: Airtable sale del sistema. El corte de escritura, de punta a punta (Claude, pedido de Mani).**
+**Qué se hizo:** el grilling completo de D7 y después su implementación entera — 9 commits en `d7-corte-escritura`, mergeados a `main`, con la migración `013` aplicada, el dato migrado y los 3 workflows re-importados por Mani. **Cero `api.airtable.com` en los 3 workflows y en toda la app**; `lib/airtable.ts`, `domain/sombra.ts` y los 4 scripts del modo sombra se borraron. El archivado bajó de 35 nodos a 20.
+**La decisión raíz es [ADR-035](../adr/ADR-035-contrato-de-escritura-por-postgrest.md): PostgREST directo, no endpoint de la app.** La simetría con ADR-028 era falsa — n8n ya escribía `runs`/`outputs` directo desde el día 1, y meter la app en el camino de la **entrega** la vuelve dependencia justo donde el sistema es fail-open a propósito. La regla que queda, y cubre los 3 workflows y los que vengan: **n8n LEE su config por la fachada, ESCRIBE sus resultados por PostgREST.**
+**🚨 De los 6 hallazgos del grilling, 3 eran pérdidas SILENCIOSAS — de las que no fallan, salen verdes y dejan un número en cero.** (a) **`fecha_calificacion` no tenía autor**: en Airtable era un `lastModified` que se calculaba solo, y de él cuelga `outputs.calificado_en` → `v_metricas_calidad`, que filtra `calificado_en is not null` ⇒ la pantalla *Calidad* habría dado **cero filas** y la **precisión de entrega**, la métrica norte de ADR-021, habría desaparecido sin que nada fallara. (b) **`falsos_negativos` no sale de `runs.metricas`** sino de contar descartes auditados, así que ninguna vista lo cubría y D7 lo mataba **por segunda vez** — lo arregla [ADR-036](../adr/ADR-036-los-descartes-no-se-barren.md): los descartes dejan de barrerse y el contador pasa a ser vista viva. (c) **el embudo del descubrimiento** se quedaba sin reemplazo (`v_embudo_semana` filtra `workflow='motor'`).
+**🚨 Y uno medido, que era el peor: `Referentes propuestos` es N:M.** Se midió contra el dato vivo antes de escribir código: **las 8 propuestas tenían 2 proyectos cada una**, y el schema `009` les daba un `proyecto_id` simple ⇒ el corte tiraba **8 de 16 pares, el 100% de la atribución**. Es el bug del corte 2/4 en la misma forma exacta, pero completo. Enmienda de [ADR-032](../adr/ADR-032-referente-proyecto-es-n-a-n.md) + tabla puente. **Que cayera en el descubrimiento es exactamente por qué se eligió como piloto**: si quedaba para D8, aparecía después de re-importar el motor.
+**La regla de método que deja este corte, y completa la trilogía:** el 2/4 dejó *"medí el dato vivo contra el schema que lo va a recibir"*, el 3/4 dejó *"listá quién ESCRIBE cada campo"*, y D7 agrega **"listá qué campos NO los escribía nadie, porque Airtable los calculaba solo"**. Los `createdTime`, `lastModified` y las columnas-fórmula no tienen autor: al migrar se vuelven NULL en silencio y se llevan puesto lo que dependía de ellos.
+**Lo que el corte simplificó, y conviene no deshacer:** mueren `typecast` (o sea desaparece la clase "proyecto fantasma": un id mal formado ahora **viola una FK** en vez de crear datos malos en silencio), los batches de 10, y la traducción de ids. `external_id` entra al schema **con `unique`**, así que la 3ª línea del dedup de ADR-029 pasa de procedural a estructural — pero **`Leer feed vivo` NO se borró**: el constraint atrapa el duplicado *después* de pagar la transcripción, el nodo lo mata *antes* (es lo que bajó la corrida del 31/07 de 31 a 9,4 min).
+**Muere ADR-033.** Los criterios destilados y su escritor volvieron al mismo lugar (`Destilar criterios` PATCHea `app.proyectos`). Era una regla con fecha de vencimiento puesta en D7, y esta fue la fecha. Se verificó antes de cortar que Postgres y Airtable tenían **valores idénticos**: no se perdió nada.
+**Limpieza de peso muerto (auditoría del mismo día).** Los 18 knobs de `Ajustes` están **todos vivos** — ahí no había nada que tirar. Sí lo había en otro lado: **11 nodos muertos** (la cadena de Métricas, la de salud de referentes, y la de promoción del descubrimiento, que estaba muerta desde el corte 2/4), 3 nodos que quedaron **huérfanos** al morir sus únicos consumidores, y `app.eventos`, que 7 actions escribían y **nadie leía** — ahora tiene pantalla dev-only en *Entender*. Balde 2 (4 vistas sin consumidor + 6 columnas write-only) queda para una migración `014` aparte, a propósito: si D7 salía mal, no había que bisectar entre el corte y la limpieza.
+**➕ Enmienda a [ADR-020](../adr/ADR-020-motor-descubrimiento-referentes.md): el buscador perdió el cron y ahora es un botón** en *Curar → Sugeridos*. La razón es medida: había **8 propuestas pendientes y 0 resueltas**, o sea que la bandeja se llenaba más rápido de lo que el equipo la vacía, y cada corrida paga 3 actores de Apify + Haiku. Se hizo **en el mismo re-import** porque agregarlo después costaba un cuarto re-import. El guard contra doble click vive en la Server Action (`hayBusquedaViva`), no en el workflow: hay un solo camino de entrada y el peor caso es una corrida repetida.
+**Herramientas que se ganaron el sueldo:** `auditar-workflows.mjs` atrapó **dos veces** conexiones rotas por renombrar nodos (el rename deja los destinos apuntando al nombre viejo), y `test-nodos.mjs` atrapó el cambio de forma del feed vivo. Sin ellos, los dos se veían recién en producción.
+**⚠️ Lo que NO se probó:** ninguna **escritura** de n8n a Postgres se ejecutó todavía. La lectura sí (fachada, corte, vistas, todo contra datos reales). El paso 3 del expand/contract queda pendiente, gateado por una corrida verde.
+**Siguiente sesión:** verificar la corrida (§Pendiente vivo tiene las queries), después el paso 3 del expand/contract. Con eso cierra D7 y arranca **D7.5** (que la app escriba `outputs` al calificar, para matar el archivado) o **D8** (apagado de Airtable, todo no-código). Skills: `/diagnose` si la corrida falla, `/grill-with-docs` antes de D7.5 — enmienda ADR-014, que es `core/`.
+
+**2026-08-01 (cierre 75) — D6: el feed de calificación, y el dato que corrigió el diagnóstico a mitad de camino (Claude, pedido de Mani).**
+**Lo que se construyó:** las 3 pantallas del espacio de trabajo. **`/curar/feed`** (mazo de tarjetas compactas que se abren como el expand de Airtable, agrupadas por proyecto y por heat descendente adentro, con filtro sin-calificar/🔥/aprobados/todos), **`/curar/descartes`** (la auditoría del gate) y **`/curar/historicos`** (todo lo aprobado de todas las semanas, de a 25). Directo a `main`.
+**🚨 La medición que decidió la forma, y el error que corrigió a mitad de sesión.** Arranqué diciendo que el loop de calificación "nunca arrancó" porque los 145 candidatos vivos estaban todos en `nuevo`. **Era falso y lo desmintió `outputs`: hay 79 candidatos calificados entre el 01 y el 26 de julio** (24 aprobados / 55 descartados = 30% de precisión de entrega). Los 145 en `nuevo` eran de las corridas de ese mismo día. Lo que el dato sí mostró, y sostiene el diseño: **11 de 79 (14%) tienen `estado` decidido y ningún emoji** — la fricción de dos campos es medible, y el que se pierde es siempre el emoji, o sea justo el campo del que depende ADR-022 para elegir ejemplos. **La lección de método: medí antes de diagnosticar, y medí en la tabla correcta — el feed vivo dice qué falta hacer, no qué se hizo.**
+**La decisión de diseño, que es [ADR-034](../adr/ADR-034-calificar-es-un-solo-acto.md): calificar es UN acto y el Estado se deriva** (🔥/👍 ⇒ aprobado · 👎 ⇒ descartado). Enmienda el glosario, que los declaraba "distintos a propósito". Los dos campos se siguen escribiendo con el mismo vocabulario, así que **ninguna máquina se entera** — el archivado sigue filtrando `NOT nuevo` y `Destilar` sigue eligiendo los 🔥. El precio, explícito: se pierde "buen video pero no lo quiero", que ahora vive en `notas_equipo`.
+**🚨 El otro hallazgo, y es el que más valor entrega: `veredicto` nunca se escribió, y no era una decisión.** 0 auditorías desde que la tabla existe, contra 79 candidatos calificados en el mismo período. La causa está en mapa-campos §5.1-1: **Airtable no deja configurar el permiso de un campo sin records en la página**, así que el equipo nunca *pudo* marcarlo. La API sí lo escribe — se verificó en vivo. Mientras estuvo en 0, `falsos_negativos` daba siempre 0 y eso se lee como *el gate está perfecto*. Por eso la pantalla va **encadenada al pie del feed**, no suelta.
+**⚠️ D6 NO es un corte, y eso invierte una regla del procedimiento.** Airtable sigue siendo el **dueño** de `Candidatos` y `Descartes` hasta D7 (los escribe el motor y los lee el archivado en **7 nodos**), así que la app cambia la superficie, no la propiedad. Consecuencia contraintuitiva: las 2 tablas **SIGUEN** en el catálogo de sombra de `scripts/comun.ts` — la regla del corte 1/4 ("la tabla cortada sale del catálogo") no aplica porque no hay flip, y Postgres tiene que seguir siendo su espejo. Sin migración, sin re-import, sin tocar n8n.
+**🖥️ Las pantallas se miraron en el browser antes de publicarlas** (procedimiento del corte 3/4, aplicado). Encontró 4 cosas que ningún test iba a encontrar: **(a)** las miniaturas se servían a **resolución completa** — 144 imágenes de 1080×1920 son ~15 MB por carga para mostrar recuadros de 200 px; Airtable ofrece `thumbnails.large` (512 px) y ahora sale de `urlDeMiniatura`, en `lib/airtable.ts`, una sola vez. **(b)** las tarjetas con la proporción real del video (9:16) hacían que **una fila llenara la pantalla**, que es exactamente lo que Mani pidió evitar: se recortan a 4:5. **(c)** el `<dialog>` nativo no se centraba — el reset de Tailwind pisa el `margin: auto` que trae `showModal()`; se arregla con `m-auto` y se verificó midiendo el DOM, no mirando el screenshot (la captura a scroll profundo engaña). **(d)** la razón del descarte estaba clampada a 3 líneas y se desbordaba: **es el dato con el que se decide el veredicto**, así que se muestra entera.
+**🐛 Y un defecto de diseño propio, encontrado releyendo lo que había escrito:** la invitación a auditar descartes estaba condicionada a *"calificaste los 145"*. Con 145 semanales nadie los despacha de una sentada, así que **no se dispararía casi nunca** — la invitación faltaría justo en las sesiones normales. Ahora va siempre al pie del mazo; lo que cambia con la cola vacía es el énfasis, no la existencia.
+**Verificación (en vivo, contra datos reales, y los 2 registros de prueba restaurados):** los 4 grupos con sus conteos exactos (53/23/31/38) y heat descendente adentro · **la calificación escribe los DOS campos** (`👍` + `aprobado`) y Airtable llena `fecha_calificacion` sola, con su fila en `app.eventos` · **`veredicto` escrito por primera vez** en la historia de la tabla, con su evento · el diálogo con header fijo, 462 px de scroll sobre 629 de contenido y el pie alcanzable · **el paginado del histórico verificado simulando páginas de 10 contra las 24 filas reales: sin saltos, sin repetidos, y el bucle termina** (con 24 registros el "Cargar más" no aparece, así que el borde no se probaba solo) · dashboard **128/128** (+19) · typecheck y `build` limpios con las 3 rutas · validador **1490/0** · auditor de workflows **0 hallazgos** · las 3 rutas redirigen a `/login` sin sesión.
+**Próximo paso:** el hecho-cuando de D6 es el único que no se puede apurar — **una semana entera de calificación pasando por la app**. En Airtable quedan 2 páginas más para congelar (*Feed* y *Descartes*), que ahora entran en el mismo viaje que las 7 de §Pendiente vivo. Después, **D7**: el corte de escritura y el re-import #2. D6 le dejó el camino hecho — `/curar/historicos` ya lee `outputs` y no cambia, y las 2 tablas que D7 corta ya tienen superficie propia.
+**Skills para la próxima sesión:** `/grill-with-docs` antes de D7 (hay un ADR sin escribir: endpoint de la app vs. insert directo a Postgres desde n8n) · `/handoff` al cerrar. Para mirar pantallas, la receta del cierre 74 sigue andando: `auth.admin.generateLink` con el service_role devuelve el token sin mandar mail.
+
+**2026-07-31 (cierre 74) — D5 corte 3/4: Voces + Proyectos, y el loop de ADR-022 que el corte habría matado en silencio (Claude, pedido de Mani).**
+**Lo que se construyó:** el tercer corte de config. Pantalla **`/curar/voces`** — las voces con sus proyectos **adentro**, no en dos páginas: la voz es la espina dorsal (apagarla apaga sus proyectos sin tocarlos), así que separarlas dejaba la consecuencia del click en la otra pantalla. Trae alta de voz y de proyecto, la N por proyecto con el global de placeholder, los criterios plegados (son 400–650 caracteres cada uno; con 6 abiertos la pantalla dejaba de ser una lista), el aviso de *voz prendida sin proyectos activos* y el de *proyecto activo cuya voz está apagada* — que es la trampa que hoy solo se ve en los logs de n8n. **Y `advertencia_criterios` por fin se muestra:** es la primera superficie que lo hace desde que existe ADR-022. Va en la rama `corte-3-voces-proyectos`.
+**🚨 El hallazgo, y salió de listar quién ESCRIBE cada campo (no de leer el schema):** de los 8 campos de `Proyectos`, **2 no los escribe nadie del equipo**. `Destilar criterios` del archivado le pide a Haiku cada domingo un resumen de lo calificado y PATCHea `criterios_aprendidos` + `advertencia_criterios` **en Airtable**; el motor lee `criterios_aprendidos` por la fachada para el prompt del gate. Cortar la tabla entera dejaba al archivado escribiendo en una tabla congelada y al motor leyendo otra fuente: **el loop de ADR-022 muerto, sin un solo error**, y estrenando la pantalla que existía para mostrar justamente eso. Decisión de Mani: **[ADR-033](../adr/ADR-033-dueno-por-campo-durante-la-coexistencia.md) — la unidad de propiedad es el CAMPO, no la tabla.** Esos 2 se leen de Airtable (fail-open) hasta D7, que es cuando su escritor se mueve. No afloja el "un dueño por dato" de ADR-027: lo aplica al pie, porque son datos distintos con un escritor cada uno.
+**🚨 El segundo hallazgo: la documentación afirmaba algo falso y era caro.** El contrato, `lib/referentes.ts` y el cierre 73 decían que la traducción `id` = record id de Airtable "se cae en el corte 4/4". **Se cae en D7.** Cuatro nodos vivos lo consumen como record id, y el peor es `Preparar batch Airtable`: escribe `Candidatos.proyecto`/`.voz` como *links* **con `typecast: true`**, o sea un uuid **no da error** — Airtable **crea un proyecto fantasma** con el uuid de nombre y le enlaza el candidato. De ahí sale la otra decisión de Mani: **una voz o un proyecto nacidos en la app acuñan su record id en Airtable al crearse** (~15 líneas, se borran en D7). La alternativa —no dejar crear hasta D7— dejaba al equipo sin ningún lugar donde hacerlo, con la página de Airtable congelada.
+**Este corte NO necesitó migración, y eso se supo antes de escribir código.** El schema `009` ya modelaba bien los dos dominios: medido contra el dato vivo, **los 6 proyectos tienen exactamente 1 `voz_default` y los 6 tienen `criterios_relevancia`**, o sea las dos constraints que Airtable no podía hacer cumplir (`voz_id not null`, `criterios_relevancia not null`) aguantan. Que el corte 2/4 haya necesitado un ADR y una migración y este ninguno es el resultado de medir primero, no la suerte.
+**Verificación (todo lectura, cero créditos, cero escrituras en prod):** **A/B contra la fachada de PRODUCCIÓN** (que todavía lee Voces/Proyectos de Airtable) vs. la local (que los lee de Postgres): **mismo plan en los dos ámbitos**, 3 voces · 4 y 6 proyectos · 15 referentes · 18 ajustes · **0 diferencias** una vez normalizado que *Airtable omite lo vacío y Postgres dice `null`/`false`* · **replay del code node real `Armar plan de corrida`** alimentado por las dos fachadas ⇒ **mismo plan por contenido** (4 proyectos, 7 urls IG, N=100 resuelta, *Storytelling* con sus 5 referentes) · el script del corte en `--dry` verde · dashboard **109/109** (+15) · typecheck y `build` limpios con `/curar/voces` en la tabla de rutas · validador **1472/0** · auditor de workflows **0 hallazgos** (este corte no toca n8n, que es el punto).
+**ℹ️ La única diferencia real, y queda anotada porque va a reaparecer:** el **orden** de las listas. Airtable devuelve el orden del grid (que cambia si alguien arrastra una fila), Postgres ordena por nombre. Entra en `ig_urls` (en qué secuencia se le piden las cuentas a Apify) y en `ig_owner_to_proj` (qué copia de un video se crea primero). Lo único que podría cambiar por eso es un **empate exacto** de relevancia y heat entre dos proyectos para el mismo video — un desempate que ya era arbitrario. El orden nuevo, además, es estable; el viejo no lo era.
+**🖥️ Y por primera vez las pantallas se probaron EN EL BROWSER.** Los 3 cortes anteriores se publicaron sin verlas ("entrar pide magic link"). Se resuelve con `auth.admin.generateLink` y el service_role, que **no manda ningún mail**: devuelve el token, se pega en `/auth/confirm` y hay sesión local. Encontró 3 cosas que ningún test iba a encontrar: (a) el nombre de una voz y el de un proyecto eran dos inputs idénticos y **la jerarquía —que es la regla del sistema— no se veía**: se arregló con la etiqueta `VOZ`, el input más grande y un borde izquierdo con `SUS PROYECTOS`; (b) en *Agregar un proyecto* el botón Crear estaba **arriba** del campo obligatorio de criterios, o sea se clickeaba antes de haber visto lo que lo iba a rechazar; (c) el placeholder del nombre era "Storytelling", que es un proyecto que ya existe. **Esto queda como procedimiento: la pantalla se mira antes de publicarla.**
+**Suelto que apareció mirando el plan y no es de este corte:** `Días de recencia = 100`, con `Mínimo de vistas`, `Mínimo de likes` y `Relevancia mínima` en **0**. Las perillas están abiertas del todo — coherente con que los 4 proyectos reporten `razon_faltante: supply`, pero conviene saberlo antes de leer una corrida.
+**❓ Una pregunta para Mani que salió de terminar este corte: no existe un "corte 4/4".** La numeración salió del cierre 72 contando Voces y Proyectos por separado, pero van juntos por FK y ya están adentro. Con Ajustes, Referentes, Voces y Proyectos cortados, **D5 está completo**: lo que queda en Airtable son las 3 tablas que ESCRIBE n8n (`Candidatos`, `Descartes del gate`, `Referentes propuestos`), y esas son D7, no D5. Conviene confirmarlo antes de que alguien salga a buscar un dominio que no existe.
+**Próximo paso (actualizado el mismo día: el corte ya se publicó):** el hecho-cuando de 2 min → congelar *Voces* y *Proyectos* en Airtable (⚠️ para personas: la máquina sigue escribiendo ahí) → **D6, el feed de calificación**, que es la pantalla que el equipo más usa y la última pieza de config ya está. Ojo con lo que D6 ya tiene escrito: `veredicto` de *Descartes* **tiene que quedar editable** — con el campo bloqueado, `falsos_negativos` da siempre 0 y "0 falsos negativos" se lee como *el gate está perfecto*, que es la conclusión opuesta a la verdad.
+**Skills para la próxima sesión:** `/grill-with-docs` antes de arrancar D6 (es la pantalla que decide si la migración se siente bien, y el PRD pide validarla con Jero y Majo con la pantalla en la mano) · `/tdd` para el dominio de la calificación · `/handoff` al cerrar. Para las pantallas, **el login local ya no es un bloqueo**: `auth.admin.generateLink` con el service_role devuelve el token sin mandar mail (receta en este mismo cierre).
+
+**2026-07-31 (cierre 73) — D5 corte 2/4: Referentes, y el bug de modelo que casi apaga un proyecto entero (Claude, pedido de Mani).**
+**Lo que se construyó:** el segundo corte de config. Pantallas **`/curar/referentes`** (el banco: alta, poda, proyectos por cuenta, notas, con la salud read-only al lado y la vista *A revisar* **adentro** en vez de en otra página — separarlas obligaba a saltar de pantalla para hacer justo la acción que la lista existe para provocar) y **`/curar/sugeridos`** (la bandeja del descubrimiento), más el flip en `lib/config.ts`. **Va en la rama `corte-2-referentes`: el flip no puede vivir en `main` hasta que la migración y la carga estén hechas** (§Pendiente vivo tiene los 3 pasos en orden). La unidad de aislamiento es la rama — aprendizaje del cierre 72, aplicado.
+**🚨 El hallazgo que cambió la forma del corte, y que salió de mirar el dato vivo ANTES de escribir código:** `app.referentes` (migración `009`) modela **un** proyecto por referente, y en producción cada referente alimenta **2 a 4**. `Referentes.proyecto` de Airtable es un link múltiple y `Armar plan de corrida` lo recorre **como array**; el mapeo de sombra tomaba `[0]`. Medido: **35 pares (referente, proyecto) → 16**, o sea **19 perdidos (54%)**, y **el proyecto *Storytelling* se quedaba con CERO referentes** (no es `proyecto[0]` de ninguno de sus 5) — el corte lo habría apagado sin un solo error en ningún lado. Decisión de Mani: tabla puente. Es **[ADR-032](../adr/ADR-032-referente-proyecto-es-n-a-n.md)** + migración `012` (`app.referentes_proyectos`, con backfill, y `referentes.proyecto_id` muere: dos lugares para el mismo vínculo es el "dos dueños" que prohíbe ADR-027).
+**🔍 Por qué el modo sombra no lo cazó, habiendo dado "espejo perfecto ×2":** el diff compara *Airtable ya mapeado* contra Postgres, y el mapeo truncaba a `[0]` **de los dos lados**. La dimensión perdida le es invisible por construcción. **La regla que queda: un diff que pasa por el mapper valida el transporte, no el modelo.** Por eso el procedimiento del corte suma un paso: *antes de cortar un dominio, medí el dato vivo contra el schema que lo va a recibir*.
+**🔍 El segundo hallazgo, del A/B contra Airtable vivo (no de leer código):** la fila `recYQotSNwtcfuY2x` está **activa, con 2 proyectos y sin handle**. Hoy el motor la ignora gratis (`if (!handle) return;`), pero `mapearReferente` la guardaba como `"(sin handle)"` — que para el motor **sí** es un handle válido ⇒ le pediría esa cuenta a Apify en cada corrida. Ahora falla loud, como `mapearProyecto`: es una decisión humana, no un default que inventar. Bloquea el script de carga hasta que se limpie (paso 1 de §Pendiente vivo).
+**Las 2 decisiones de diseño que este corte agregó al procedimiento:**
+**(a) El `id` del contrato dejó de ser opaco.** A diferencia de `ajustes` (donde nadie lo consume y viaja la clave), `referentes[].id` **sí** lo usa alguien: `Computar salud referentes` del archivado PATCHea Airtable con él. Por eso la fachada sirve el `airtable_id`; un referente nacido en la app viaja con su uuid y, en el peor caso, ese PATCH descarta un batch **en una tabla que ya no lee nadie** (es fail-open y muere en D7). Y `fields.proyecto` viaja con **record ids de Airtable**, porque Proyectos corta recién en 4/4: el motor cruza las dos listas por ese id. Las dos traducciones se caen solas en el corte 4/4.
+**(b) Si el corte rompe un loop que cierra n8n, el loop se mueve en el MISMO cambio.** Aprobar un sugerido disparaba `POST Referentes (promoción)` → sembraba el referente **en Airtable**, o sea nacía invisible. La aprobación pasó a la app, y marca la propuesta **`promovido` salteando `aprobado`** — que es exactamente el estado por el que filtra el nodo viejo. El loop de ADR-020 cierra **sin tocar n8n** y el nodo queda sin trabajo hasta que D7 lo borre. *Corolario que hay que avisarle al equipo: aprobar desde Airtable ahora es dañino.*
+**(c) La carga de datos de un corte es un script propio,** `scripts/cortar-referentes.ts` (`npm run cortar:referentes`, con `--dry`), no el `sombra:import` — que en el mismo cambio deja de ver la tabla (procedimiento del corte 1/4). Corre una vez, y termina imprimiendo la evidencia que ADR-027 §5 pide: referentes por proyecto de los dos lados **y** el A/B registro por registro en los dos ámbitos, usando `aRegistrosDelPlan`, la misma función que usa la fachada (si el A/B reimplementara la transformación compararía dos escrituras del mismo autor, no dos mundos).
+**Verificación (todo lectura, cero créditos):** **A/B de la transformación contra Airtable vivo: 15 referentes · 33 pares · idénticos byte a byte en `?ambito=motor` y `?ambito=completo`** (con la fila rota excluida; con ella adentro, el A/B es justo lo que la detectó) · dashboard **94/94** (+30) · typecheck y `build` limpios, con `/curar/referentes` y `/curar/sugeridos` en la tabla de rutas · las 4 rutas de Curar redirigen a `/login` sin sesión · validador **1472/0** · auditor de workflows **0 hallazgos** (este corte no toca n8n, que es el punto) · **la fachada local responde 503 con el flip y sin la migración** — el fail-closed de ADR-028 funcionando, y la prueba de por qué esto va en rama.
+**Lo que NO se pudo probar:** las pantallas en el browser (entrar pide magic link) y el round-trip real por Postgres (la migración es paso de Mani). Por eso el hecho-cuando del corte es suyo y son 2 minutos.
+**Próximo paso:** los 3 pasos de §Pendiente vivo → merge → los 2 pasos de congelar Airtable → **corte 3/4: Voces + Proyectos** (van juntos, por FK). Ojo con lo que ya se sabe de ese corte: la pantalla de Proyectos **tiene que mostrar `advertencia_criterios`**, que hoy no muestra ninguna superficie (el archivado gasta un Haiku cada domingo escribiendo un aviso que nadie lee), y es el corte donde las dos traducciones de (a) se caen.
+
+**2026-07-31 (cierre 72) — D5 arranca: Ajustes cortado de Airtable, pantalla + flip en el mismo cambio (Claude, pedido de Mani).**
+**Qué se hizo:** el primer corte de config del plan del cockpit. Pantalla **`/curar/ajustes`** (los 18 knobs agrupados por quién los consume, el operador ve solo los de `visibilidad=equipo`, el botón Guardar aparece solo si el valor cambió) y, **en el mismo cambio**, el flip: la fachada sirve `ajustes` desde `app.ajustes`, no desde Airtable.
+**La decisión que vale para los 3 cortes que faltan: pantalla y flip son un solo paso.** La alternativa —publicar la pantalla y flipear después— deja una ventana con **dos superficies editables** para el mismo dato, que es exactamente lo que prohíbe el principio §3.1 del plan, y la mitad de esa ventana el equipo estaría editando en la superficie que ya no lee nadie. El flip es reversible con un revert; la divergencia de datos, no.
+**🔧 La costura, que es lo que hace baratos los cortes 2/4, 3/4 y 4/4:** `apps/dashboard/lib/config.ts`. Acá y solo acá se decide de qué almacenamiento sale cada dominio; `lib/airtable.ts` se achica en cada corte hasta morir en D8. Mover Referentes es una línea más su pantalla.
+**⚠️ La trampa que este piloto encontró y dejó cerrada:** una tabla cortada tiene que **salir del catálogo de sombra** (`scripts/comun.ts`) en el mismo cambio. Si se queda, el próximo `sombra:import` la pisa con los valores viejos de Airtable —revirtiendo en silencio lo que el equipo editó en la app— y el `sombra:diff` empieza a reportar como error las diferencias legítimas. Anotado como procedimiento en el plan §D5.
+**Detalles chicos con motivo:** `app.ajustes.valor` es `numeric` y PostgREST lo devuelve **string** — se normaliza en `lib/ajustes.ts`, una vez, para que ni el dominio ni la pantalla lo sepan · el `id` del contrato viaja **la clave** (nadie lo consume: los 2 workflows leen por `fields.clave`), así que no hubo que inventarle un record id a Postgres · la acción **revalida el rol contra la fila real** antes de escribir, no confía en lo que la pantalla mostró · cada edición deja `app.eventos` con valor anterior y nuevo, que es la única forma de reconstruir por qué una corrida salió rara tres semanas después.
+**Verificación (todo lectura, cero créditos):** **A/B Airtable ↔ fachada: 18 claves de los dos lados, 0 diferencias** · la fachada local devuelve **200** con 3 voces · 4 proyectos · 16 referentes · **18 ajustes**, y la N por proyecto sigue resolviendo a 100 desde `Candidatos por corrida` · typecheck limpio · dashboard **63/63** (cae 1 test: el de `mapearAjuste`, que se fue con su función) · validador **1454/0**. *No se pudo probar la pantalla en el browser: entrar pide magic link.* Por eso el hecho-cuando del corte es de Mani, y son 2 minutos (§Pendiente vivo).
+**⚠️ Orden de operaciones: se planeó y NO se ejecutó — el aprendizaje de proceso de la sesión.** La decisión fue no pushear hasta que la 2ª corrida de fuego estuviera verificada (regla "una corrida, una variable", cierre 69). **Pero el commit del flip ya estaba en `origin/main` 26 minutos antes de que la corrida arrancara** (reflog `bd12a26`: commit 18:51:24 UTC, remoto 18:52:03; corrida 19:18:16), y con Vercel deployando `main` eso significa que estuvo vivo. Claude no corrió `push`; quién lo hizo quedó sin confirmar (lo más probable: Mani sincronizando desde su editor, que estaba trabajando en paralelo en el re-import — un commit de prueba 45 min después **no** se pusheó solo, así que no parece haber automatismo). **La conclusión no depende de eso y vale para los cortes 2/4, 3/4 y 4/4: "commiteado pero sin publicar" no es un estado confiable acá, así que la unidad de aislamiento es la RAMA, no el momento del push.**
+**No hizo daño, y de hecho pagó:** la corrida de las 19:18 corrió con los ajustes saliendo de Postgres, terminó `ok` y los 4 proyectos resolvieron `n_objetivo: 100` por la fuente nueva ⇒ el corte quedó **validado por una corrida real**, no solo por el A/B estático.
+
+**🏁 En la misma sesión, Mani re-importó el motor y disparó la 2ª corrida de fuego: los 3 hallazgos del cierre 70 quedaron cerrados EN PRODUCCIÓN.** Corrida 19:18, `on_demand`, **`ok` en 9,4 min**. Los 4 criterios: **`registro_dedup: ok`** (primera vez desde que existe ADR-029 — H1 vivo) · **27 `processed_items` nuevas, las 27 con `run_id`** (H3; total 628, las 601 viejas siguen null) · **intersección de `external_id` con la corrida previa = ∅** · feed de 145 con **0 `⚠️ SIN GUION`**, **145/145 `external_id`**, **0 urls duplicadas**.
+**🔍 Los 9,4 min contra 31 asustan y no deberían: son la medida del dedup.** Mismos `colectados=280` y `asignados=635` (mismas cuentas, 3 h después), pero **`filtrados` cae de 361 a 35** — ese escalón es `Heat-score v1`, donde vive el dedup: 456 de 491 salieron por estar ya en memoria. Como lo que se transcribe es lo que sale de ahí, la fase cara pasó de 361 items a 35 y el tiempo se desplomó. Entregó **6 candidatos nuevos** sobre un feed que ya tenía 139. **El resultado alarmante habría sido el opuesto:** 31 min y ~139 entregados otra vez = re-entrega de lo mismo. Queda escrito porque la próxima vez que alguien vea una corrida corta va a dudar igual.
+**Sin verificar todavía (no lo tapa esta corrida):** el **guard single-flight** sigue sin prueba viva, y el paso 3 del cierre 71 —**`ventana_corrida_min` 120 → 60 en el `Config` del archivado**— sigue abierto: no pide re-import, así que no vino de arrastre con el del motor.
+**Próximo paso:** push (= deploy) del corte 1/4 → los 2 pasos manuales de §Pendiente vivo → **corte 2/4: Referentes** (+ la vista de flojos y los Sugeridos).
+
+**2026-07-31 (cierre 71) — Los 3 hallazgos del cierre 70, cerrados en el repo + un auditor que caza esta clase de bug sola (Claude, pedido de Mani).**
+**H1 — la memoria del dedup dejó de ser una rama.** Decisión de Mani sobre la alternativa propuesta en el cierre 70: en vez de mover posiciones (`x<4480`), **serializar**: `Heat-score v1 → Preparar procesados → POST processed_items → Transcribir`. El argumento es que mover posiciones deja la garantía central de ADR-029 viviendo en dos coordenadas de canvas, o sea la próxima limpieza visual la rompe otra vez y en silencio; en serie la garantía es **topológica**. Tres detalles la sostienen: `alwaysOutputData` en el POST (PostgREST devuelve body vacío con `resolution=ignore-duplicates`, y sin item de salida `Transcribir` no dispararía), `Transcribir` pasa a leer `$('Heat-score v1').all()` en vez de `$input` (su input ahora es la respuesta del POST), y `onError: continueRegularOutput` **se conserva** — la escritura sigue siendo fail-open, como manda el ADR. **De arrastre, `registro_dedup` revive:** `POST processed_items` es ahora ancestro de `Resumen del run`. Quedó como [enmienda 2026-07-31 de ADR-029](../adr/ADR-029-dedup-blindado-fail-closed-y-feed.md), con la decisión #2 original **tachada** — el mecanismo que describía era falso y nadie debería leerlo de buena fe.
+**🔧 El auditor, que es lo que hace que esto no vuelva a pasar:** `node Workflows/auditar-workflows.mjs` (sin dependencias, solo lee). 5 chequeos sobre los 3 workflows: conexiones rotas · inalcanzables · **todo `$('X')` tiene que apuntar a un ancestro topológico** · `jsCode` que compile como AsyncFunction · inventario de placeholders del re-import. **El tercero es el que importa:** corrido contra el repo ANTES del fix marcaba **exactamente 1 hallazgo en todo el pipeline — `Resumen del run` → `POST processed_items`**, o sea el bug del cierre 70 y nada más. Después del fix: **0**. Estos chequeos ya se habían escrito a mano y tirado dos veces (cierres 67 y 69); a la tercera se commitean. Enganchado en §Feedback loops del CLAUDE.md raíz.
+**H2 — `ventana_corrida_min` 45 → 60** en los 5 lugares que lo tienen (motor, archivado, manifest, `domain/corrida.ts`, docs). De paso se podó la duplicación del número en prosa: el README del motor, `airtable-cockpit.md` y ADR-023 ahora **apuntan al manifest** en vez de repetir un valor que se les quedaba viejo (los tres decían 120).
+**H3 — `run_id` en `Preparar procesados`**, `null` si el run no se abrió: la columna es FK a `runs(id)` y un uuid de relleno haría fallar el INSERT del batch entero, o sea la corrida entregaría sin memorizar — peor que el bug original. 4 casos nuevos en `test-nodos.mjs`.
+**🔍 El hallazgo del audit, que salió de probar el verificador contra la base viva y no de leer código:** el fallback por ventana de `primera_vez` devolvía **0 filas** para la corrida del 31/07. Razón: sus 191 filas de memoria se escribieron a las **16:59:10**, y `Cerrar run` había cerrado el run a las **16:59:08** — la memoria aterrizó **2 segundos después de cerrar la corrida**. Es la medida exacta del hallazgo 1, y de paso la prueba de que el techo de la ventana no puede ser `fin`: se cambió al **arranque de la corrida siguiente**. Con eso el fallback encuentra las 191. *(Límite anotado en el propio script: `processed_items` tiene dos escritores desde ADR-031 — el motor y el transcriptor de la app — así que la ventana puede sumar de más algún enlace pegado a mano entre corridas. Por `run_id` la atribución es exacta, que es justo lo que H3 desbloquea.)*
+**Suelto que se cierra sin tocar nada:** el run de **descubrimiento** del 27/07 en `en_curso` **no es un bug**. Su `Barrer runs zombie` no filtra por antigüedad (`estado=eq.en_curso&id=neq.<propio>`), así que la corrida del lunes 03/08 lo marca `fallo` sola. Queda escrito para que nadie lo re-diagnostique.
+**Verificación (todo estático, sin gastar un crédito):** auditor **0 hallazgos** en los 3 workflows · `test-nodos.mjs` **verde con los asserts de Transcribir intactos** (solo cambió el mock, que es la prueba de que la lógica no se movió) · validador **1454/0** · dashboard **64/64** + typecheck limpio. Contra la base viva, solo lecturas: 601 `processed_items` (**601 con `run_id` null** — la corrida nueva va a ser la primera con atribución) y la corrida del 31/07 medida en **31,0 min**, que es lo que condena a 45.
+**Próximo paso:** el re-import del motor + la corrida de fuego (§Pendiente vivo, 3 pasos manuales). Después **D5**, que sigue desbloqueado: la config migra a Postgres sin volver a tocar n8n. Arrancar por **Ajustes**, que ya tiene su base en [`domain/ajustes.ts`](../../apps/dashboard/domain/ajustes.ts) (valida los 18 knobs). Sigue pendiente el 3er pase del diff de D3.
+
+**2026-07-31 (cierre 70) — Re-import #1 vivo y la primera corrida con la fachada (139 candidatos); aparecieron 2 hallazgos que quedan para atacar (Mani ejecutó, Claude diagnosticó).**
+**Los 3 workflows re-importados y el motor corriendo por la fachada.** Antes hubo una cadena de 5 fallos, **todos de configuración, ninguno de código** — el swap de D4 y el fix del timeout entraron bien de una: (1) Vercel tenía **otro valor** en `RUN_PLAN_HEADER_VALOR` (lo dijo el `motivo` del 403 que agregamos ese mismo día) ⇒ se **rotó el par** y el header pasó a llamarse **`X-Run-Plan-Auth`**, que además mata la colisión de nombre con el del webhook; (2) `MOTOR_WEBHOOK_URL` apuntaba a la **URL de _test_ de n8n** (`/webhook-test/`), que solo responde con *Listen for test event* armado — **el botón nunca había funcionado, y no era culpa del re-import**; (3) el motor re-importado **no estaba `Active`**, y sin eso toda URL de producción da 404; (4) el **path del webhook cambió** en el re-import ⇒ se adoptó el nuevo (más barato: la variable de Vercel se editaba igual); (5) la credencial `Run Plan Header` tenía el par viejo. **Método que ahorró horas y sirve para la próxima:** un **POST con header inválido** distingue gratis y sin disparar nada — **404** = workflow inactivo o path equivocado · **403 `Authorization data is wrong!`** = activo, path bien y credencial bien.
+**La corrida (16:28, `on_demand`, 31 min, `ok`):** **139 candidatos** repartidos en los 4 proyectos (49/37/30/23) · **0 con `⚠️ SIN GUION`** (ADR-030 vivo: 21 sin transcript **descartados** en el gate) · **0 urls duplicadas** · **139/139 con `external_id`** (ADR-029) · **191 `processed_items`** escritos (410 → **601**) · los 4 proyectos con `razon_faltante: supply`, o sea el gate funciona y lo que falta es material. **Cierra el hecho-cuando de D1** (disparo desde el dashboard sin abrir n8n, `trigger_type=on_demand`) y el de **D4** (una corrida real entera por la fachada).
+**🚨 HALLAZGO 1 — la garantía central de ADR-029 NO está en vigor.** El ADR dice *"reorden de ramas para grabar la memoria ANTES de entregar"*, y ese reorden se hizo en el **array de conexiones**. Pero el workflow corre con **`executionOrder: v1`, que ordena las ramas paralelas por POSICIÓN EN EL CANVAS (y, luego x), no por el array**. Las posiciones reales: `POST Airtable Candidatos` **x=7560** · `Resumen del run` **x=8200** · `POST processed_items` **x=8960** ⇒ **se entrega primero y se graba la memoria después**, justo al revés. **La prueba está en los datos de esta corrida:** `Resumen del run` reportó `registro_dedup: 'no_corrio'` (su `$('POST processed_items').all()` tiró porque ese nodo aún no había corrido) **y sin embargo las 191 filas existen** — o sea se escribieron *después* del resumen. **Dos consecuencias:** (a) **`registro_dedup` es un tripwire muerto**: va a decir `no_corrio` en toda corrida, así que la alarma que ADR-029 puso para detectar el fallo de dedup **no puede dispararse nunca**; (b) **la ventana de riesgo de los 15 duplicados sigue abierta** — si el motor muere entre la entrega y la escritura de memoria, los videos quedan entregados sin memorizar y la corrida siguiente los re-entrega. Hoy no mordió porque la corrida completó entera. **Fix propuesto (chico):** mover `Preparar procesados` y `POST processed_items` a **x < 4480** (a la izquierda de `Transcribir`). Cambia solo `position`, no la topología, y arregla las dos consecuencias de una. Pide re-import.
+**⚠️ HALLAZGO 2 — `ventana_corrida_min` = 45 quedó corta.** Se eligió ese valor sobre un máximo medido de **23,2 min** (10 corridas) y esta corrida duró **31 min**: margen real **1,45x**, no 2x. Era el riesgo que se dejó anotado horas antes ("los caps subieron después de esas mediciones"), confirmado más rápido de lo esperado. **Recomendación: 60.** Sigue desbloqueando rápido (contra las 2 h originales) sin dejar al barredor matando corridas vivas.
+**HALLAZGO 3 (menor) — `processed_items.run_id` viene `null`:** `Preparar procesados` no lo setea. No rompe el dedup (la clave es `platform+external_id`), pero **impide atribuir memoria a corridas**, que es exactamente lo que hace falta para auditar duplicados.
+**Otros cambios del día:** `ventana_corrida_min` 120 → 45 en el repo (motor + archivado + el duplicado de `apps/dashboard/domain/corrida.ts`) — **falta aplicarlo a mano en n8n** · el 403 de la fachada ahora dice `motivo` · el test de `hayCorridaViva` deriva sus fixtures de la constante en vez de un hueco fijo · base de D5 commiteada (`domain/ajustes.ts`: valida los 18 knobs, que ni Airtable ni el schema validaban).
+**Verificación:** validador 1436/0 · dashboard 64/64 + typecheck · `test-nodos.mjs` verde.
+**Próximo paso:** **plan aparte para los 3 hallazgos** (sesión nueva, pedido de Mani) y después **D5**, que ya está desbloqueado: con la fachada viva, la config migra a Postgres **sin volver a tocar n8n**. Sigue pendiente la **2ª corrida de fuego** (dedup): ahora vale más que antes, porque con 191 en memoria la intersección de `external_id` entre ambas debe dar **∅**.
+
+**2026-07-30 (cierre 69) — D3 cerrado (el espejo vive) + el swap de D4 hecho en los 3 workflows y verificado con replay A/B; el re-import queda listo pero bloqueado por una env de Vercel (Claude, pedido de Mani).**
+**Lo que se hizo, en orden:** cerrar D3 (correr el modo sombra de verdad) y hacer la mitad-n8n de D4 (los 3 `workflow.json` dejan de leer la config). Decisión de Mani al arrancar: el re-import de D4 va **separado** del re-import del fix del timeout (cierre 67), que sigue siendo lo urgente — así, si una corrida falla, se sabe cuál de los dos fue.
+**🔑 D3 — por qué nunca había corrido, y no era solo el `42501`:** el `.env.local` del dashboard tenía **6 placeholders sin reemplazar** (`AIRTABLE_PAT`, `AIRTABLE_BASE_ID` y los 4 de headers; `AIRTABLE_BASE_ID` era literalmente `TU-...`). El cierre 68 lo atribuyó todo al grant faltante — era eso **y** esto. Sincronizados desde el `.env` de la raíz, que es el hub y los tenía reales. **Espejo perfecto ×2:** voces 3 · proyectos 6 · referentes 16 · ajustes 18 · propuestos 8.
+**🗑️ El dato sucio que lo destapó (decisión de Mani: las dos cosas).** `app.referentes` reventaba por `plataforma NOT NULL`: de 21 filas de Airtable, **5 eran basura**. Se separaron en dos clases con tratamiento distinto: **(a) filas fantasma** — sin ningún campo humano — que las **genera sola la grilla de Airtable y reaparecen**, así que el espejo las ignora (`esFilaFantasma` en `domain/sombra.ts`, filtrado en `leerTablaAirtable` para que **import y diff vean lo mismo**: si solo filtrara el import, el diff las reportaría como faltantes para siempre); **(b) filas a medio cargar** (`'@'` y `@the.rumers` sin plataforma), que **siguen fallando loud** porque ahí sí hay una decisión humana — esas 2 se borraron en Airtable (backup en el scratchpad). **El caso que obligó a afinar la regla:** un referente vaciado a mano cuyo único contenido era `tasa_gate: 0.12` / `videos_evaluados: 26` — **salud que escribe el archivado, no una persona**, y que en `app.referentes` ni siquiera es columna (es la vista `v_salud_referentes`, plan §4). Por eso los 3 campos derivados no cuentan como contenido. **Verificado de paso: el motor nunca estuvo afectado** — `Armar plan de corrida:55` hace `if (!handle) return;`. Dato suelto: `recYQot…` está `activo=true` con proyectos pero **sin handle**, o sea el equipo lo cree vivo y el motor lo ignora en silencio.
+**🔧 D4 — el swap, workflow por workflow.** Nodo nuevo idéntico en los 3: **`Leer plan (fachada)`**, GET a `{dashboard_url}/api/engine/run-plan`, credencial `httpHeaderAuth` (`Run Plan Header`), **`executeOnce`** (la regla del cierre 67 aplicada aunque hoy entre 1 item), retry ×3 / 2s, timeout 30s y **SIN `onError`** — fail-closed como manda el contrato. `dashboard_url` entra en `Config` con placeholder `<<DASHBOARD_URL>>` (misma convención que `supabase_url`). **Motor** (`?ambito=motor`): mueren 4 nodos en cadena, 1 code node tocado. **Descubrimiento** (`?ambito=completo`): mueren 4. **Archivado** (`?ambito=completo`): mueren 3, 4 code nodes consumidores.
+**⚠️ El hallazgo del swap, que casi cambia la conducta en silencio:** el `Leer Proyectos` del **descubrimiento** filtraba `{activo}` server-side y su code node **NO** re-filtraba — pero sus `Leer Voces`/`Leer Referentes` no filtraban nada. O sea **ningún ámbito calzaba tal cual**: `completo` lo habría puesto a proponer referentes para proyectos apagados. Se resolvió como manda el contrato (*"cada workflow aplica su propia lógica sobre el total"*): una línea explícita `if (!f.activo) return;` en `Armar plan de descubrimiento`, igual que los referentes ya hacían 20 líneas abajo. **La regla dejó de estar escondida en un query param.** El archivado, en cambio, no filtraba nada en sus 3 lecturas ⇒ `completo` calza exacto (verificado campo por campo).
+**Topología: los nodos muertos NO estaban todos en cadena.** En descubrimiento `Leer Ajustes` era un **punto de join** (lo alimentaban `IF — hay aprobados` rama false y `PATCH Propuestos promovidos`) y en archivado `Leer Referentes (archivado)` estaba a mitad de flujo. El builder hace **bypass** de cada muerto (cada arista que le entraba va a su propio destino vivo, preservando los índices de salida del IF) y recién ahí **inserta** la fachada tras `Barrer runs zombie`. Un guard que compara destinos abortó el primer intento — por eso está.
+**Verificación (todo sin gastar un crédito):** **replay A/B del motor** — code node viejo (`git show HEAD`) alimentado por las 4 lecturas de Airtable con sus filtros originales vs. code node nuevo alimentado por la **fachada real** ⇒ **mismo plan, byte a byte** (`assert.deepStrictEqual`). **Replay A/B del descubrimiento** (el que más lo necesitaba, por el filtro nuevo): fachada devuelve 6 proyectos, el código filtra a los mismos 4 ⇒ **mismo plan**. **Archivado:** comparación a nivel dato, `?ambito=completo` **== lecturas sin filtro, campo por campo** en las 3 tablas (cubre sus 4 code nodes, cuyos cambios son sustituciones de la misma expresión). Además: `test-nodos.mjs` **todo verde con los asserts intactos** (solo cambió el mock de `$`, que es justo la prueba de que la lógica no se movió) · grafo de los 3: **0 rotas / 0 huérfanos / 0 inalcanzables** · **31/31 code nodes compilan como AsyncFunction** · validador **1436/0** · dashboard **49/49** + typecheck limpio.
+**🔴 El bloqueante que apareció al verificar:** la fachada en **prod responde 403** con el par del `.env`; **local responde 200** (y 403 sin header, 400 con typo). El código está bien: lo que no calza es la env en Vercel (ausente o distinta — `headerValido` da false en los dos casos). **Con esto así, re-importar D4 deja al motor abortando en todas las corridas.** Va a §Pendiente vivo. No pude mirarlo yo: la cuenta de Vercel conectada por MCP no tiene ese proyecto.
+**Archivos:** `Workflows/*/workflow.json` ×3 · `test-nodos.mjs` (mock) · `domain/sombra.ts` + `.test.ts` (+5 casos) · `scripts/comun.ts`. Docs: dev-doc (nodo nuevo ×3, diagramas, tablas, nodos que mueren), CLAUDE.md y README del motor, README del archivado, este handoff.
+**Próximo paso:** (1) **arreglar la env de Vercel** y re-verificar con curl · (2) el re-import del fix del timeout + las 2 corridas de fuego (sigue pendiente del cierre 67) · (3) **re-import #1 de D4** con la credencial `Run Plan Header` y `<<DASHBOARD_URL>>` en `Config` · (4) el 3er pase del diff de D3 con una edición del equipo · (5) **D5**, que el swap acaba de desbloquear: de acá en adelante la config migra a Postgres **sin volver a tocar n8n**. **Y rotar el `service_role`**, que sigue sin hacerse desde el 19/07.
+
+**2026-07-29 (cierre 68) — El transcriptor (ADR-031, 4ª zona) + el bug que tenía a todo el BFF sin poder leer el schema `app` (Claude, con Mani).**
+**Lo que se construyó:** la zona **Transcribir** del cockpit — el equipo pega N links en un textarea (uno por línea, con comas, o el chat de WhatsApp copiado entero: se extraen con regex) y recibe el **script literal** en español. Los enlaces entran al **dedup del motor**, que era el requisito duro del pedido.
+**🔑 El hallazgo que definió el diseño:** el dedup del motor es `processed_items` con clave `(platform, external_id)`, y para IG ese `external_id` es el **pk numérico de Apify** (`item.id`), que **no está en la URL** que el equipo pega. Parecía que había que resolverlo con una llamada extra a Apify por link, o tocar `Heat-score v1` (= re-import). Ninguna de las dos: **el shortcode de IG *es* ese número escrito en base64 url-safe**. Verificado contra la base viva con el parser real: **408/408 filas, cero mismatches** (381 IG por shortcode, 27 TT por el id que ya viaja en `/video/<id>`). Así que la app **deriva** el `external_id` exacto desde la URL y el dedup es un `INSERT` idempotente en `processed_items`: **cero cambios en n8n, cero re-import.**
+**⚠️ La invariante que queda viva:** *para Instagram, `processed_items.external_id` == decimal de base64(shortcode de la URL)*. Si alguien "arregla" `Normalizar IG` para preferir `item.shortCode` sobre `item.id`, el dedup entre las dos herramientas se rompe **en silencio**. La alarma son los **8 pares reales** clavados en `apps/dashboard/domain/enlace.test.ts`.
+**Decisiones (todas en [ADR-031](../adr/ADR-031-transcriptor-a-pedido.md)):** corre **en la app, no en n8n** (Supadata mide **0.8–1.7s/video**, no los ~27s que dice el comentario viejo del nodo; con pool de 8 y presupuesto de 45s una pasada cubre más links de los que van a pegar, y como cada enlace se marca apenas vuelve, un timeout de Vercel no pierde nada — la pasada siguiente sigue) · el dedup se escribe **solo si transcribió OK** (si no hay transcript el enlace queda libre; se auto-corrige porque el gate lo descartaría por `sin_guion`, ADR-030) · lo que produce **NO es un Candidato** (sin gate, sin heat-score, sin N, sin dupla video×proyecto) y vive en `app.transcripciones` · **4ª zona**, que enmienda el "tres zonas" de plan-cockpit §2.1 — la regla que importaba era *una zona = un verbo*, y el sponsor no la ve. El prompt de traducción está **copiado textual** del nodo `Traducir (Claude Haiku)`: las dos superficies tienen que dar el mismo script literal (ADR-009).
+**🚨 El bug que apareció al probarlo, y que no era del feature:** la zona mostraba "no se pudo leer la lista". Causa: **`007` otorgó `usage on schema app` SOLO a `authenticated`, nunca al `service_role`**, y **`008` lo dio por sentado por escrito** ("por REST solo las lee el service_role (bypassa RLS y tiene los suyos)"). Eso es falso: **BYPASSRLS saltea las policies, pero no otorga USAGE sobre un schema propio ni privilegios de tabla** — Postgres los pide igual y Supabase solo auto-otorga sobre `public`. Diagnóstico: la misma key leía `public.processed_items` (408 filas, RLS sin policies) y daba `42501 permission denied for schema app` sobre `app.usuarios`, que existe desde 007. **Consecuencia real: TODO lo que el BFF lee de `app.*` estuvo roto desde el día 1** — `/entender` (sus 3 vistas) y los scripts de sombra incluidos. **El login lo tapaba** porque va por la anon key con el rol `authenticated`, que sí tenía su grant desde 007. Por eso D2 y D3 figuraban ✅: el código estaba bien, **nunca llegó a leer**. Fix: `011_grants_app_service_role.sql` (+ corrección del comentario mentiroso en 008). **Confirmado después de aplicarla: `/entender` devuelve datos por primera vez.**
+**🔐 Tercer hallazgo (revisar en Vercel):** en `apps/dashboard/.env.local` las variables estaban **cruzadas** — la key `sb_secret_` metida en `NEXT_PUBLIC_SUPABASE_ANON_KEY` (comprobado: leía `processed_items` con RLS sin policies) y el **placeholder literal** `TU-SERVICE-ROLE` en `SUPABASE_SERVICE_ROLE`. Se arregló local. **El deploy está limpio** (bajé el HTML + los 13 chunks de `/login`: cero ocurrencias de `sb_secret_`), pero **por suerte, no por diseño**: el login es un server action, así que ningún componente cliente referencia esa variable y Next nunca la inyecta. El día que alguien use `createBrowserClient`, si en Vercel está el mismo cruce, **la key secreta se publica en el bundle**. Va a §Pendiente vivo.
+**Archivos:** `domain/enlace.ts` + `.test.ts` (parser puro, **`BigInt` y no `Number`**: son 19 dígitos y float64 los redondea) · `lib/transcribir.ts` (Supadata + Haiku) · `lib/transcripciones.ts` (cola + `registrarEnDedup`) · `lib/eventos.ts` (auditoría, sumidero) · `app/(zonas)/transcribir/` (page + actions + 3 componentes cliente) · `core/schema/010` y `011` · `domain/roles.ts` + layout (la zona nueva). Docs: ADR-031 + índice · glosario `context.md` (**Enlace pegado**, **Transcripción a pedido**, **el transcriptor**) · plan-cockpit §2.1 (enmienda) · README del dashboard + `.env.example` · onboarding §1.1, §8.2 y §9.
+**Verificación:** dominio **44/44** (15 nuevos) · parser vs base viva **408/408** · `typecheck` + `build` limpios (`ƒ /transcribir` en la tabla de rutas) · validador **1436/0** · Supadata+Haiku ejercitados con el código real (inglés → *"Esta es liquidez. Comercia hacia ella…"*) · link corto de TikTok rechazado con instrucción · guard de zona: `/transcribir` anónimo → `/login`.
+**Gotchas para el próximo:** (1) el `tsconfig` apunta a **ES2017**, que prohíbe literales `0n` — de ahí el `BigInt(0)`; (2) `app.voces` y `app.proyectos` están **vacías**, o sea el `sombra:import` de D3 nunca pudo correr — mismo 42501, no era otra cosa; (3) la migración se aplica a mano en el SQL Editor: no hay credencial de Postgres directo en el `.env`, solo PostgREST, que no corre DDL.
+**Próximo paso:** las 2 corridas de fuego + el re-import siguen pendientes del cierre 67 (nada de esto los toca) · revisar el cruce de env vars en Vercel · **rotar el `service_role`**, que sigue sin hacerse desde el 19/07. **Skills sugeridas:** `/diagnose` si la corrida de fuego #1 falla; `/tdd` para D5 (el corte de config, ahora desbloqueado por el 011).
+
+**2026-07-28 (cierre 67) — El cron del 27/07 murió por timeout en `Leer procesados`: no era el timeout, era el nodo corriendo ~600 veces (Claude, reporte de Mani).** **La causa raíz, que no es la que parecía:** un `httpRequest` de n8n corre **una vez por item de entrada**, y el propio error lo delata (`"itemIndex": 2`). Después del fan-out entran ~600 items (280 videos IG → 635 filas video×proyecto), así que `Leer señal selección` disparaba ~600 GETs idénticos, y como esa respuesta se despliega en items, `Leer procesados` disparaba **miles** — cada uno con la **misma** URL de 5,1 KB (257 `external_id` dentro del `in.(…)`), porque el nodo arma su URL desde `$('Pre-trim relevancia').all()`, no desde el item que procesa. Trabajo O(N²): N requests idénticos de tamaño N. Subir el timeout no arreglaba nada (600 requests secuenciales a 2s = 20 min). **🚨 Lo más importante del cierre:** este mismo timeout **ya venía pasando antes de ADR-029**, cuando `Leer procesados` era `continueRegularOutput` — se lo tragaba en silencio, `seen` quedaba vacío y el motor re-entregaba todo. **Es el origen de los 15 duplicados del 20→21/07.** ADR-029 no lo causó: lo hizo visible. Arreglar esto ES arreglar los duplicados, no un tema aparte. **Fix (3 cosas, ningún nodo nuevo, ninguna conexión nueva):** (1) **`executeOnce: true`** en `Leer señal selección`, `Leer procesados` y `Leer feed vivo` — son lookups **de corrida**, no de item; de ~600 requests a 1. Los tres, no solo el que falló: `Leer feed vivo` era la próxima bomba (600 ejecuciones × hasta 30 páginas contra Airtable, que limita a 5 req/s = horas). Seguro porque `Heat-score v1` **no usa su input directo**, lee todo por referencia. (2) **Fuera el `in.(…)`**: la URL vuelve a ser constante (`select=external_id,platform&limit=50000`). Revierte el "dedup acotado #5" del cierre 15, que se decidió **sin medir la tabla**: `processed_items` tiene **408 filas / 26 KB**, o sea el filtro de 5,1 KB existía para evitar leer 408 filas. De paso muere el techo de 414 (a ~700 ids distintos la URL pasa los 8 KB). (3) **Retry nativo ×3 / 2s + timeout 30s** en los tres — un hipo de red ya no mata la corrida; si tras 3 intentos la memoria sigue sin leerse, el run **aborta** (decisión de Mani: los duplicados son inservibles, ADR-029 intacto). **⚠️ No le pongas `onError` a `Leer procesados`:** fail-open ahí es literalmente la falla que estamos arreglando. **Verificado contra Supabase:** el run fallido **no guardó ningún ID** (cero filas del 27/07; la última escritura es del 23/07) — coincide con la topología, `Leer procesados` está aguas arriba de `Heat-score → Preparar procesados → POST processed_items`. No hay nada que limpiar. **Quedó como enmienda a [ADR-029](../adr/ADR-029-dedup-blindado-fail-closed-y-feed.md#enmienda-2026-07-28--el-fail-closed-necesitaba-una-lectura-que-no-se-cayera-sola), no ADR nuevo:** no cambia la decisión, la hace ejecutable — y cierra el contexto original del ADR, que describió el agujero "lectura fail-open" sin saber que ya se estaba disparando. La enmienda deja escrita **la regla que sobrevive al fix: cualquier lookup de corrida nuevo va `executeOnce`.** **Verificación:** `test-nodos.mjs` **+1 caso** (memoria truncada en el límite aborta) todo verde · validador **1409/0** · grafo 38 nodos / 3 triggers / 0 rotas / 0 refs colgadas / 0 inalcanzables · 15 code nodes compilan como AsyncFunction. **Docs:** enmienda ADR-029 + índice de ADRs, dev-doc §2.1 (el bullet 🔴 del execute-once) + filas 18/19/19b + nodo 20, CLAUDE.md del motor (la trampa del "corre una vez por item", que va a reaparecer con cualquier lookup nuevo). El README del motor y `workflow.yaml` no se tocan: describen el dedup a un nivel que no cambió. **Próximo paso:** re-import + las 2 corridas de fuego del cierre 66, que siguen sin correrse. **Y rotar el `service_role`** (§Pendiente vivo): se pegó en el chat por tercera vez.
+
+**2026-07-24 (cierre 66) — Audit del run manual de Jero: dedup blindado + descarte duro de sin-guion + métricas por proyecto + caps de entrega (Claude, pedido de Mani).** Tres fallas del run del 23/07, confirmadas contra código + `outputs-main` + Supabase + Airtable, cerradas en 2 ADRs y 3 commits. **[ADR-029](../adr/ADR-029-dedup-blindado-fail-closed-y-feed.md) — duplicados:** la causa raíz de los 15 duplicados del run 20→21/07 fue triple (memoria de `processed_items` ausente + `Leer procesados` fail-open + feed sin `external_id`). Fix: `Leer procesados` **fail-closed** (GET caído aborta, no re-entrega); nodo nuevo **`Leer feed vivo`** (GET paginado a Airtable, última línea de dedup, fail-open); `Heat-score` une las dos memorias + tripwire; **reorden de ramas** para grabar la memoria **antes** de entregar; `external_id` ahora se escribe en el feed (`Preparar batch Airtable`) + campo creado en la base viva; `Resumen` reporta `registro_dedup`+`avisos`. **[ADR-030](../adr/ADR-030-descarte-duro-sin-transcript.md) — sin-guion (revierte la decisión #6):** un video sin transcript se **descarta** en el `Gate` (`descarte_razon:'sin_guion'`, no gasta Haiku ni N), se retira el fallback por caption, no van a *Descartes del gate*; `Transcribir` reintenta 1 vez y loguea la respuesta cruda de las vacías (el 41% del 23/07: 39/41 usaban audio original → NO es música licenciada, el actor IG no trae `hasAudio` → no hay pre-filtro por metadata posible con este actor). **Entrega (Falla 2):** `cap_top_n` 100→250 y `presupuesto_transcribir_s` 780→**840** (⚠️ el plan decía 1560 pero el **watchdog del task runner es 900s** y el presupuesto DEBE quedar debajo; 1560 lo rompía — corregido). **Métrica de criterios (Falla 5):** `Resumen` arma `metricas.por_proyecto {evaluados, sin_guion, gate_pass, tasa_gate, entregados, razon_faltante}` + **card nueva en Operar** (`apps/dashboard`, `domain/corrida.ts` → `embudoPorProyecto`/`ultimoEmbudo`, 4 tests). **Verificación:** `test-nodos.mjs` +13 casos (harness `runHeatScore` y `runGate` nuevos, retry de Transcribir) todo verde · validador **1409/0** · dashboard 29/29 tests, typecheck limpio en mis archivos (los 2 errores de `layout.tsx` son `@vercel/*` sin instalar, preexistentes). **Fase 0:** borrados los **15 duplicados** del feed (conservando la copia calificada/vieja de cada par; los 15 están en `processed_items` desde el 21/07 así que no resucitan). **Docs:** ADR-029/030 + índice, dev-doc (nodo nuevo, Gate, Resumen, Transcribir), CLAUDE.md del workflow (fail-open matizado), onboarding equipo (sin-voz se descarta solo + cómo leer la tasa de gate), mapa-campos, `setup-airtable.mjs` (+external_id), `workflow.yaml` (presupuesto). **Decisiones pendientes de Mani:** ver §Pendiente vivo (re-import, TikTok, watchdog, corrida de fuego, spike Apify). **Próximo paso:** re-import del `workflow.json` (trae Fase 1–4 juntas) + corrida de fuego doble para verificar dedup.
+
+**2026-07-20 (cierre 65) — DESBLOQUEADO D0: el login por magic link funciona end-to-end con Resend SMTP; cae el único bloqueante del cierre 64 (Mani ejecutó, Claude diagnosticó).** Sesión de puro debug de config, sin código. **El síntoma:** "configuré SMTP con Resend pero el correo no se manda". **Diagnóstico paso a paso** (el código ya estaba instrumentado para esto, cierre 64): el error real NO vive en Vercel (salía `{}`) sino en **Supabase → Auth Logs** — `POST /auth/v1/otp` daba **500** para mail invitado (SMTP falló) y **422** para no invitado (esperado, `shouldCreateUser:false`). **La causa raíz encadenada:** (1) **Resend exige dominio verificado**; sin verificar está en modo test y solo entrega al mail dueño de la cuenta, rechazando el resto con **403** → Supabase 500. (2) **La cuenta Resend es de Daniel** (su mail personal), no de Mani — se probó el pipeline completo invitando ese mail y funcionó (cayó en spam la 1ª vez: `onboarding@resend.dev` sin firmar). (3) **30x.com NO se pudo verificar** (no controlan su DNS) → se usó **`retiagrowth.com`** (dominio de la agencia, DNS en Squarespace). **Fix final:** verificado el subdominio **`contact.retiagrowth.com`** en Resend (SPF/DKIM cargados en Squarespace) + Sender de Supabase apuntado ahí. Ahora el magic link llega a cualquier mail invitado, sin spam. **Config SMTP que quedó (al gestor, no acá):** host `smtp.resend.com` · port 465 · username literal `resend` · password = API key `re_...` · Sender en `contact.retiagrowth.com`. **Doc actualizada:** este log + tabla D0–D4 (D0 ✅) + bloque del bloqueante (resuelto), README del dashboard ([:54](../../apps/dashboard/README.md) — gotcha del dominio verificado), memoria del cockpit. **Próximo paso:** invitar los mails reales de Majo/Jero (*Authentication → Users* + fila en `app.usuarios`) → cerrar hecho-cuando D0 con el equipo → swap de nodos + re-import #1 (D4 completo) → D5.
+
+**2026-07-20 (cierre 64) — Deploy + setup de infra del cockpit, verificado en prod; D4 mitad-app confirmada leyendo Airtable real; login bloqueado por el email de Supabase (Mani ejecutó, Claude guió).** Sesión de puesta en marcha, no de código nuevo grande. **Hecho por Mani con guía:** migraciones 007–009 en Supabase (confirmadas por query: 9 tablas + 4 vistas) · schema `app` en *Exposed schemas* · 2 usuarios en `app.usuarios` · **deploy en Vercel** (root `apps/dashboard`) con las 8 env vars (2 públicas + service_role + `AIRTABLE_PAT`/`AIRTABLE_BASE_ID` + `MOTOR_WEBHOOK_*` ×3 + `RUN_PLAN_HEADER_*` ×2) · Site/Redirect URL de Auth · **credenciales rotadas** (cae el pendiente rojo del cierre 57). **Verificación en prod (curl + código):** `/` y `/operar` → 307 a `/login` · `/login` 200 · `/api/engine/run-plan` sin header 403, ambito typo 400, **con header devolvió la config REAL** (3 voces: Juan Pablo Vieira/Rosario Gómez/Milena Morales · 2 proyectos TP N=20 / TfT N=10 · 5 referentes con salud · 18 ajustes) — **D4 mitad-app probada end-to-end contra Airtable vivo, sin tocar n8n.** **Fixes de código de la sesión:** `?ambito=motor|completo` en la fachada (decisión de Mani "la más efectiva": un endpoint, no dos) + `armarRunPlanCompleto` (25/25 tests) · logging del error real en `auth/confirm` y `login/actions` (para diagnosticar el magic link sin adivinar). **El bloqueante:** el magic link no llega — rate limit del email built-in de Supabase (free). Detalle y plan (Resend) en §Para la próxima sesión. **Gotcha aprendido:** en Supabase free, editar email templates requiere custom SMTP, y el built-in tiene cuota de envío muy baja — para cualquier app con login por mail hay que conectar un SMTP propio (Resend) desde el arranque. **Doc actualizada:** handoff (este bloque + la tabla D0–D4 arriba), README del dashboard, CLAUDE.md (contrato run-plan.md + migraciones 001–009), memoria. **Próximo paso:** destrabar el login (Resend) → cerrar hecho-cuando D0 → swap de nodos + re-import #1 (D4 completo) → D5.
+
+**2026-07-20 (cierre 63) — La decisión de la fachada: query param, no endpoint hermano (Mani eligió "la más efectiva"; Claude implementó).** `GET /api/engine/run-plan?ambito=motor` (default) = filtros de ADR-028 §2 + N resuelta · `?ambito=completo` = mismo shape sin filtros de `activo` y N tal cual, para el **archivado** (todas las voces) y el **descubrimiento** (ignora `activo`, cierre 49) · ambito desconocido = **400** (un typo en n8n no degrada en silencio). Un solo endpoint = una credencial y una URL en n8n. Contrato actualizado ([run-plan.md §Los dos ámbitos](../../core/contracts/run-plan.md)) · 25/25 tests · verificado vivo con curl (400 typo / 503 fail-closed). **Setup de infra HECHO y verificado en prod (cierre 63, Mani + Claude):** migraciones 007–009 corridas (9 tablas + 4 vistas confirmadas por query) · schema `app` en *Exposed schemas* · 2 usuarios en `app.usuarios` (por ahora 2 cuentas de Mani; Majo/Jero se invitan en el beta) · **app deployada en Vercel**: https://pipeline-creacion-contenido.vercel.app (root `apps/dashboard`, 2 env públicas `NEXT_PUBLIC_SUPABASE_*`) · Site URL + Redirect URL de Auth apuntando a la URL de Vercel. **Verificado por curl:** `/` y `/operar` → 307 a `/login` · `/login` → 200 renderiza completo · `/api/engine/run-plan` sin header → 403 (NO redirige: el fix del proxy vive en prod). **Falta para cerrar hecho-cuando de D0:** Mani entra con su mail (magic link) y ve nombre+rol — es un click suyo, no queda nada de código. **Faltan las 8 env de D1/D4** (service_role, Airtable PAT+base, webhook motor ×3, run-plan ×2) en Vercel: cargar los valores **post-rotación** del martes 21/07 (cierre 57) — hasta entonces Operar/Entender muestran sus avisos de error a propósito y el resto anda.
+
+**2026-07-20 (cierre 62) — D4 del cockpit propio, mitad-app: la fachada `GET /api/engine/run-plan` viva y verificada; el swap de nodos n8n queda diseñado pero NO ejecutado (Claude, /goal "sigue con los D").** **El endpoint** ([`app/api/engine/run-plan/route.ts`](../../apps/dashboard/app/api/engine/run-plan/route.ts)): header compartido con comparación timing-safe (`RUN_PLAN_HEADER_*`, par NUEVO del gestor — no se reusa el del webhook) · **fail-closed en cada camino** (sin env → 403; header malo → 403; Airtable caído → 503; nunca un 200 sin config) · hoy lee Airtable por dentro con los MISMOS filtros server-side que los 4 nodos que reemplaza. **El dominio puro** ([`domain/run-plan.ts`](../../apps/dashboard/domain/run-plan.ts)): el gate proyecto-activo-de-voz-activa + N ya resuelta contra `Candidatos por corrida` (fail-open a 100) + pass-through de voces/referentes/ajustes — 3 tests nuevos (24/24). **El contrato** ([`core/contracts/run-plan.md`](../../core/contracts/run-plan.md), hermano de lectura de ingesta-registro como pedía ADR-028): forma v1 = listas `{id, fields}` (lo que el motor ya parsea → el swap es un nodo, no una refactorización), `version` gobierna compatibilidad, fail-closed explícito (el HTTP Request va SIN continue-on-fail). **Gotcha resuelto:** el proxy redirigía TODO a `/login` — un GET del motor habría recibido un 302→200 con HTML (fail-closed roto en silencio); `/api/engine` quedó como ruta pública con su propia auth. **Verificado en vivo** (dev server + curl): sin header 403 · header equivocado 403 · header correcto con Airtable placeholder **503 fail-closed**. Typecheck · 24/24 · build · validador verdes. **Lo que queda de D4 (NO hecho, a propósito):** (1) el swap en los 3 `workflow.json` (4+ nodos de lectura → 1 HTTP Request c/u) — es cirugía del carril del motor, pide `test-nodos.mjs` + replay contra la corrida anterior y el re-import #1 manual; (2) **decisión abierta del arquitecto:** archivado (necesita TODAS las voces) y descubrimiento (ignora `activo` a propósito, cierre 49) no pueden consumir los filtros del run-plan tal cual — ¿query param o endpoint hermano? Está flaggeado en el contrato §Alcance. **Próximo paso:** decidir esa variante con Mani → swap + re-import #1 → verificar mismo plan con replay (hecho-cuando de D4) → D5 (corte de config dominio por dominio, empezando por Ajustes).
+
+**2026-07-20 (cierre 61) — D3 del cockpit propio: capa de datos y modo sombra construidos; el espejo vivo espera las env reales (Claude, /goal "sigue con los D").** **Migración [`009_app_config_sombra.sql`](../../core/schema/009_app_config_sombra.sql):** el schema `app` completo — `voces` · `proyectos` (con las 2 reglas que Airtable no podía hacer cumplir como constraint: `voz_id NOT NULL` y `criterios_relevancia NOT NULL`) · `referentes` (plataforma como enum; la salud NO se guarda: es la vista `v_salud_referentes`, derivada de `runs.metricas.por_referente` 7d + `v_senal_seleccion` como el nodo 24 del archivado) · `ajustes` (`clave` con CHECK contra los 18 knobs del AJUSTE_MAP — un typo revienta al escribir en vez de ignorarse en silencio; `visibilidad` equipo/dev reemplaza al checkbox "Mostrar al equipo") · `candidatos` (sin cuota; `output_id` FK a `outputs` para el archivado futuro) · `descartes` (`veredicto` por fin editable) · `referentes_propuestos` · `eventos` (auditoría C7). **Identidad sombra:** cada tabla lleva `airtable_id` único; el import upsertea por esa clave y el diff compara por ella (legado inofensivo post-D8). Validada igual que la 008: Postgres 16 local, 001→009 en orden limpio, vista de salud computando (9/12=0.75) y las constraints mordiendo (proyecto sin voz ✖, knob inventado ✖). **Los scripts** (`apps/dashboard/scripts/`, imports relativos porque fuera de Next no hay alias `@/`): `npm run sombra:import` = espejo idempotente (upsert por `airtable_id`/`clave` + borrado de lo que Airtable ya no tiene; FKs resueltas contra los padres con error con nombre si falta el orden) · `npm run sombra:diff` = compara los 2 mundos campo a campo y sale 1 si difieren. **El mapeo y el diff son dominio puro** (`domain/sombra.ts`, borrado con el modo sombra en D7): normalización entre mundos (checkbox ausente=false, ''≡null, timestamps por instante Z≡+00:00, numeric-string≡number), y los 2 fail-loud con mensaje útil (proyecto sin voz / sin criterios) — 5 tests nuevos (21/21). **Verificación:** typecheck · 21/21 · scripts parsean y mueren limpio sin env (exit 1) · validador verde. **Ojo:** la corrida real de import/diff necesita las env de D1 en `.env.local` — es de Mani (o de una sesión con el gestor a mano). El hecho-cuando de D3 = diff en cero **3 corridas seguidas**, una con ediciones del equipo en el medio. **Próximo paso:** **D4 — la fachada** (`GET /api/engine/run-plan` leyendo Airtable por dentro, ADR-028; los 3 workflows cambian sus nodos de lectura por 1 HTTP Request = re-import #1; verificar con `test-nodos.mjs` + replay).
+
+**2026-07-20 (cierre 60) — D2 del cockpit propio: la zona Entender completa (las 3 páginas rojas, bien hechas); migración 008 validada contra Postgres real (Claude, /goal "sigue con los D").** Cero riesgo como manda el plan: no escribe nada. **Migración [`008_entender_tarifas_y_vistas.sql`](../../core/schema/008_entender_tarifas_y_vistas.sql):** `app.tarifas` (las 8 tarifas que estaban baked en fórmulas de Airtable, seed del contrato §Tarifas) + las 3 vistas de ADR-027 — `app.v_metricas_calidad` (por semana×proyecto desde `outputs`, con `relevancia_score` para separación del gate), `app.v_embudo_semana` (suma `runs.metricas` del motor; una `en_curso` no ensucia porque sus metricas aún son null), `app.v_costos_semana` (**formato largo** semana×servicio: unidades × tarifa; motor por `params->>workflow='motor'`, descubrimiento por `'descubrimiento'`; `haiku_lote` = lotes pretrim+gate). **Validación de verdad, no a ojo:** Postgres 16 local (homebrew) + base descartable con stubs de Supabase (`auth.users`, `auth.uid()`, roles) → 001–008 aplican en orden limpio → datos de prueba → las 3 vistas devuelven exactamente lo calculado a mano ($5.54 la semana, 84×0.009=0.76, precisión 0.75, separación 0.40). ⚠️ Gotcha para el SQL Editor: **`precision` va quoted (`"precision"`)** — keyword de SQL. **La pantalla:** `entender/page.tsx` orquesta (auth + `Promise.allSettled`, cada bloque falla solo) y las secciones presentacionales viven en `secciones.tsx` (renderizables con fixtures) · calidad con el **`diagnostico` del archivado portado 1:1** a `domain/entender.ts` (mismos umbrales <0/<0.10/<0.20 + apéndice de ruido si precisión<40%; tests de bordes exactos) · embudo con tiles + barras de una sola serie con labels directos (skill dataviz: sin paleta categórica, texto en tokens de texto) · costos con número héroe + tabla por servicio + totales de semanas anteriores. `lib/entender.ts` lee las vistas vía `.schema("app")` con service_role, Zod en el borde. **Verificación:** typecheck · 16/16 tests (2 nuevos de diagnóstico) · build verde · **verificación visual real** (las secciones renderizadas con fixtures en una ruta temporal ya borrada: embudo proporcional, diagnósticos y totales correctos en pantalla) · validador 1355+/0. **Lo manual de Mani:** aplicar `008` después de `007` (mismo SQL Editor; el resto del setup no cambia). **Próximo paso:** **D3 — capa de datos y modo sombra**: migración con el schema `app` completo (voces, proyectos, referentes, ajustes, candidatos, descartes, referentes_propuestos, eventos), script de **import idempotente** desde Airtable y script de **diff** Airtable↔Postgres; Airtable sigue siendo el dueño hasta que el diff dé cero 3 corridas seguidas.
+
+**2026-07-20 (cierre 59) — D1 del cockpit propio: la pantalla Operar completa (el muro de B.2, derribado en el repo); falta el env real para el hecho-cuando (Claude, pedido de Mani).** Sin migrar un solo dato, como manda el plan. **Lo nuevo en `apps/dashboard/`:** (1) **Dominio puro** [`domain/corrida.ts`](../../apps/dashboard/domain/corrida.ts): `armarVistaOperar` espeja el gate del motor (proyecto activo de voz activa; N vacía o 0 → default global, ADR-024) + lecturas legibles de `runs` (`hayCorridaViva` con la MISMA ventana de 120 min del guard single-flight, duración, "entregó N candidatos" de `metricas.outputs`) — 9 tests nuevos (14/14 verdes). (2) **BFF:** `lib/airtable.ts` (borrado en D5/D7, como decía la línea de al lado) lee Voces/Proyectos/Ajustes read-only con los mismos `filterByFormula={activo}` del motor (Zod en el borde; **muere en D5**) · [`lib/supabase/admin.ts`](../../apps/dashboard/lib/supabase/admin.ts) el service_role entra como estaba previsto, solo server · [`lib/runs.ts`](../../apps/dashboard/lib/runs.ts) últimas corridas del motor con el mismo discriminador del archivado (`params->>workflow='motor'`). (3) **Server action `correrAhora`:** POST señal desnuda al webhook con el header (ADR-023), `exigirZona("operar")` antes de disparar, 403 explicado en el mensaje (el gotcha del header), y quién disparó a los logs de Vercel (auditoría interina hasta `app.eventos`/D3). (4) **La pantalla:** "Qué va a correr" (por voz, cada proyecto con su N y si es default; los activos con voz apagada avisan que NO corren) + botón con **confirmación explícita** ("correr gasta créditos", plan §3.3) que se deshabilita si hay corrida viva + "Corridas recientes" (estado/hace cuánto/disparo/duración/entrega/error) con **polling de 5 s solo mientras haya una `en_curso`** (plan §8). Las dos mitades fallan solas (`Promise.allSettled`): sin Airtable igual se ven las corridas, y al revés. **Verificación:** typecheck · 14/14 tests · build verde · smoke browser (login renderiza, `/` redirige) · validador **1364/0**. **Env nuevas en `.env.example`** (valores al gestor, jamás en git): `SUPABASE_SERVICE_ROLE` · `AIRTABLE_PAT`/`AIRTABLE_BASE_ID` · `MOTOR_WEBHOOK_URL`/`_HEADER_NOMBRE`/`_HEADER_VALOR` (el par EXACTO de la credencial `Webhook Motor Header`; distinto = 403 silencioso). **Lo manual de Mani:** los pasos de D0 del cierre 58 + cargar estas 6 env vars en Vercel/`.env.local`. Con eso se prueba el hecho-cuando de D1 (Jero dispara sin abrir n8n y ve cuándo terminó) — **ojo:** el click de prueba gasta créditos reales; conviene probarlo cuando el feed ya se calificó, no antes de una corrida que importe. **Próximo paso:** hecho-cuando de D0+D1 en vivo → **D2: Entender** (las 3 vistas SQL `v_metricas_calidad`/`v_embudo_semana`/`v_costos_semana` + tabla de tarifas + las 3 pantallas read-only).
+
+**2026-07-20 (cierre 58) — D0 del cockpit propio: el andamio construido y verificado; quedan los 3 pasos manuales de Supabase/Vercel (Claude, pedido de Mani).** Arranca la ejecución del [plan-cockpit-propio](../archivo/plan-cockpit-propio.md). **`apps/dashboard/` existe:** Next.js 16 (App Router, Turbopack) + TS + Tailwind v4 + shadcn copiado al repo (`components/ui`, preset radix-nova) · login por **magic link** con `shouldCreateUser: false` (un mail no invitado no crea cuenta) · `auth/confirm` soporta los **dos** formatos del mail de Supabase (`token_hash` y `code`, así no depende de editar el email template) · `proxy.ts` refresca sesión y manda a `/login` (**en Next 16 middleware se llama proxy** — el archivo `middleware.ts` es la convención vieja) · las **3 zonas** (`operar`/`curar`/`entender`) con empty states que explican qué llega en qué fase, y **guardia por rol en el servidor**: `exigirZona()` en cada página + dominio puro en `domain/roles.ts` (operador=operar+curar · sponsor=entender · dev=todo). **Migración [`007_app_usuarios.sql`](../../core/schema/007_app_usuarios.sql) lista:** schema `app` + enum de 3 roles + RLS "cada quien lee su fila" + grants; el alta de usuarios es invite + insert (snippet en el header). **Feedback loops nuevos** (CLAUDE.md §Feedback loops): `npm run typecheck` + `npm test` en `apps/dashboard` — el dominio se testea con `node:test` corriendo los `.ts` directo (Node 26 los ejecuta sin transpilar). **Verificación:** typecheck verde · 5/5 tests · `next build` verde (8 rutas + proxy) · smoke en browser con env placeholder (`/` redirige a `/login`, la página renderiza) · validador **1355/0**. **Gotchas del scaffold que ahorran una hora al próximo:** (1) `shadcn init` dejó `--font-sans: var(--font-sans)` **circular** en `globals.css` → toda la UI salía serif; se apunta a `var(--font-geist-sans)`. (2) Turbopack infería `/Users/mani` como workspace root por un `package-lock.json` suelto en el home → `turbopack.root` fijado en `next.config.ts`. (3) `node --test domain/` no anda en Node 26: hace falta el glob `"domain/**/*.test.ts"` + `allowImportingTsExtensions` en tsconfig. (4) `.gitignore` de create-next-app ignora `.env*` ⇒ excepción `!.env.example`. **Sin secretos nuevos:** la app solo usa URL + anon key (RLS manda); el `service_role` recién entra en D1+ y solo en el BFF. **Lo manual de Mani** (los 3 pasos del [README §Setup](../../apps/dashboard/README.md)): aplicar `007` + agregar `app` a *Exposed schemas* · invitar los 5 mails + insertar filas en `app.usuarios` · proyecto Vercel (root=`apps/dashboard`, 2 env vars del gestor) + Redirect URL en Supabase Auth. Con eso se cumple el hecho-cuando de D0 (Majo entra, ve nombre y rol, `/entender` la rebota). **Próximo paso:** los 3 pasos manuales → verificar el hecho-cuando → **D1: ▶ Correr ahora** (pantalla Operar leyendo Airtable read-only + POST al webhook desde el BFF + estado leyendo `runs`).
+
+**2026-07-19 (cierre 57) — Los 3 re-imports hechos + feed reseteado a mano para la corrida del lunes (Mani + Claude).** **(1) Re-imports ✅** — Mani re-importó los 3 workflows: el motor entra con **spillover** (enmienda ADR-024) y **pool de 8 concurrentes** en `Transcribir` (cierre 55). Caen los pendientes de los cierres 54–55. **Confirmación independiente de que el archivado quedó bien:** su cron del domingo 19/07 18:00 corrió **`ok`**, dejó *Descartes del gate* en 0 y sumó 2 filas a `outputs`. **(2) Reset del feed, pedido por Mani para arrancar limpio.** Antes de borrar se auditó el blanco: `Candidatos` tenía **65 records, TODOS `nuevo`** (07-10/11/13/17) ⇒ cero calificaciones perdidas, y confirma otra vez el feed apilado del cierre 53. **La ambigüedad que hubo que resolver antes de tocar nada:** "borrar de Airtable y Supabase" no mapea 1:1 — en Supabase no existe "Feed de Calificación"; lo que gobierna si la corrida es realmente limpia es **`processed_items`** (el dedup), y aparte están `outputs` (histórico canónico, ADR-014, alimenta `v_senal_seleccion`) y `runs` (bitácora que el archivado lee para Métricas). **Decisión de Mani: solo lo del feed actual, el resto del histórico procesado se respeta.** Ejecutado: 65 `Candidatos` borrados + **sus** 65 filas de `processed_items` (**298 → 233**), con `outputs` (18) y `runs` (22) intactos. **El join no era obvio:** `Candidatos` **no guarda `external_id`**, así que el vínculo con el dedup es por `url_referente` ↔ `processed_items.url` — el cruce dio **65/65 exacto, cero huérfanos**. Backup de los 65 records en el scratchpad antes de borrar. **Gotcha de tooling que vale para la próxima:** el sandbox corta las requests curl con URL larga (**HTTP 000 en 0.000s** — no es rate limit de Airtable, que fue mi primera hipótesis equivocada): el DELETE de Airtable anda de a 1–2 ids por query string y **muere a partir de ~5**; la salida es el **MCP `delete_records_for_table`** (50 por request, sin límite de URL). También: el Python del sistema **no tiene certs CA** (`CERTIFICATE_VERIFY_FAILED`) ⇒ para HTTPS usar `curl`, no `urllib`. **(3) 🔴 Credenciales expuestas:** Mani pegó el **PAT de Airtable** y el **`service_role` de Supabase** en el chat (misma clase que el cierre 36). Se usaron desde un archivo en el scratchpad con permisos 600, **nunca** dentro del repo, y se borró al terminar. **Decisión de Mani: rotar el martes 21/07, después de la corrida**, para no romper la prueba del lunes → §Pendiente vivo. **Qué esperar el lunes:** pool = 65 videos liberados (ya habían pasado el gate una vez ⇒ buen material para ver el spillover repartiendo entre TP y TfT) + lo publicado desde el 17/07; los 68 vistos-y-no-entregados del 17/07 siguen bloqueados, así que `colectados` va a ser más bajo que el viernes y **eso no es un fallo**. **Archivos:** solo handoff (§Pendiente vivo + este log). **Próximo paso:** la corrida del lunes con sus 3 verificaciones (guard, descubrimiento, `trigger_type`), después el curado del cockpit, y el martes rotar credenciales.
+
+**2026-07-18 (cierre 56) — Pre-re-import: el cockpit gana su capa de ayuda (53 descriptions escritas por MCP) y el spec por página queda campo a campo (Mani + Claude).** Pedido de Mani antes del re-import: onboarding completamente ready (cada campo de cada página explicado) + guía tabla por tabla. **El hallazgo que lo simplificó todo: `update_field` SÍ edita descriptions** — el límite de la API (cierre 50) es la config de *páginas*, no el schema. Así que los "textos de ayuda" dejaron de ser un paso manual: **por MCP se escribieron las descriptions de TODOS los campos de las 9 tablas** (53 nuevas: `Candidatos` 21 — estaba en cero —, `Proyectos` 5, `Voces` 3, `Descartes` 7, `Métricas Global` 17 de contadores/costos; el resto ya las tenía de pasadas previas) **+ la descripción de la tabla `Voces`** (era pre-ADR-009, "Eje de generación" — poda de B.3 que estaba esperando). El equipo ahora ve el ⓘ en cada campo. **2 verificaciones en vivo de paso:** `Métricas Proyectos.precision` **ya es tipo percent** (el fix "(3) % en Calidad" de B.6 quedó sin objeto) · la tabla `Métricas Global` mezcla filas GLOBAL y DESCUBRIMIENTO ⇒ la página *Salud del Sistema* necesita **filtro `ambito = GLOBAL`** (sumado al paso 7 de la guía; sin él, el embudo muestra filas vacías del descubrimiento). **Entregables:** [mapa-campos §6.2](../archivo/mapa-campos.md) nueva — el spec por página campo a campo (orden, ✏️/👁, qué ocultar: links inversos en Proyectos/Voces, `fecha`/`fecha_calificacion` del Feed, calidad+costos fuera de *Salud*) · onboarding gana los diccionarios que faltaban (campos de *Descartes*, *Calidad por Proyecto*, *Salud*, *Costos* + la nota del ⓘ) · dev-doc §5 apunta al spec y fija la regla "campo nuevo = description junto con el campo" · artifact "Curado del Cockpit" republicado (v2: helper texts ✅, filtro ambito, precision sin objeto). **Lo que queda a mano para Mani:** visibilidad + permisos + filtros por página (los 12 pasos) y el helper text de cada elemento. **Adenda del mismo cierre — §6.3, el helper text por página:** Mani pidió el texto de ayuda de *cada campo mostrado en cada página*, que es una cosa **distinta** de la description de tabla — Airtable tiene dos: el **ⓘ del campo** (ya cargado por MCP) y el **helper del elemento en la página** (debajo del campo, se escribe a mano al armar la vista, la API no lo toca). Escritos los **105 helpers** de las 12 páginas + el form, en tono para Majo/Jero, con la regla de triage "si vas corto de tiempo, cargá solo los ✏️ editables — los 👁 ya se explican con el ⓘ". Viven en [mapa-campos §6.3](../archivo/mapa-campos.md) y en el artifact v3 (acordeón por página, botón de copiar por campo). **Próximo paso:** sin cambios — re-import (spillover + pool) y el checklist del lunes.
+
+**2026-07-18 (cierre 55) — Transcribir gana un pool de 8 llamadas concurrentes: la corrida baja de ~38 min a ~5 y el paso de infra del cierre 54 queda sin objeto (Mani + Claude).** Dato nuevo de Mani que cambió el fix: **Supadata está en plan pago ($17/mes: 3.000 créditos, 10 req/s, batch)** — la memoria del repo asumía el free tier de 1 req/s, que era lo que prohibía la concurrencia. **Propuesta de Mani:** paralelizar con ~8 nodos de transcripción + Merge. **Consensuado a la versión simple:** un **pool de 8 llamadas concurrentes dentro del ÚNICO nodo** `Transcribir` — misma velocidad, cero cambio de topología, y la razón de fondo: partir el fan-out en ramas **rompe el dedup por `external_id`** (copias del mismo video en ramas distintas = doble cobro), que es exactamente lo que el cierre 31 arregló. Implementado con builder: workers sobre un cursor compartido, `SLEEP_MS` eliminado (era del free tier), el presupuesto ahora corta *arranques* (los en vuelo terminan). **Números:** 8 en vuelo × ~27s/video inician ~0.3 req/s (lejos del límite de 10); 84 videos ≈ 5 min; **780s cubren ~200 videos** ⇒ `presupuesto_transcribir_s` **volvió a 780** y **el env de InstaPods NO se toca** (los pasos de SSH+restart del cierre 54 se retiraron del §Pendiente vivo). **El harness ahora también cubre Transcribir** (compilado como AsyncFunction + `this.helpers.httpRequest` mockeado): 11 casos nuevos — concurrencia en vuelo ≤8, dedup 1 llamada por único con fan-out, fail-open con Supadata caída, corte por presupuesto con aviso, fallback de idioma. **42/42 verdes**, validador 1229/0. **Docs:** workflow.yaml (knob + etapa enriquecer), dev-doc (Config + nodo 21), README del motor, CLAUDE.md del motor (además se corrigió el "no hay tests", drift desde el cierre 46), memorias transcribir/costos. **Batch API de Supadata:** existe y queda anotada como mejora futura (submit+poll es más código que el pool y el pool ya deja el nodo en ~5 min). **Próximo paso:** sin cambios — re-import del motor (ahora spillover + pool en una sola pasada, §Pendiente vivo) y el checklist del lunes.
+
+**2026-07-17 (cierre 54) — La sesión de auditoría completa: spillover construido y verificado con datos reales, el hallazgo nuevo de transcripción, ADR-025 firmado y la guía de curado lista (Mani + Claude).** Ejecuta los 3 frentes que el cierre 53 parkeó. **① Fixes con decisiones de Mani (consultadas en vivo):** **(1) Spillover ✅ (enmienda de ADR-024):** `Armar candidato` gana el paso 3 — dedup → corte → **spillover**: los sobrantes van al proyecto con cupo que también los gateó, con LA COPIA de ese proyecto (su `relevancia_*`). **Garantía dura pedida por Mani: un video sale en UN solo proyecto, siempre** (N candidatos distintos). 8 casos nuevos en `test-nodos.mjs` (35/35 verdes) **+ replay con los outputs reales de la V-run: TP 6→9 clavado** (los 3 videos exactos del diagnóstico del 53), TfT 10, 0 duplicados. Semántica final documentada: **N es techo exacto, la entrega es best-effort sobre el supply**. **(2) Referentes compartidos entre proyectos de una voz = VÁLIDO** (decisión Mani): el pipeline ya dedupa las etapas pagas; el under-delivery se ataca sembrando referentes, no prohibiendo el solape. **(3) Guard single-flight → prueba viva el lunes 20/07 con el cron** (cero costo extra; instrucción paso a paso en §Pendiente vivo). **(4) Feed apilado → onboarding + tarea del equipo.** **② El barrido destapó el hallazgo gordo que la V-run no vio: la transcripción degradada en silencio.** De 84 videos únicos solo **28 salieron con transcript** — el patrón en `outputs-main` es un prefijo perfecto: `presupuesto_transcribir_s`=780 cortó el loop (~27s/video de Supadata; el sleep es 1s). Consecuencia real: **6 de los 16 entregados salieron ⚠️ SIN GUION** y el "supply fino" del 53 estaba en parte contaminado (el gate juzgó 56 videos solo por caption). **Decisión Mani: subir infra** — repo pasa el presupuesto a **3000**; Mani sube `N8N_RUNNERS_TASK_TIMEOUT` a 3600 en InstaPods **ANTES** del re-import (al revés = modo de fallo del 07-10: el watchdog mata el nodo entero; fallback documentado). El cierre 53 decía "84 transcritos" — era impreciso: 84 *procesados*. También del barrido: grafo limpio en los 3 workflows (0 refs rotas, 31 code nodes compilan), `ventana_corrida_min` vivo en el archivado, el no-filtro de voces del descubrimiento intacto, TikTok vacío confirmado como falta de siembra (`tt_profiles: []`), y un falso positivo documentado para no re-investigar: **`POST-airtable.json` es la RESPUESTA de Airtable y omite checkboxes false** — `viral_por_tamano` sí se escribe. **③ A.5 CERRADA: [ADR-025](../adr/ADR-025-cockpit-producto-propio.md)** — el cockpit migra a producto propio (toda la superficie); Airtable interino curado al mínimo; **B.2 RETIRADA** (el muro del free plan fue el empujón); disparo interino = Execute manual. Sin gate de aprobación (Mani lo propone al equipo y avanza). Enmienda del invariante transversal en ROADMAP §1. **Entregables de superficie:** guía de curado **ejecutable** en [mapa-campos §6](../archivo/mapa-campos.md) (12 pasos con textos de ayuda copiables) + **checklist interactiva** publicada como artifact ("Curado del Cockpit"); [onboarding](../onboarding-equipo-redes.md) actualizado al refactor (corridas a demanda §3.1, `N` y su semántica de máximo, `Voces.activo`, referentes compartidos, páginas nuevas del menú, FAQ). **Limpieza pedida por Mani:** el nombre "Andrés" borrado de docs y memoria (one-pager, plan §0, este log). **Verificación:** 35/35 tests, validador 1229/0, secretos limpios. **Archivos:** motor (`workflow.json` Armar candidato + Config, `workflow.yaml`, `test-nodos.mjs`, README), ADR-024 (enmienda), ADR-025 (nuevo), ADR README, ROADMAP §1, plan (A.5/B.2/C.1/§6), mapa-campos (§5.2 + §6 nueva), dev-doc (§ enmiendas + nodos 21/24 + Config), onboarding, CLAUDE.md (rango ADRs), one-pager. **Próximo paso:** todo manual — el checklist de §Para la próxima sesión (infra → re-import → lunes → curado → equipo); el ciclo se juzga el 26/07; después, kickoff del producto propio.**
+
+**2026-07-17 (cierre 53) — V-run: C.1 (N por proyecto) CONFIRMADO en vivo; el corte funciona, pero destapó el límite de supply + un spillover gap con proyectos que comparten referentes (Mani + Claude).** Mani corrió el motor por *Execute manual* post re-import y actualizó `/outputs` (gitignored). **Diagnóstico del run:** **✅ C.1 vivo** — el plan entregó N por proyecto: *Trading fast tips* = **10 exactos** (su N), no ~100 del global ⇒ el re-import del cierre 52 cargó C. **Verificado en Airtable por MCP:** 16 records nuevos fecha 07-17 (**TP 6 · TfT 10**), `estado=nuevo`, links proyecto/voz/referente correctos, calzan clavo con `POST-airtable.json`. **⚠️ Under-delivery: 16 entregados vs 30 objetivo (TP 6/20, TfT 10/10), dos causas con datos:** **(a) Supply (dominante)** — de 84 videos únicos transcritos (cap_top_n=100 no mordió), el gate pasó solo **22 únicos** (TP 11 = 3 exclusivos + 8 compartidos; TfT 19). **TP topa en 11 aun con asignación perfecta**, nunca 20: el pool no tiene 20 videos psychology-relevantes y el gate hace su trabajo (rechaza fast-tips para TP). **(b) Spillover gap (arreglable, NO parcheado)** — 3 videos que pasaron el gate de TP se **descartaron enteros** porque el dedup→corte de C.1 los asignó a TfT (mayor `relevancia_score`) y TfT ya estaba lleno (10), **sin spillover** al TP hambriento (tenía 14 slots). Arreglarlo llevaría TP 6→9. **El plan (C.1) decía "N se cumple exacto" — es media verdad:** N es un techo exacto (nunca lo pasa) pero no una entrega garantizada cuando el supply es fino o el pool compartido se concentra en un proyecto; dedup→corte no reparte los sobrantes. **No lo parcheé** (protocolo #4): toca la filosofía "N techo vs entrega" → decisión de Mani, posible enmienda de ADR-024. **Raíz que lo destapó:** los 2 proyectos activos comparten **la misma voz (Juan Pablo Vieira) y los MISMOS 5 referentes** (@abeteddymaruta, @nicholascrown, @martinelli_paul, @casper_smc, @krosh.ivan) — el peor caso del modelo Netflix ("universos separados"). Pregunta de producto abierta: ¿proyectos bajo una voz con referentes distintos, o se acepta N bajo para nichos finos? **🔵 Falso positivo que casi reporto, descartado (para que nadie lo re-investigue):** sospeché doble cobro Supadata/Haiku (126 filas video×proyecto para 84 únicos, 42 duplicados). **NO lo hay:** `Transcribir` y `Traducir` **dedupan por `external_id`** y reparten el resultado a las copias del fan-out (arreglado en cierre 31) ⇒ 84 llamadas, no 126. El pipeline ya maneja bien el caso de referentes compartidos en las etapas pagas. **NO probado:** el guard single-flight (fue un solo Execute) y `trigger_type='manual'` en `runs` (Supabase, sin acceso desde outputs). **Integridad Airtable (nota operativa, no bug):** la tabla `Candidatos` tiene **67 records** — 51 son `nuevo` sin calificar de corridas viejas (07-10/11/13): el equipo no está calificando; el archivado los purga a los 20 días, así que no rompe, pero el feed está apilado. **Decisión de producto de la sesión (turno previo, contexto para el ADR de A.5):** ante el muro de B.2 (Airtable free bloquea "Run a script"), Mani decidió **mover todo a un producto propio** (frontend+backend+auth+escalabilidad) → resuelve A.5 hacia producto propio para toda la superficie (Mani lo propone al equipo y avanza por su cuenta, sin gate de aprobación); **B.2 deferido**, el equipo dispara por Execute manual. Near-term nada se desarma (motor/archivado/descubrimiento + Airtable siguen vivos). Memoria `refactor-voces-proyectos` actualizada. **Archivos:** solo docs (handoff: §Pendiente vivo V-run ✅ + B.2 deferido, tablero C, este log). **Próximo paso:** (1) decidir el **spillover** (enmendar C.1/ADR-024 o aceptar N como techo); (2) decidir **referentes-por-proyecto** bajo una voz; (3) escribir el **ADR de A.5** (Airtable→producto; sin gate de aprobación); (4) el **guard single-flight** sigue sin prueba viva (un 2º Execute encima de una corrida viva).
+
+**2026-07-17 (cierre 52) — Re-import de los 3 workflows: el motor nuevo, el archivado nuevo y el descubrimiento están VIVOS (Mani).** Cae el bloqueante que arrastraba desde el cierre 45: todo lo que estaba "en el repo pero no en n8n" ahora corre. **Motor:** re-importado, publicado y activo, con el webhook on-demand + guard single-flight (C.3, 37 nodos), N por proyecto (C.1) y gate por `Voces.activo` (C.2). El path del webhook (`<<WEBHOOK_PATH_MOTOR>>` reemplazado) y la credencial `httpHeaderAuth` **`Webhook Motor Header`** (header + value) quedaron creados — **los dos en el gestor de contraseñas, jamás en git** (enmienda auth de ADR-023). **Archivado:** re-importado con los cambios de D (D.3b `notas_equipo`/`viral_por_tamano` → `outputs.metadata`, D.4 poda `tema`/`link_doc`, matiz D.2 `runs_fallo`×`en_curso`). **Descubrimiento:** también publicado y corriendo. Las versiones viejas quedaron **desactivadas** (confirmado por Mani) — sin riesgo de cron doble el lun 20/07. **Lo que NO cambia con esto:** el re-import es la mitad n8n del webhook; falta la mitad Airtable (**B.2**: automation `fetch(POST)` a la URL + botón "▶ Correr ahora", mandando el MISMO header — la API de Airtable no lo crea, es de Mani a mano). Y **la prueba viva de C sigue pendiente**: es la V-run (corrida post re-import — botón o Execute manual — verificando que *Trading Psychology* entrega ~20 y *Trading fast tips* ~10, no ~100 repartidos → C.1 probado en vivo). **El primer ciclo end-to-end sigue cerrando el 26/07** (§Ciclo): el archivado del dom 19/07 sale parcial por diseño (aún no corrió el motor nuevo). **Regla que se activa ahora:** en cada re-import futuro reusá el MISMO path y el MISMO header (memoria `reimport-eslabon-debil`, versión webhook); valores nuevos = automation apuntando al endpoint viejo, botón 403 en silencio. **Próximo paso:** B.2 (botón + automation en Airtable, con un click de prueba antes de dárselo a Majo/Jero) + esperar/disparar la V-run. Los fixes de UI de B.6 siguen en el carril de Mani.
+
+**2026-07-16 (cierre 51) — El webhook del motor gana Header Auth: enmienda de auth a ADR-023 (Mani + Claude).** Salió de una pregunta de Mani sobre qué era `<<WEBHOOK_PATH_MOTOR>>`. **El hallazgo:** el nodo webhook de C.3 quedó **sin autenticación** (`credentials: null`, sin opción de auth) ⇒ el **path hacía de bearer token por omisión, no por decisión** — y revisando ADR-023, **el ADR nunca decidió el tema**. Quien consiguiera la URL podía disparar corridas **pagas** (Apify + Supadata + Haiku) a voluntad; el guard single-flight acota un click repetido, no el abuso sostenido. **Decisión de Mani: Header Auth.** El nodo `Disparo on-demand (webhook)` ahora lleva `authentication: headerAuth` + credencial `httpHeaderAuth` **`Webhook Motor Header`** (builder Node, como manda el CLAUDE.md del motor; solo el nombre en git, nunca el valor). **Lo que cambia el modelo de amenaza:** el path pasa de secreto a identificador y el secreto es el header, que **no viaja en la URL** (donde una URL se filtra sola: logs de proxy, historiales, referers). El path aleatorio queda igual, como defensa en profundidad. La auth es del **trigger**, así que un POST no autorizado da 403 y **ni abre run** (no consume el guard, no ensucia `runs`). No toca cron ni Execute manual (no pasan por HTTP). **Descartadas** (en el ADR, con su porqué): Basic Auth, JWT, y seguir sin auth. **⚠️ El costo aceptado, que es el que va a morder:** un lugar más donde el re-import falla **en silencio** — si el header de la automation y el de n8n no coinciden, el botón da 403 y nadie se entera. Por eso el §Pendiente vivo ganó el paso de la credencial + "probalo con un click antes de dárselo al equipo" + **la regla de reusar el MISMO path y header en cada re-import futuro** (la versión webhook de `reimport-eslabon-debil`: valores nuevos = automation apuntando al endpoint viejo). **Corrección de algo que dije mal en la sesión:** avisé que el riesgo del timeout de 900s en `Transcribir` seguía vivo — **hay mitigación desde antes**, el knob `presupuesto_transcribir_s` (780) del Config: al excederlo el resto pasa **sin transcript** (fail-open) en vez de morir por el watchdog. El riesgo real de una corrida grande no es que muera, es **degradación silenciosa** (muchos ⚠️ SIN GUION). **Verificación:** grafo 0 problemas (37 nodos, 3 triggers), 15 code nodes compilan (ojo: hay que compilarlos como **AsyncFunction** — n8n los corre en contexto async, así que un `new Function()` pelado da 4 falsos positivos por el `await` de nivel superior), `test-nodos.mjs` verde, validador **1229/0** (+1: el manifest declara la credencial nueva), secretos limpios. **Archivos:** `workflow.json` (1 nodo), `workflow.yaml` (trigger + credentials + setup), ADR-023 (enmienda auth), contrato cockpit §Disparo on-demand (snippet del `fetch` con header), handoff (§Pendiente vivo). **Próximo paso:** sin cambios — el re-import del motor sigue siendo el único bloqueante de la V-run, ahora con un paso más.
+
+**2026-07-16 (cierre 50) — Barrido de "qué puede hacer el agente y qué no" antes de la corrida manual: B.4 cerrado, *Costos* publicada, N sembrada (Mani + Claude).** No es código: es destrabar a mano lo destrabable y **dejar por escrito el límite de la API**, que era lo que se re-derivaba cada sesión. **(1) B.4 ✅** — el permiso MCP de escritura que se denegó en el cierre 49 esta vez pasó: tildado `Mostrar al equipo` en *Mínimo de likes* y *Mínimo de vistas*. Cero riesgo (la máquina no lee ese checkbox; es el filtro de la página *Configuración Global*). **(2) *Costos* publicada** por `publish_interface` — Mani autorizó publicar el interface *Cockpit Redes* **entero** sabiendo que promueve todos los drafts, no solo esa página. Queda verificar a ojo el filtro de semana (§Pendiente vivo). **(3) N sembrada, y es lo que le da sentido a la corrida manual:** el hallazgo del cierre — con `N` vacía en los 6 proyectos, **el motor nuevo entrega exactamente lo mismo que el viejo** (todo cae al global 100), así que la V-run habría verificado "no rompí nada" sin probar **ninguna** feature de C. Decisión de Mani: N **asimétrica** en los 2 únicos proyectos activos — *Trading Psychology* = 20, *Trading fast tips* = 10. Si post re-import entrega ~20 y ~10, C.1 (corte por proyecto, ADR-024) queda probado en vivo con una sola corrida. **(4) El límite de la API, ahora documentado para no re-derivarlo:** el MCP de Airtable escribe *records* y publica interfaces, pero **no edita la config de una página** — no existe `update_page`, solo `create_page`/`delete_page`/`publish_interface`. ⇒ **todo B.6 restante + B.5 son de Mani a mano, sin atajo de agente**. Verificado de paso por MCP: `veredicto` sigue `isEditable: false` en *Descartes* (el loop de ADR-021 sigue muerto), *Salud del Sistema* sigue sin un solo campo del embudo, y la página *Voces* no muestra `activo`. **(5) Chequeos de estado que dieron limpio:** `test-nodos.mjs` verde, working tree limpio, el placeholder `<<WEBHOOK_PATH_MOTOR>>` intacto en el `workflow.json`, los 6 proyectos con 1 sola voz (la limpieza del cierre 47 aguantó), las 3 voces activas. **Archivos:** solo docs (handoff + plan §B.4/§B.6(4)/§C.1). **Estado:** el único bloqueante de la corrida manual es el **re-import del motor** — no espera nada más. **Próximo paso:** Mani hace el re-import (checklist §Pendiente vivo) y dispara el Execute; el botón/automation de B.2 es aparte y solo hace falta para probar el webhook, no la corrida manual.
+
+**2026-07-16 (cierre 49) — Las 3 decisiones abiertas del carril, consultadas y ejecutadas: D queda COMPLETO en el repo (Mani + Claude).** Continuación inmediata del 48; cierra todo lo que el carril del motor tenía "esperando a Mani" preguntándole en vivo. **(1) D.3 → salida (b):** `Armar filas archivado` ahora lleva **`notas_equipo` y `viral_por_tamano` a `outputs.metadata`** (al Sheet no van). La señal cualitativa del equipo (el *por qué* de un 👎) y la marca viral dejan de morir con el record cada domingo; "¿lo viral se aprueba más?" pasa a ser una query SQL. **La (a) — que las notas entren al destilado de Haiku — queda abierta a propósito:** se decide con el corpus que (b) empieza a acumular (si va, es enmienda de ADR-022). **(2) D.4 aprovechado** (el plan lo autorizaba solo si D.3 iba por (b)): podadas las lecturas vestigiales `f.tema`/`f.link_doc` del mismo nodo — archivaban `''` desde ADR-019/009; las filas viejas conservan sus keys en el jsonb y `v_senal_tema` ya era inerte. **(3) Matiz D.2 arreglado:** `Computar métricas semana` **saltea los `en_curso` más jóvenes que `ventana_corrida_min`** al contar `runs_ok/fallo` (knob nuevo en el Config del archivado, 120, mismo nombre/semántica que el motor) — un click del botón cerca del domingo 6pm ya no cuenta como fallo; un `en_curso` más viejo es zombie y sigue contando. Loguea `corridas vivas salteadas: n`. **(4) Descubrimiento vs `Voces.activo` → se queda como está, DELIBERADO:** una voz apagada sigue recibiendo propuestas (barato, despensa para cuando se prenda). Documentado en el plan §Descubrimiento y en el README del descubrimiento con "no lo arregles" explícito — la decisión pasó de "pendiente" a "tomada", que es lo que evita el fix silencioso de un agente futuro. **Archivos:** `workflow-archivado/workflow.json` (builder Node, 3 nodos tocados: Config, `Armar filas archivado`, `Computar métricas semana`), plan (D.3/D.4 ✅, D.2 actualizado, §Descubrimiento decidido), mapa-campos (§2.1/§2.2/§4 resueltos), dev-doc (§4.2 filas 3/10/17d, §6 convención de metadata), README del descubrimiento. **Verificación:** grafo del archivado limpio (37 nodos, 10 code nodes, sintaxis OK), validador **1228/0**, secretos limpios. **Estado:** C y D completos en el repo, **ninguno re-importado** — el §Pendiente vivo tiene los 2 checklists (motor con webhook path; archivado sin placeholders nuevos, puede ir en la misma sesión de n8n). **Próximo paso:** los re-imports + botón/automation (Mani); en código del refactor no queda nada que no espere a A.5/B (carril superficie).
+
+**2026-07-16 (cierre 48) — C.3 + C.4: el webhook single-flight está construido y C queda COMPLETO en el repo (Mani + Claude).** Cierra el carril del motor. **C.3 (ADR-023, builder Node):** nodo `Disparo on-demand (webhook)` (POST, path placeholder `<<WEBHOOK_PATH_MOTOR>>` — la URL de Producción dispara corridas pagas, va al gestor, jamás a git; responde 200 inmediato) + el guard. **Las 3 decisiones las tomó Mani** (consultadas, no asumidas): (1) **el guard aplica a los 3 triggers**, no solo al webhook — sin eso el cron del lunes podía arrancar encima de una on-demand viva, el barredor zombie la marcaba `fallo` y las dos corrían en paralelo pagando doble; costo aceptado: si hay corrida viva a la hora del cron, esa semana se saltea (recuperable con el botón). (2) **Vivo vs. zombie por `ventana_corrida_min`** (knob nuevo del Config, 120 min; 19→20 knobs): `en_curso` más joven = viva (bloquea), más viejo = zombie. **El barredor zombie se movió ANTES del guard** y ganó umbral de edad — así un zombie jamás traba el motor (con el orden viejo, barrido-después-de-abrir, un zombie habría bloqueado todo para siempre) y ya no necesita excluir su propio run id. (3) **Check-then-act aceptado**: ventana residual de ~1-2 s entre clicks casi simultáneos (peor caso: costo doble + candidatos duplicados esa vez; `processed_items` no se ensucia); se descartó el unique index parcial en Supabase. **Arranque nuevo del motor (33→37 nodos):** `[cron|manual|webhook] → Config → Barrer runs zombie → Leer corridas vivas → Guard single-flight → (libre) Abrir run → Leer Proyectos`, con la rama bloqueada muriendo en un NoOp **sin abrir run** (un click bloqueado no ensucia `runs_fallo` ni la salud). Fail-open intacto: Supabase caído ⇒ el guard deja pasar. **Bonus de trazabilidad:** `Abrir run` registra el `trigger_type` real (`on_demand`/`manual`/`cron` vía `isExecuted` — antes TODO se registraba `'cron'`; el check de 001 ya permitía los 3). **C.4 (confirmar, no asumir — confirmado a nivel repo):** la coexistencia secuencial cron+on-demand es limpia por diseño (`unique(platform, external_id)` de 002 + `ignore-duplicates` + `Leer procesados`/`Heat-score` — quien corre primero se lleva el video) y **el archivado no filtra por `trigger_type`** ⇒ las corridas on-demand entran solas a Métricas (medio D.2 de regalo). Matiz documentado en el contrato: **un segundo click re-paga scrape+pre-trim aunque entregue nada nuevo** (el dedup corta en Heat-score, después del pre-trim) — el botón no es gratis. **E.2 quedó ✅ en su mitad-repo:** con la señal desnuda no hay tabla `Corridas` ni campos nuevos; lo que falta es a mano (botón + automation, la API no los crea) → B.2, checklist en §Pendiente vivo y en el contrato §Disparo on-demand. **Drift ajeno corregido de pasada:** el manifest (`workflow.yaml`) todavía listaba `banda_descarte_min/max` como filters (C.5 los podó del Config en el cierre 45) — podados; sumado el trigger webhook y `ventana_corrida_min`. **Docs:** enmienda C.3 en ADR-023 (el "cómo" del guard) · dev-doc §1/§2.1/§2.2/§9 (topología nueva, filas 2b/4/4b/4c/4d) · contrato cockpit §Disparo on-demand nuevo · README/CLAUDE.md del motor · checklist manual de `setup-airtable.mjs`. **Verificación:** grafo 0 problemas (37 nodos, 3 triggers, 15 code nodes) · `test-nodos.mjs` verde (los jsCode no se tocaron) · validador **1228/0**, secretos limpios. **⚠️ El guard NO está probado en vivo** (es httpRequest+IF, no code node — `test-nodos.mjs` no lo cubre): la prueba real es el re-import + un Execute con una corrida ya corriendo. **Bonus del mismo cierre — D.1 + D.2 ✅:** leídos `Computar métricas semana` y `Computar salud referentes` del archivado: **no asumen el barrido total** — suman sobre todos los runs de la semana (dedup por id, `duracion_min` promedia, `por_referente` acumula, min de muestra al total semanal); la calidad por proyecto ni mira runs. Matiz flagueado sin parchear (D.2 del plan): `runs_fallo` contaría como fallo un run legítimamente `en_curso` al momento del archivado — imposible con solo cron, posible con un click del botón ~5:45pm del domingo; cosmético, fix barato si Mani lo quiere. **Próximo paso:** re-import del motor (Mani, checklist §Pendiente vivo) + botón/automation en Airtable (B.2); en código del carril motor solo quedan decisiones de Mani (D.3, D.4, matiz D.2); los carriles de superficie siguen (B.6 → A.5).
+
+**2026-07-16 (cierre 47) — el dato de las 2 voces, limpio; la regla del modelo queda escrita (Mani).** Cierre del hallazgo del 46, mismo día. **Mani fijó la regla, y es la esencia del refactor: un proyecto tiene UNA voz; una voz tiene VARIOS proyectos.** Limpió los 2 proyectos en Airtable; verificado por MCP: los 6 con una sola voz, 2 por voz (Milena → parejas + empresas · Rosario → Storytelling + líderes · Juan Pablo → los 2 de Trading). **Coletazo que vale anotar:** en *Comunicación para lideres* eligió **Rosario**, y el motor venía usando **Milena** (era `[0]`) ⇒ ese proyecto **va a filtrar con otros criterios de voz** cuando se prenda. No hay efecto hoy (está inactivo; solo corren los 2 de Trading), pero es exactamente el silencio que el hallazgo destapó: nadie sabía qué voz estaba aplicando. **Lo que NO se puede cerrar y queda como guarda:** Airtable no ofrece un link "exactamente uno" por API, así que `voz_default` sigue siendo multi-link y nada impide re-romperlo. Por eso quedan las 3 capas: la regla en el contrato, el **aviso por log** del motor, y el test. **Si el aviso aparece, se limpia el dato — no se toca el código.** Escrito en [mapa-campos §2.6](../archivo/mapa-campos.md) (la vieja §2.5 se partió: el multi-link de **Referentes** sigue abierto, es otra pregunta), el contrato y §Pendiente vivo. Decisiones abiertas del refactor: de 3 a **2**.
+
+**2026-07-16 (cierre 46) — E.1 + C.2 (`Voces.activo` vivo y respetado) + tests de verdad para el motor + un dato sucio que apareció solo (Mani + Claude).** Cierra el bloque de C que no depende del webhook. **E.1:** `Voces.activo` creado en contrato + `setup-airtable.mjs` + **la base viva** por MCP (`fldqekbuBxhzgOSG1`). **🚨 El gotcha del cierre, vale para E.2 y para cualquier toggle futuro:** crear un checkbox en Airtable deja **todos los records existentes destildados**, y como C.2 filtra server-side por `{activo}`, desplegar así habría dejado **cero voces activas ⇒ el motor entregando nada**. Se prendieron las 3 voces a mano en la misma pasada. **Campo nuevo + filtro nuevo = poblar el dato ANTES, siempre.** **C.2:** `Leer Voces` del motor (solo el motor) filtra `filterByFormula={activo}`; `Armar plan` saltea los proyectos cuya voz no llegó y **loguea cuál**. **Por qué server-side y no en el code node** (esto es lo que hay que entender antes de tocarlo): Airtable **omite los checkbox destildados** del payload, así que en el code node `activo` ausente es indistinguible de *el campo no existe* → no hay fail-open posible sin ambigüedad. El filtro lo resuelve en el server, y **es el mismo patrón que ya usaba `Leer Proyectos`** — no inventamos nada. Proyecto **sin** voz: no gateado. Bonus verificado: el gate corta **antes del scrape**, así que un proyecto salteado **no se paga en Apify**. **🔴 Lo que apareció solo mirando el dato vivo (lo más importante del cierre):** **2 de 6 proyectos tienen 2 voces linkeadas** — *Comunicación para lideres* y *Comunicación en empresas* → `[Milena Morales, Rosario Gomez]`. El código lee `voz_default[0]` ⇒ gana Milena y **Rosario se ignora en silencio**: esos proyectos vienen aplicando el ajuste de voz de Milena y archivando `voz: "Milena Morales"` mientras alguien linkeó a Rosario esperando algo. **Corrige un error mío del cierre 43:** el mapa decía que *"1 proyecto = 1 voz está garantizado por el código"* — media verdad: el código elige una, pero **el dato tiene dos** y nada lo impedía. Con C.2 se agrava (apagar Milena apaga esos proyectos aunque Rosario esté prendida). **Decisión de qué hacer: NO la tomé** — es dato, no código: o se limpia el link de más y el contrato se hace cumplir, o multi-voz entra al modelo (y cambian gate, criterios y archivado). Lo que **sí** hice: el motor **avisa por log** (`[Plan] ⚠️ … tiene 2 voces linkeadas`) en vez de tragárselo. Documentado en [mapa-campos §2.5](../archivo/mapa-campos.md), el contrato y el §Pendiente vivo. **Tests — cambia el feedback loop del repo:** nuevo [`Workflows/workflow-short-form-content/test-nodos.mjs`](../../Workflows/workflow-short-form-content/test-nodos.mjs), node pelado sin dependencias, que saca el `jsCode` del JSON y lo corre con un `$` de n8n mockeado. **23 casos verdes** sobre `Armar plan de corrida` y `Armar candidato`: gate por voz, proyecto sin voz, el multi-voz, Apify no pagado, N por proyecto + fallback + N=0 + el global de Ajustes, corte por proyecto, el orden dedup→corte con el video disputado, PISO, `_descarte`, `normLang`, ⚠️ SIN GUION. **Por qué vale la pena:** el motor corre en n8n, así que sin esto la lógica se verifica recién en producción una semana después, quemando Apify/Supadata/Haiku. `CLAUDE.md` §Feedback loops actualizado (el validador ya **no** es la única verificación). **Sin decidir, anotado:** el **descubrimiento no respeta `Voces.activo`** → una voz apagada no corre en el motor pero **sí recibe propuestas de referentes** cada semana. Fix de 1 línea, pero cambia conducta y puede ser deseable (tener referentes listos para cuando la prendas) → plan §Descubrimiento. **Validador 1221/0**, tests 23/23, secretos limpios. **Estado de C:** C.1/C.2/C.5 hechos en el repo, **sin re-importar** (hoy no cambian conducta: N vacía en los 6 proyectos, las 3 voces prendidas). **Próximo paso: C.3** — el webhook single-flight de ADR-023, que es el que falta para cerrar C y disparar el re-import. Ver §Para la próxima sesión abajo.
+
+**2026-07-16 (cierre 45) — C.1 + C.5 en el motor (N por proyecto, probado) + la pasada única de `core/` desagrupada: 3 de 4 hechas (Mani + Claude).** Primer código del refactor. Split del plan §5 en vivo: Mani toma los fixes de UI de Airtable (la API no los hace), Claude el motor. **C.5:** podados `banda_descarte_min`/`max` del `Config` (21 → **19 knobs**), muertos desde la enmienda top-K del 07-13. **C.1 (ADR-024):** `Armar plan de corrida` lee `Proyectos.N` con fallback al global; `Armar candidato` **corta por proyecto**. `cap_top_n` intacto (ya muerde antes, en `Heat-score v1`). **La decisión de diseño del cierre — el ADR-024 no la fijaba:** el **orden** entre el corte y el dedup de ADR-018. Estaba corte→dedup; lo invertí a **dedup→corte**. Con el orden viejo, 2 proyectos que pescan el mismo video colisionan y **los dos** quedan cortos (el dedup solo resta después de cortar) ⇒ N sería un techo, no una entrega; con dedup primero cada video queda en un solo proyecto (gana el que lo juzgó más relevante) y cada proyecto rellena hasta **su** N exacto. **Revisable si Mani no coincide, es un cambio chico.** **Probado de verdad, no solo validador:** test fuera de n8n con el `$` de n8n mockeado (script en scratchpad) — 10 casos verdes: N por proyecto, fallback al global, el video disputado (una sola copia + el perdedor no queda corto), PISO round-robin dentro del proyecto, `_descarte` sin consumir cupo, N que no inventa candidatos, + regresiones de `normLang` y ⚠️ SIN GUION. Más el chequeo de grafo de siempre (0 refs colgadas, 0 conexiones rotas, sintaxis OK en los 33 code nodes) y que nadie lea los knobs podados. **`core/` — la pasada única se DESAGRUPÓ (decisión de Mani):** dejarla esperando obligaba al contrato a mentir (el motor ya lee `Proyectos.N`) y la 4ª parte depende de A.5, que no tiene fecha. Además el motivo del bundle casi no aplicaba: 1/2/4 tocan `Proyectos`/`Ajustes`/`Candidatos`, (3) toca `Métricas Global`+links+`Voces`. **Hechas 3 de 4:** (1) `Proyectos.N` en el script + contrato, `Candidatos por corrida` pasa de *N total* a **default por proyecto**; (2) los 2 toggles del descubrimiento en `ajustesSeed`; (4) **`Candidatos.fecha`** — resultó que la API **sí** crea computados (el script ya creaba `fecha_calificacion`, un `lastModifiedTime`), así que ahora **intenta crear `fecha`** y si falla lo tira a una lista `pendientes` que se imprime fuerte **y sale con exit 1**, en vez de un `console.log` entre otros seis. Queda solo (3), esperando A.5. **Base viva:** creado `Proyectos.N` por MCP (`fld9MCZ5y2pSWRxHc`, number precision 0, con descripción para el equipo), **vacío en todos los proyectos** = conducta de hoy. **Corrección de un error mío del cierre 43:** reporté las "lecturas fantasma" `tema`/`link_doc` como hallazgo 🔴 nuevo — **ya estaban documentadas** como vestigiales deliberadas ([dev-doc §8](./dev-doc.md): *`tema` `''` fail-safe*, *`link_doc` vestigial siempre `''`*) y en `core/schema/004`. Bajado a 🟡 y D.4 pasa a poda opcional/cosmética. **También corregido del 44:** `veredicto` read-only **no es** decisión de diseño — Airtable no deja configurar el permiso del campo con la página vacía (*Mani*); el fix es el de B.6 y la ventana abre tras la corrida del lunes. **🟠 Re-import del motor pendiente** (§Pendiente vivo): no urgente ni riesgoso (con `N` vacía el motor nuevo = el de hoy); conviene hacerlo cuando C esté completo, así carga solo lo de C. Validador **1221/0**, secretos limpios. **Próximo paso:** C.2 (`Voces.activo`) está bloqueado por **E.1** (el campo no existe) — se puede codear fail-open igual, o crear E.1 primero por MCP y hacer los dos juntos. Después C.3 (webhook single-flight, ADR-023, con builder Node) y C.4 (confirmar que el dedup hace limpia la coexistencia cron+on-demand). En el carril de Mani: los fixes de UI de B.6, con B.6(2) como precondición de A.5.
+
+**2026-07-16 (cierre 44) — A.3 cerrado: las 12 páginas del cockpit mapeadas + 3 hallazgos 🔴 que hacen a B.6 urgente (Mani + Claude).** Sigue del cierre 43, mismo día. **NO es código — auditoría + docs.** El interface *Cockpit Redes* leído **por MCP** (`list_pages_for_base` + `get_form_schema`, no por captura): **12 páginas + 1 form standalone**. Entregable en **[mapa-campos.md §5](../archivo/mapa-campos.md)** — el doc pasó a cubrir los 2 ejes (campos §4 + páginas §5) y se retituló *Mapa del cockpit*; no se creó doc nuevo (docs lean). **La buena: no hay páginas huérfanas** — las 9 tablas tienen página, ninguna página quedó sin tabla. El problema no es sobra de páginas, es **qué campo muestra cada una**. **3 hallazgos 🔴:** (1) **`veredicto` es read-only en *Descartes*** — ya estaba en B.6 como fix de UI, pero **no es cosmético**: es el **único** campo de esa tabla que lee una máquina (el archivado cuenta los `era bueno` → `falsos_negativos`), así que ese contador es **siempre 0** y "0 falsos negativos" se lee como *el gate está perfecto*, la conclusión opuesta a la verdad. El loop de auditoría de ADR-021 está **muerto, no incompleto**. Y la página sí deja editar `titulo`/`thumbnail`/`proyecto`/`referente`: está al revés. (2) **La mitad humana del loop de ADR-022 nunca llega al humano**: la página *Proyectos* no muestra `advertencia_criterios` — un campo que existe **solo** para que una persona lo lea (el gate no lo lee, por contrato). El archivado gasta una llamada a Haiku cada domingo para escribir un aviso que nadie ve. Huérfano por superficie, no por schema. `criterios_aprendidos` tampoco está (menos grave: el gate sí lo lee). (3) **_Salud del Sistema_ no muestra salud**: el split del 2026-07-15 partió las tablas y **nadie curó las páginas** — la página muestra campos de *calidad* (`calificados`/`aprobados`/`precision`, que post-split son de `Métricas Proyectos`) + `diagnostico`, que es una de las 4 columnas muertas de `Métricas Global` ⇒ **le muestra al equipo una columna siempre vacía** (el huérfano de §2.1 confirmado desde el otro lado). El embudo entero (`colectados`/`pretrim`/`gate_pass`/`entregados`/`runs_ok`/`runs_fallo`/`duracion_min`/`sin_guion`/`falsos_negativos`) **no está en ninguna página**. **+1 hallazgo 🔴 nuevo: el form *Nuevo Proyecto* es una trampa** — standalone (`interfaceId: null`, fuera del interface, no documentado hasta hoy), `criterios_relevancia` **no obligatorio**, y expone el link inverso `Candidatos` en el alta. Un proyecto sin criterios no es inofensivo: el gate del motor es **fail-open** (sin criterios deja pasar TODO y ordena por métrica) mientras el descubrimiento es fail-closed y lo saltea → es la forma más fácil de romper la relevancia sin darse cuenta. → **B.1/B.3**. **🟠 transversal:** campos de la máquina editables por el equipo en 4 páginas (*Feed*: `titulo`/`thumbnail`/`referente` · *Referentes - Revisar*: las 3 tasas de salud · las 2 páginas de Métricas: **todo**, sobre tablas que el contrato declara solo-lectura). No rompe (el domingo se pisa), pero confunde. El modelo sano a copiar es *Configuración Global* (contexto read-only + solo `valor` editable) → B.3. **Aporte a A.5 ([§5.2](../archivo/mapa-campos.md)):** el mapa parte limpio en dos y **confirma el matiz de "partir la superficie"** — el eje operativo funciona en Airtable (sus problemas son de curaduría, ninguno justifica infra nueva; respalda ADR-023), el analítico es donde se rompe (las 3 páginas analíticas son las 3 con hallazgos estructurales, y todo eso ya vive en Supabase). **Pero ojo con el sesgo, y esto es lo importante del cierre:** ninguna de las 3 se curó después del split, así que decidir hoy sería comparar **Airtable-mal-configurado** contra un dashboard imaginario. **La prueba honesta es hacer B.6(2) (curar *Salud del Sistema*, horas de trabajo) ANTES de A.5.** Eso reordena el carril: B.6 deja de ser arrastre y pasa a ser precondición de la decisión. **Menores:** *Ajustes Dev-Only* tiene `valor` read-only (un dev no puede editar desde su propia página) · *Costos* sigue sin publicar y hay que **verificar que tenga filtro de semana** (los 9 `bigNumber` suman con `summaryFunction: sum`; sin filtro suman toda la historia, y `Métricas Global` no se barre nunca) · la vista "🔥 Seleccionados" del jefe es vista de tabla cruda, no página. **Lo que NO se tocó:** nada de la base viva, ni `workflow.json`, ni `core/`. Validador **1221/0**. **Próximo paso:** **A.5 está a un paso pero no arranca por A.5** — hacer primero B.6(2) (+ el resto de los fixes de UI, que ahora tienen diagnóstico preciso en [§5.1](../archivo/mapa-campos.md)), y recién ahí el ADR de herramienta con evidencia limpia. El carril del motor (C) sigue destrabado en paralelo.
+
+**2026-07-16 (cierre 43) — A.2 cerrado: las 9 tablas barridas campo por campo + 3 hallazgos nuevos (Mani + Claude).** Continuación directa del cierre 42. **NO es código — es auditoría + docs.** Entregable completo en **[mapa-campos.md](../archivo/mapa-campos.md)**: §4 ahora tiene el mapa *escribe / lee / veredicto* de las 6 tablas que faltaban (`Proyectos`, `Voces`, `Candidatos`, `Referentes propuestos`, `Descartes del gate`, `Métricas Proyectos`). **Método (vale para A.3):** el grep sigue sin servir (§1 del mapa) — se leyeron los `jsCode` de los nodos que arman `fields:` (los escritores) y los `Armar plan`/`Computar`/`Destilar`/`Armar filas` (los lectores), más los `filterByFormula` de los `Leer *` (que es donde vive la mitad de la semántica: `Leer Proyectos` filtra `{activo}`, `Leer Candidatos calificados` filtra `NOT({estado}='nuevo')`). **3 hallazgos nuevos, ninguno rompe nada hoy:** (1) 🔴 **lecturas fantasma** — `Armar filas archivado` lee `f.tema` y `f.link_doc` para llenar `outputs.metadata`, y **esos campos no existen** en `Candidatos`: archiva `''` siempre desde vaya a saber cuándo (residuo pre-ADR-009). Enganchado como **D.4** (toca `workflow.json` → se arrastra con el re-import, igual que C.5). (2) 🟠 **`viral_por_tamano` es hermano de `notas_equipo`**: lo escribe el motor, no va a `outputs.metadata` ni al Sheet, muere con el record cada domingo ⇒ nunca vamos a poder preguntar "¿lo viral se aprueba más?". Sumado a **D.3** — la salida (b) (archivar a `metadata`) los cubre a los dos de una. (3) ⭐ **el multi-link cruza voces**: `Referentes.proyecto` es `multipleRecordLinks` y `Armar plan de corrida` **itera el array entero** → un referente puede alimentar proyectos de 2 voces distintas. El plan §2 daba esto como ✅ *"implícito (referente → 1 proyecto → 1 voz)"* — **era falso**: es una convención del equipo, no una garantía del schema. Contraste: `Proyectos.voz_default` también es multi-link pero los 3 workflows leen `[0]` → **1 proyecto = 1 voz sí** está garantizado por código. Importa para el norte Netflix ("voces = universos separados") → a decidir en **B.1/E**, fila de §2 del plan corregida. **1 hallazgo menor a la pasada única (ahora 4 cosas):** `Candidatos.fecha` (createdTime) es **load-bearing** — el barrido de `nuevo` viejos filtra por `IS_BEFORE({fecha}, -20 días)` — pero la API no crea campos computados, así que `setup-airtable.mjs` solo lo **pide por consola**: base nueva sin `fecha` ⇒ barrido roto **en silencio**. Misma clase que los toggles faltantes; muerde en F5. **Confirmaciones que valen (no re-derivar):** el archivado **no** filtra `Proyectos.activo` y está bien (no querés perder lo ya calificado de un proyecto apagado); `Métricas Global` no se barre nunca y `Métricas Proyectos` sí a 84 días (deliberado, guarda el trend); `Proyectos.descripcion` y `Voces.descripcion` no los lee ningún workflow (contexto humano, decorativo — documentado para que nadie espere que influyan, **no** son poda). **Lo que NO se tocó:** ni `workflow.json` ni `core/` — todo lo intrusivo quedó enganchado a su componente. **Próximo paso:** **A.3** (mapa página/vista × tabla × propósito del interface *Cockpit Redes*) — es lo último antes de **A.5**, la decisión §3 (Airtable vs dashboard) que gobierna la forma de B. En paralelo, el carril del motor (C) ya está destrabado: A.1+A.2 cerrados es justo la precondición del split de §5.
+
+**2026-07-16 (cierre 42) — A.1 cerrado (grafo limpio, dev-doc corregido) + A.2 arrancado: 3 huérfanos reales y la reconciliación repo↔live (Mani + Claude).** Arranque del refactor por la auditoría. **A.1 ✅:** chequeo de grafo de los 3 `workflow.json` (script en scratchpad, patrón de cierres 34/36) → **0 conexiones rotas · 0 refs `$('…')` colgadas · 0 nodos inalcanzables · 0 huérfanos · 0 deshabilitados**. Conteos reales **motor 33 · descubrimiento 27 · archivado 37**. Motor y descubrimiento calzan nodo por nodo con dev-doc §2.2/§3.2, y el motor calza con la topología §2.1 (incl. `Abrir run` en serie). Verificado que el loop de ADR-022 **cierra de verdad**: motor lee `criterios_aprendidos` en `Armar plan`+`Gate`, archivado lo escribe vía `Destilar criterios`→`PATCH Proyectos criterios`. **El archivado era el hueco: dev-doc documentaba 30 y se contradecía consigo mismo** (§1 decía 24, §4 decía 30, §4.2 llegaba a 24). Los 7 nodos no documentados eran M2/ADR-022 + costos de cierre 37. **Corregido en una pasada:** encabezado (faltaba ADR-022 entero), §1 (24→37), §4 (30→37), diagrama §4.1 (**4** ramas laterales de `Cerrar run`, no 2, + `Leer runs descubrimiento`), tabla §4.2 (+7 nodos: 17b′, 19–24), §5 (8→9 tablas, `Métricas` partida, `Proyectos`/`Referentes` ahora con sus PATCH de ADR-022). **A.2 🔧 — entregable nuevo: [mapa-campos.md](../archivo/mapa-campos.md)** (por campo; el por-tabla se queda en dev-doc §5). **3 huérfanos confirmados:** `banda_descarte_min`/`max` en el Config del motor (muertos desde la enmienda top-K del 07-13 → **C.5** nuevo); las 4 columnas de calidad que `Métricas Global` arrastra del split (la tabla live es la vieja `Métricas` renombrada → **B.3**); `Candidatos.notas_equipo` (§abajo). Los links inversos auto-creados y la descripción pre-ADR-009 de `Voces` también → B.3. **Base viva confirmada por MCP** (`appkdNLlN1v6XdKHn`): **no existe `Voces.activo`** (confirma E.1) ni N en `Proyectos` (confirma C.1/ADR-024). **Fix de doc:** el contrato decía `cap_resultados_referente` 30, el JSON dice **50** → corregido (gana el JSON). **2 falsos positivos míos, valen como aprendizaje:** (1) reporté el barrido de `Métricas Global` como bug — **es deliberado y está en el contrato** (se guarda el trend); quedó documentado como "no lo arregles". (2) el grep mecánico de campos **no sirve**: es ciego a namespaces (`descripcion`/`bio`/`razon` son campo Airtable *y* key del `content_item`) y da falsos negativos por las claves sin comillas de los code nodes — método anotado en mapa-campos §1. **Decisiones de Mani:** `Días de recencia`=100 en vivo **no es drift** — es el equipo usando su knob, queda a libre elección (documentado para que nadie lo "corrija" a 7); `notas_equipo` → **D.3** a revisar. **Lo que NO se tocó:** ni `workflow.json` ni `core/` fuera del fix de un número en el contrato; todo lo intrusivo quedó enganchado a su componente (C.5, B.3, D.3) para arrastrarse con el re-import. El seed faltante de los toggles del descubrimiento se sumó a la **pasada única** de `setup-airtable.mjs` (ahora acumula 3 cosas). Validador **1221/0**, secretos limpios. **🚨 Lo más importante del cierre: Mani hizo el RE-IMPORT de los 3 workflows + ROTÓ las credenciales** (jueves 16/07, tras la charla de timing). Cae el bloqueante que arrastraba desde el cierre 37: M1, M2/ADR-022, costos $, contadores Apify y `normLang` **están vivos**. Razón del timing (vale para la próxima): se importó **antes** de C **justamente porque vienen cambios** — así el backlog queda vivo y probado sobre un repo verificado, y el re-import de C carga **solo lo de C** (un fallo apunta a un culpable). Se descartó el re-import parcial: la cadena nueva del archivado **depende de `runs.metricas` del motor** (`por_referente`, contadores Apify), así que importar solo el archivado dejaba la salud por referente y los costos vacíos. **Ver §Ciclo post-re-import: el archivado del 19/07 sale parcial POR DISEÑO** (aún no corrió el motor nuevo); el primer ciclo completo cierra el **26/07** — no leer el 19 como veredicto. **Próximo paso:** A.2 sigue en [mapa-campos.md §4](../archivo/mapa-campos.md) — falta barrer `Proyectos` (resto), `Voces`, `Candidatos` (resto), `Referentes propuestos`, `Descartes del gate`, `Métricas Proyectos`; lo verificado ya está listado ahí, no re-derivar.
+
+**2026-07-15 (cierre 41) — Limpieza del repo antes del refactor + compactación de este handoff (Mani + Claude).** Pedido de Mani: dejar el repo lo más limpio posible para arrancar el refactor Voces→Proyectos con lo que de verdad importa. **NO es código — es higiene de docs.** **Survey completo:** la mayoría de lo que parecía borrable resultó load-bearing y se verificó uno por uno (substack = workflow probado en prod parkeado para F3; `clients/` + schemas = invariante multi-cliente que `validate.mjs` testea; transcript 06-12 = citado por README/ROADMAP/PLAN/ADR-009). **Decisiones de Mani:** quedan los dumps gitignored (`outputs-*`, `dist`, `.DS_Store`) y los snapshots `workflow-versions/`; `deploy.mjs` queda como semilla F5. **Borrados (2 docs que describían un flujo que ya no aplica):** `guia-reunion-redes.md` (prep de una reunión ya pasada) y `refactor-relevancia.md` (plan de un refactor ya ejecutado). **Dead links limpiados** en los 7 referrers: `CLAUDE.md` (mapa de docs), `airtable-cockpit.md` (core/, fix de link), `workflow.yaml` (×2), `refactor-voces-proyectos.md` (Component A ahora apunta solo a dev-doc), ADR-010/021/022 (los punteros al plan → "histórico en git"). Validador **1212/0**, secretos limpios. **Este handoff:** compactado de 1743 líneas — el log histórico (cierres 1–39) se destiló a una línea por cierre; las secciones de planes de producción M0–D3 y la auditoría 2026-06-16 (todas superadas, ✅ resueltas) se retiraron (viven en git: `git log docs/agents/handoff.md`); se consolidó el *Pendiente vivo* y se puso el tablero A–E del refactor como activo. **Próxima skill sugerida:** arrancar A.1/A.2 (`/improve-codebase` o directo) + el motor lane con `/tdd` sobre C.1.
+
+**2026-07-15 (cierre 40) — Grilling del refactor Voces→Proyectos: se verifica el norte contra ROADMAP/ADRs y se cierran 2 ADRs (Mani + Claude).** Pedido de Mani: interrogarlo a fondo para verificar que el norte del refactor es lo que de verdad quiere y que el plan ([refactor-voces-proyectos.md](refactor-voces-proyectos.md)) está alineado con el contrato y los ADRs. **NO es código, es alineación + docs.** Se resolvieron 5 ramas, 2 eran desalineaciones reales, no cosméticas. **(1) El norte se contradecía:** el refactor decía "sin depender del cron" contra ROADMAP §1 "corre sola" → por la regla *gana el norte*, había que reconciliar. **Decisión: los 2 modos COEXISTEN** (cron semanal autónomo + on-demand se suma, no lo retira). ROADMAP §1 enmendado por escrito. **(2) El contrato de disparo del plan (`{project_id, N}`) quedó superado** por una simplificación de Mani durante el grill: **señal desnuda** (botón Airtable → "Run automation" → webhook de Producción n8n, sin payload) y **el motor lee Airtable** (toggles + N por proyecto). Una corrida = **todos los proyectos activos**, cada uno a su N; la selección se expresa con los toggles, no con un payload. Webhook **single-flight** (no arranca si ya hay corrida; el *cómo* queda para C.3). → **[ADR-023](../adr/ADR-023-disparo-on-demand-boton-airtable.md)** (cerrado). **(3) N por proyecto revierte a conciencia ADR-016:** N vuelve a `Proyectos`, el global `Candidatos por corrida` pasa a **default por proyecto**, misma semántica en cron y on-demand, **corte final por proyecto**, `cap_top_n` intacto como techo duro total. Trade registrado: se cambió costo-predecible por control por proyecto (el cap es el cinturón). → **[ADR-024](../adr/ADR-024-enmienda-adr016-n-por-proyecto.md)** (cerrado, enmienda ADR-016). **(4) Secuencia de la auditoría des-serializada:** A.1+A.2 juntos primero (de-riesgan el motor); después **split de A** — C/D/E son tool-agnósticas y el motor lane arranca en paralelo, mientras Dev 1 termina A.3–A.5 + la decisión §3 (que sólo gobierna la forma de B). **(5) Chequeo que dio consistente:** `Voces.activo` vs la enmienda ADR-010 (gate operativo, no filtro de relevancia — no chocan). **Knock-on:** cada decisión hizo el eje operativo caber mejor en Airtable → la pregunta §3 (Airtable vs dashboard) se **acota** a lo analítico read-only (Métricas/Costos); el operativo se queda en Airtable. **Archivos (todo docs, sin código ni base viva):** nuevos ADR-023/024; ROADMAP §1 (enmienda), [ADR README](../adr/README.md) (2 filas + ADR-016 marcada enmendada), [context.md](context.md) (glosario: término *Corrida*), refactor-voces-proyectos.md (reescritas §0, §2, B.2, C.1, C.3, C.4, intro §4, §5, §6, §7). Validador **1230/0**, secretos limpios. **🟠 PENDIENTE anotado (motor lane, autorizado por ADR-024 pero NO hecho):** `setup-airtable.mjs` + `airtable-cockpit.md` todavía describen N como global — se deja para hacerlo en una sola pasada con la racionalización de campos de la auditoría (A.2), para no tocar campos adyacentes dos veces. **Todo lo de cierres 38–39 sigue igual** (re-import de los 3 workflows, 5 fixes de UI Airtable, rotar credenciales, sembrar TT, aprobar propuestas; 12 archivos staged sin commitear). **Próxima skill sugerida:** `/grill-with-docs` no más — arrancar la auditoría (A.1/A.2) con `/improve-codebase` o directo, y el motor lane con `/tdd` sobre C.1 (N por proyecto).
+
+### Histórico (una línea por cierre; el detalle vive en git: `git log docs/agents/handoff.md`)
+
+- **cierre 145** (09-10) — Se publicó ADR-095: `041` aplicada + `n8n:push` de los 4 nodos del motor. Las 3 verificaciones contra prod destaparon que **el reintento es del motor y el cockpit sólo avisa**, o sea que a Majo no le llegó el arreglo (ADR-095 §Enmienda 2; Tareas 8–11 del plan). Bug abierto: la exec 178 terminó OK y su `run` quedó `en_curso`.
+- **cierre 39** (07-15) — Prep de reunión con redes + auditoría del scoring del descubrimiento (afinidad = juicio semántico Haiku; similitud solo genera/desempata; 3 debilidades TT flageadas). *(La guía de reunión que creó, `guia-reunion-redes.md`, se borró en cierre 41.)*
+- **cierre 38** (07-15) — Auditoría completa + reconciliación repo↔live + fix de docs (pre-sesión Airtable); working tree = ADR-021 bis + enmienda ADR-010; gaps de UI flageados.
+- **cierre 37** (07-14) — Métricas lista + costos en $ (Supadata/Haiku vivos, Apify implementado) + página *Costos* (borrador) + contadores Apify por actor en los 3 workflows.
+- **cierre 36** (07-14) — Fase M2 (ADR-022) construida: loop de aprendizaje de criterios (motor lee `criterios_aprendidos`, archivado destila + salud por referente, 30→36 nodos) + página "A revisar".
+- **cierre 35** (07-14) — Audit de 4 preguntas del equipo → higiene del archivado (barridos de descartes/Métricas) + `diagnostico` (semáforo sin IA) en Métricas.
+- **cierre 34** (07-14) — Pipeline listo para el equipo: diagnóstico de integridad de los 3 workflows + onboarding actualizado + higiene del campo `idioma` (`normLang`).
+- **cierre 33** (07-13) — Descubrimiento gana eje TikTok (ADR-020 §8, enmienda): rama paralela lookalike.
+- **cierre 32** (07-13) — Diagnóstico del 1er ciclo real de M1 + Fase Volumen/Utilidad + fixes de M1.
+- **cierre 31** (07-10) — 3 mejoras de robustez/costo del motor antes de la corrida de prueba.
+- **cierre 30** (07-10) — ADR-021/022 firmados + Fase M1 (medición) construida: motor 30→33 nodos, archivado 18→24, cockpit 6→8 tablas + 3 páginas.
+- **cierre 29** (07-10) — ADR-020 ejecutado: motor de descubrimiento de referentes construido (workflow nuevo, 24 nodos).
+- **cierre 28** (07-10) — ADR-019 ejecutado: remoción TOTAL del eje keyword, motor solo-referentes (36→30 nodos).
+- **cierre 27** (07-09) — Auditoría de calidad del run 07-09 + 3 decisiones ejecutadas (pre-trim por eje, marca ⚠️ SIN GUION, keywords OFF).
+- **cierre 26** (07-09) — Run manual de Jero diagnosticado: duplicados = fan-out con proyectos gemelos.
+- **cierre 25** (07-07) — 1er run automático real (con config del equipo) revisado + 2 fixes.
+- **cierre 24** (06-26) — Entra a PRODUCCIÓN: archivado pasa a semanal + base limpiada de pruebas.
+- **cierre 23** (06-25) — Audit final pre-producción + Ajustes verificados en vivo + dirección keyword.
+- **cierre 22** (06-25) — ADR-017: motor listo para prod, keyword TikTok reactivado como toggle + 3 toggles.
+- **cierre 21** (06-24) — Refactor post-producción firmado: referente-only + keyword dormido.
+- **cierre 20** (06-24) — Dashboard del equipo (interfaz Airtable "Cockpit Redes") construido.
+- **cierre 19** (06-23) — Archivado corrido end-to-end + auditoría del ciclo de vida de documentos.
+- **cierre 18** (06-23) — Run de Fase 3 diagnosticado = éxito + bug fan-out×dedup arreglado.
+- **cierre 17** (06-23) — V1 en vivo diagnosticado = éxito + Fase 2 y código de Fase 3.
+- **cierre 16** (06-23) — Fase 0 (artefacto final): metadata template + `deploy.mjs`.
+- **cierre 15** (06-23) — 4 mejoras pre-cron de código (paginación, dedup acotado).
+- **cierre 14** (06-19) — F3 resuelto (bug de código) + fan-out multi-proyecto (ADR-013) + D3 cerrado.
+- **cierre 13** (06-18) — Run post-F1 verificado: embudo coherente, F1/F4/F5 en verde.
+- **cierre 12** (06-18) — F1 cerrado en código: Merge antes de cada Normalizador.
+- **cierre 11** (06-18) — Revisión nodo-por-nodo del último run con `outputs/*.json`.
+- **cierre 10** (06-18) — Revisión del embudo Apify con los 4 outputs reales + estado vivo.
+- **cierre 9** (06-18) — Fix reels-only en IG + auditoría del estado vivo.
+- **cierre 8** (06-17) — Primera corrida con config real + diagnóstico de timeout (Dev3).
+- **cierre 7** (06-17) — Docs + verificación + cierre de manuales.
+- **cierre 6** (06-17) — Las 6 decisiones lockeadas ejecutadas en código.
+- **cierre 5** (06-17) — V-run de este repo validada + fix del no-transcript.
+- **cierre 4** (06-16) — Objetivos del MVP afilados + grill-me de cumplimiento.
+- **cierre 3** (06-16) — Bugfix de orden + refactor front-to-back (grilling).
+- **cierre 2** (06-16) — Stage 4 del refactor de relevancia cerrado en `main`.
+- **cierre 1** (06-16) — Refactor de relevancia Stages 1–3 en `main`: doble gate Haiku.
+- **06-16** (noche) — V1 corrió y pobló Candidatos; abierto el refactor de relevancia.
+- **06-16** (tarde) — Bloqueante #6 resuelto: Apify migrado a community node.
+- **06-16** — Carril C completo (C2 + C3, Dev 3).
+- **06-14** — Motor B3 construido + n8n listo para correr (`workflow.json`, ADR-009).
+- **06-13** — Carril A en curso (Alejo): Supabase con `service_role`.
+
+> **Planes de producción M0–D3 y auditoría técnica 2026-06-16:** ejecutados y superados por el estado
+> actual; se retiraron de este handoff en cierre 41. Recuperables en git si hicieran falta.

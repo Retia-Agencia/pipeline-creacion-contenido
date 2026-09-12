@@ -23,22 +23,15 @@ en §Agent skills; acá solo se ubican.
 
 **Estado y dominio (para trabajar)**
 - [docs/agents/handoff.md](docs/agents/handoff.md) — estado vivo del repo (leelo al empezar la sesión).
-  🚦 **Su §ARRANCÁ POR ACÁ es lo primero**: al 2026-09-02 hay 6 cambios empujados al live y **0 corridas que los midan**, con los criterios de éxito escritos ANTES de mirar. *Construido y verde no es medido.*
+  🚦 **Su §ARRANCÁ POR ACÁ es lo primero**, y ahora hay **uno solo**. **Rotado el 2026-09-12**: pasó
+  de **8.334 a ~1.300 líneas**. Tenía cuatro "ARRANCÁ POR ACÁ" apilados y, en el medio, **5.736
+  líneas de cierres viejos anidados uno dentro de otro** bajo un encabezado que decía "Pendiente
+  vivo". Quedan los cierres **145–151**; los **70–144** y el log anterior al 31/08 viven en
+  [handoff-archivo-2026-06_09.md](docs/agents/handoff-archivo-2026-06_09.md). **Nada se borró.**
+  ⚠️ **La regla que lo causó y que hay que respetar al cerrar:** el cierre nuevo va **arriba, como
+  hermano** (`## 🔒 CIERRE N`), **nunca anidado dentro del anterior**.
 - [docs/agents/context.md](docs/agents/context.md) — glosario de dominio (lenguaje ubicuo).
 - [docs/agents/dev-doc.md](docs/agents/dev-doc.md) — los 3 workflows nodo por nodo + mapa de datos (por tabla).
-- [docs/agents/mapa-campos.md](docs/agents/mapa-campos.md) — 🪦 **HISTÓRICO, no vigente.** Mapea la
-  base de **Airtable**, purgada el 2026-08-03: sus "9 tablas" y "12 páginas" son de ese mundo (hoy
-  son 17 pantallas sobre Postgres). Sirve para saber **qué campo servía para qué y por qué** —
-  información que no está en otro lado—, **no** para saber qué existe hoy. Para eso, `core/schema/`
-  y el código. *Este renglón lo citaba como "el mapa del cockpit", sin salvedad.*
-
-- [docs/agents/plan-cockpit-propio.md](docs/agents/plan-cockpit-propio.md) — el plan del **cockpit propio**
-  que reemplazó a Airtable (ADR-025..028): componentes, stack y roadmap D0–D8.
-- [docs/agents/plan-orden-y-filtro.md](docs/agents/plan-orden-y-filtro.md) — el plan de **orden y
-  filtro** en las 4 pantallas de video (ADR-076): 7 tareas, dominio puro + una barra compartida.
-  **Sin migración, sin n8n, sin `core/`.** Su hallazgo ordenador: *el default de las cuatro es "no
-  reordenes"*, porque las cuatro ya llegan ordenadas por alguien y reproducir esas reglas serían
-  dos implementaciones de cada una.
 - [docs/agents/plan-cascada-de-entrega.md](docs/agents/plan-cascada-de-entrega.md) — **el pendiente
   vivo del audit del 01/09**: llenar N no es una decisión sino una **cascada de cinco escalones**, y
   el orden es todo el diseño. **3 de 5 puestos; lo que falta son el 2 y el 4**, que son los que le
@@ -96,6 +89,24 @@ en §Agent skills; acá solo se ubican.
   cockpit avisa y no reintenta*, así que a quien reportó el problema —Majo, que pega links en
   Transcribir— **no le llegó el arreglo, le llegó el aviso**. Y el aviso casi no puede dibujarse: 1
   de 150 filas de `app.videos_meta` tiene duración.
+
+**🗄️ Archivado — [docs/archivo/](docs/archivo/) (movido el 2026-09-12)**
+
+Planes **ya ejecutados** y docs de sistemas que **ya no existen**. Se movieron, **no se borraron**:
+git conserva el contenido igual, pero borrar pierde la capacidad de *encontrarlo* cuando alguien
+pregunte *"¿por qué esta pantalla quedó así?"*. Su [README](docs/archivo/README.md) dice qué hay y
+por qué. **No los leas para saber qué existe hoy.**
+
+- `mapa-campos.md` — 🪦 mapea **Airtable**, purgada el 2026-08-03. Sirve para saber **qué campo
+  servía para qué y por qué**, información que no está en otro lado. El modelo vivo es
+  [core/schema/](core/schema/) y el código.
+- `plan-cockpit-propio.md` — ✅ construido: el cockpit son 17 pantallas sobre Postgres.
+- `plan-orden-y-filtro.md` — ✅ ejecutado y live el 26/08. Lo vigente son sus decisiones, y esas
+  viven en [ADR-076](docs/adr/ADR-076-ordenar-es-una-vista-no-una-consulta.md).
+- `plan-rescate-huerfanos.md` — ✅ ejecutado (corrida del 31/08, cerrada `ok` en 13 min).
+
+⚠️ **Los 97 [ADRs](docs/adr/) NO se archivan.** Un ADR viejo no es un ADR obsoleto: es historia que
+se cita, y varios gobiernan código vivo.
 
 **Decisiones**
 - [docs/adr/](docs/adr/) — ADRs 001–097 (97 archivos), una decisión por archivo con su porqué ([índice](docs/adr/README.md)).

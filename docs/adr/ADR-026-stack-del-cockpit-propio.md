@@ -46,4 +46,4 @@
     se mantiene a propósito: si hay que mudarse, se paga entonces.
 - **Toca:** `apps/dashboard/` (nuevo) · `CLAUDE.md` (feedback loops: typecheck y tests nuevos) ·
   PLAN §2.3 (estructura del repo) y §6 (deja de ser verdad que "UI web custom" está diferida).
-  El plan de construcción vive en [plan-cockpit-propio.md](../agents/plan-cockpit-propio.md).
+  El plan de construcción vive en [plan-cockpit-propio.md](../archivo/plan-cockpit-propio.md).

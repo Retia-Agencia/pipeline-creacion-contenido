@@ -49,4 +49,4 @@
     pregunta qué correr. Ese contrato no cambia, solo cambia a quién le pregunta.
 - **Toca:** `apps/dashboard/` (el endpoint) · los 3 `workflow.json` (los nodos de lectura) ·
   `core/contracts/ingesta-registro.md` (gana un contrato hermano de *lectura*). Cuándo se corta:
-  fase **D4** de [plan-cockpit-propio.md](../agents/plan-cockpit-propio.md).
+  fase **D4** de [plan-cockpit-propio.md](../archivo/plan-cockpit-propio.md).

@@ -2,7 +2,7 @@
 
 - **Estado:** aceptada — 2026-08-05 (decisión de Mani, arquitecto, en sesión de grilling).
   Ejecuta la limpieza que D8 tenía apartada desde el cierre 77
-  ([plan-cockpit-propio §D8](../agents/plan-cockpit-propio.md)). **Enmienda tres decisiones que
+  ([plan-cockpit-propio §D8](../archivo/plan-cockpit-propio.md)). **Enmienda tres decisiones que
   conservaban objetos a propósito**: [ADR-019](./ADR-019-remocion-total-eje-keyword.md) §4,
   la pausa de [ADR-009](./ADR-009-scripts-literales-y-aprendizaje-en-scoring.md) sobre
   `v_corpus_aprobados`, y las referencias de [ROADMAP §C3](../../ROADMAP.md). Toca `core/`:

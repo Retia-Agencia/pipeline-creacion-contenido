@@ -4,7 +4,7 @@
   [refactor-voces-proyectos §3](../agents/refactor-voces-proyectos.md)). Mani la propone al equipo
   como información de dirección y avanza por su cuenta; no hay gate de aprobación.
   **Enmienda el invariante transversal de ROADMAP §1** ("Airtable es el punto de entrada único").
-- **Contexto:** la auditoría del refactor (A.2/A.3, [mapa-campos](../agents/mapa-campos.md)) dejó la
+- **Contexto:** la auditoría del refactor (A.2/A.3, [mapa-campos](../archivo/mapa-campos.md)) dejó la
   evidencia en dos mitades: el eje **operativo** cabe en Airtable (sus problemas son de curaduría),
   pero el **analítico** está estructuralmente roto en la superficie (las 3 páginas de
   Métricas/Salud/Costos son las 3 con hallazgos 🔴, y todo ese dato ya vive en Supabase, la fuente de

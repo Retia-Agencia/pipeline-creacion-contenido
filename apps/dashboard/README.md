@@ -1,7 +1,7 @@
 # Cockpit — la app que usa el equipo de redes
 
 Next.js sobre Supabase, desplegado en Vercel. Reemplazó a Airtable en D7 (ADR-026). El **qué** y el
-**por qué** viven en [plan-cockpit-propio.md](../../docs/agents/plan-cockpit-propio.md) y en los
+**por qué** viven en [plan-cockpit-propio.md](../../docs/archivo/plan-cockpit-propio.md) y en los
 ADRs; acá está lo mínimo para moverse por el código sin leerlos.
 
 ## Mapa de módulos y la regla de dependencia

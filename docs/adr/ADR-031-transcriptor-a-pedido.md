@@ -3,7 +3,7 @@
 - **Estado:** aceptada — 2026-07-28 (con Mani). Agrega una herramienta nueva al cockpit propio.
   Enmienda dos cosas ya decididas: el "Referente es la única fuente de descubrimiento" de
   [ADR-019](./ADR-019-remocion-total-eje-keyword.md), y el modelo de **tres** zonas de
-  `docs/agents/plan-cockpit-propio.md` §2. No toca el motor.
+  `docs/archivo/plan-cockpit-propio.md` §2. No toca el motor.
 
 - **Contexto:** el equipo de redes solo recibe videos que el motor encontró por Referente. Cuando les
   llega uno por afuera (un cliente, el jefe, un hallazgo propio), no tienen forma de sacarle el

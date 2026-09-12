@@ -5,7 +5,7 @@
   **337 filas de `processed_items` borradas** en prod y verificadas por su efecto con cuatro
   señales. **Corrida `04:30` cerrada `ok`: 82 de 337 volvieron (24%) y 28 de los 32 candidatos que
   entregó (88%) son rescatados.** **No toca `core/`, no toca el motor, no toca la app, sin
-  migración.** Plan de ejecución en [plan-rescate-huerfanos.md](../agents/plan-rescate-huerfanos.md).
+  migración.** Plan de ejecución en [plan-rescate-huerfanos.md](../archivo/plan-rescate-huerfanos.md).
 
 ## Contexto
 

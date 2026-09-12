@@ -2,7 +2,7 @@
 
 - **Estado:** aceptada — 2026-07-31 (decisión de Mani, arquitecto). Corrige el modelo que
   [la migración `009`](../../core/schema/009_app_config_sombra.sql) le dio a `app.referentes`
-  antes del corte 2/4 de [D5](../agents/plan-cockpit-propio.md#d5--corte-de-la-config-dominio-por-dominio-sin-tocar-n8n).
+  antes del corte 2/4 de [D5](../archivo/plan-cockpit-propio.md#d5--corte-de-la-config-dominio-por-dominio-sin-tocar-n8n).
 
 - **Contexto:** en Airtable, `Referentes.proyecto` es un `multipleRecordLinks` y el motor lo recorre
   **como lista** (`Armar plan de corrida`: `(Array.isArray(f.proyecto) ? f.proyecto : []).forEach(…)`,
@@ -41,7 +41,7 @@
      hay re-import** — que es justo la libertad que compró [ADR-028](./ADR-028-contrato-motor-run-plan.md).
   4. **Un referente puede cruzar voces y se sigue permitiendo** (hoy lo hacen 4). El motor ya avisa
      y no filtra; la pantalla del banco muestra el aviso. La puente no lo prohíbe: si algún día se
-     decide que no (la pregunta abierta de [mapa-campos §2.5](../agents/mapa-campos.md)), es un
+     decide que no (la pregunta abierta de [mapa-campos §2.5](../archivo/mapa-campos.md)), es un
      constraint que se agrega, no un modelo que se rehace.
 
 - **Alternativas descartadas:**

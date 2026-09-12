@@ -2,7 +2,7 @@
 
 > **Qué es este documento.** El plan fundamentado para llevar el cockpit propio de **producto individual** a **producto repartido**: varios pipelines (hoy reels, mañana LinkedIn) y varias empresas (30X, EstadoX, Retia), cada una con su cockpit aislado.
 >
-> Es el hermano de [plan-cockpit-propio.md](./plan-cockpit-propio.md): aquel llevó la config de Airtable a Postgres; este lleva el producto de uno a N. **Se escribió antes de una sola línea de código, a pedido explícito, para no improvisar el refactor.**
+> Es el hermano de [plan-cockpit-propio.md](../archivo/plan-cockpit-propio.md): aquel llevó la config de Airtable a Postgres; este lleva el producto de uno a N. **Se escribió antes de una sola línea de código, a pedido explícito, para no improvisar el refactor.**
 >
 > **Cómo leerlo.** §1 es el diagnóstico con evidencia (leelo aunque conozcas el repo — hay cuatro cosas que no están documentadas en ningún otro lado). §2 son las decisiones. §3–§9 son las fases, en orden de ejecución. §10 son los casos de escalabilidad, uno por uno. §11 es cómo se verifica. **Si vas a ejecutar, §12 es el checklist.**
 

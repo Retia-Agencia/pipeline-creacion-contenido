@@ -1,7 +1,7 @@
 # ADR-035 — n8n escribe sus resultados por PostgREST directo, no por un endpoint de la app
 
 - **Estado:** aceptada — 2026-08-01 (decisión de Mani, arquitecto). Cierra la decisión abierta de
-  [plan-cockpit §8](../agents/plan-cockpit-propio.md) *"Contrato de escritura del motor (D7) —
+  [plan-cockpit §8](../archivo/plan-cockpit-propio.md) *"Contrato de escritura del motor (D7) —
   endpoint de la app vs. insert directo a Postgres desde n8n"*.
   Es el hermano de **escritura** de [ADR-028](./ADR-028-contrato-motor-run-plan.md) (lectura), y
   mata a [ADR-033](./ADR-033-dueno-por-campo-durante-la-coexistencia.md), que existía solo mientras
@@ -34,7 +34,7 @@
   (ADR-028, a propósito). Si el canal de *escritura* no responde, la corrida ya gastó Apify, Supadata
   y Haiku, y los 145 candidatos se pierden. Meter la app en ese camino agrega un punto de falla justo
   donde el sistema tiene su principio inverso: *fail-closed en config, fail-open en entrega*
-  ([plan-cockpit §3.7](../agents/plan-cockpit-propio.md)).
+  ([plan-cockpit §3.7](../archivo/plan-cockpit-propio.md)).
 
 - **Decisión:** n8n escribe por **PostgREST directo**, con la credencial `Supabase Registro` que ya
   tiene y el header `Content-Profile: app` para las tablas del schema `app`.

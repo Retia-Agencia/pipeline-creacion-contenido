@@ -114,7 +114,7 @@ Cerrar run en el registro ─┬─► Barrer candidatos sin calificar   (higien
 > **La cadena de métricas de ADR-021 ya no vive acá.** Los 15 nodos que computaban `Métricas
 > Global`/`Métricas Proyectos` y limpiaban `Descartes del gate` se fueron con Airtable en D7 (el
 > archivado pasó de 35 nodos a 20): esa lectura la da hoy el cockpit sobre las mismas tablas de
-> Postgres. Ver [plan-cockpit-propio §D7](../../docs/agents/plan-cockpit-propio.md).
+> Postgres. Ver [plan-cockpit-propio §D7](../../docs/archivo/plan-cockpit-propio.md).
 
 ## Orden e idempotencia (lo que importa)
 

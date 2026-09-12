@@ -1,7 +1,7 @@
 # ADR-034 — Calificar es un solo acto: el Estado deriva de la Calificación
 
 - **Estado:** aceptada — 2026-07-31 (decisión de Mani, arquitecto, en el grilling de
-  [D6](../agents/plan-cockpit-propio.md#d6--el-espacio-de-trabajo-feed-de-calificación)).
+  [D6](../archivo/plan-cockpit-propio.md#d6--el-espacio-de-trabajo-feed-de-calificación)).
   Enmienda el glosario ([context.md](../agents/context.md), términos *Calificación* y *Estado*), que
   los declaraba "distintos a propósito". No toca [ADR-021](./ADR-021-medicion-desempeno-embudo.md)
   ni [ADR-022](./ADR-022-loop-aprendizaje-criterios.md): las dos señales siguen existiendo y

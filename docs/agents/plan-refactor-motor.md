@@ -521,8 +521,12 @@ Mientras tanto el botón de "Buscar contenido" va a estar desactivado unos días
 ## §10 · Auditoría de `docs/` — qué sobra, qué falta y qué duele
 
 > Pedido de Mani el 12/09: *"la carpeta de docs está llena de vainas viejas, revisá qué podemos
-> borrar para que esto quede como el punto de partida."* **Nada movido ni borrado todavía: esto es la
-> propuesta.**
+> borrar para que esto quede como el punto de partida."*
+>
+> ✅ **EJECUTADO el 2026-09-12, con su visto bueno.** `handoff.md` pasó de **8.334 a ~1.300 líneas**
+> y los 4 planes ejecutados están en [`docs/archivo/`](../archivo/). **Cero borrados.** Se
+> re-apuntaron **~90 links** en 24 archivos y se verificó con un chequeo de links repo-wide: **0
+> rotos causados por el movimiento** (quedan 5 previos, listados en §10.5).
 
 ### §10.1 · El problema real no son los planes viejos: es el handoff
 
@@ -530,7 +534,7 @@ Mientras tanto el botón de "Buscar contenido" va a estar desactivado unos días
 |---|---|
 | **`docs/agents/handoff.md`** | **8.215** |
 | `docs/agents/plan-multi-tenant.md` | 1.638 |
-| `docs/agents/plan-orden-y-filtro.md` | 1.305 |
+| `docs/archivo/plan-orden-y-filtro.md` | 1.305 |
 | `docs/verificaciones-humanas.md` | 1.117 |
 | `docs/agents/plan-transcript-completo.md` | 1.051 |
 | *(los otros 100+ archivos)* | < 1.000 c/u |

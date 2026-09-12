@@ -824,7 +824,7 @@ cliente se administre solo, hay que nombrarle un `sponsor`**, y eso es una decis
 ## 12. ✅ **Que los nulos NO suban al ordenar ascendente — CERRADA el 2026-08-26** *(ADR-076)*
 
 **Quién:** Mani o cualquiera con acceso a un cockpit. **Cuánto tarda:** 3 minutos.
-**De dónde sale:** Tarea 4 de [plan-orden-y-filtro](./agents/plan-orden-y-filtro.md).
+**De dónde sale:** Tarea 4 de [plan-orden-y-filtro](./archivo/plan-orden-y-filtro.md).
 
 ### Por qué un agente no puede cerrarla
 

@@ -116,7 +116,7 @@ Buena parte del andamiaje ya está. Verificado contra
 |---|---|---|
 | Voces como tabla, criterios, link a proyectos | ✅ tabla `Voces`; `Proyectos.voz_default` (1 voz/proyecto) | — |
 | Referente por proyecto, toggleable | ✅ `Referentes.proyecto` + `Referentes.activo` | — |
-| Referentes independientes entre voces | ⚠️ **convención, no garantía** — `Referentes.proyecto` es multi-link y el motor itera el array entero: un referente puede alimentar proyectos de 2 voces ([mapa-campos §2.5](./mapa-campos.md)) | decidir en B.1/E: documentar como permitido, o restringir |
+| Referentes independientes entre voces | ⚠️ **convención, no garantía** — `Referentes.proyecto` es multi-link y el motor itera el array entero: un referente puede alimentar proyectos de 2 voces ([mapa-campos §2.5](../archivo/mapa-campos.md)) | decidir en B.1/E: documentar como permitido, o restringir |
 | Proyecto toggleable | ✅ `Proyectos.activo` | — |
 | **Voz toggleable** | ❌ no hay `Voces.activo` | campo nuevo + el motor lo respeta |
 | **N por proyecto** | ❌ N es **global** (`Candidatos por corrida`=100; ADR-016 lo sacó del proyecto a propósito) | ADR-024 (cerrado): N vuelve a `Proyectos`, global = default, corte por proyecto |
@@ -177,25 +177,25 @@ cero): [dev-doc.md](dev-doc.md) → **verificar contra el JSON vivo, extender, f
 - [ ] **A.1** Verificar los 3 `workflow.json` contra dev-doc/guía: cada nodo existe, hace lo dicho, y
       está cableado (0 refs rotas, 0 huérfanos — reusar el chequeo de grafo de cierres 34/36).
 - [x] **A.2** ✅ Mapa **campo × tabla × quién-escribe/lee** de las 9 tablas → entregable completo en
-      **[mapa-campos.md](./mapa-campos.md)** (§4 el mapa, §2 los hallazgos). Responde las 4 preguntas de
+      **[mapa-campos.md](../archivo/mapa-campos.md)** (§4 el mapa, §2 los hallazgos). Responde las 4 preguntas de
       Mani. Base viva confirmada por MCP. **Huérfanos con veredicto, todos enganchados a su componente:**
       `banda_descarte_min`/`max` → C.5 · `tema`/`link_doc` vestigiales (ya documentados) → D.4 · `notas_equipo` y
       `viral_por_tamano` → D.3 · las 4 columnas de calidad de `Métricas Global`, los links inversos y la
       descripción pre-ADR-009 de `Voces` → B.3 · `Candidatos.fecha` manual → pasada única (§3 del mapa).
-      **Lo que abre:** el multi-link de `Referentes.proyecto` cruza voces ([§2.5](./mapa-campos.md)) → B.1/E.
-- [x] **A.3** ✅ Mapa **página/vista × tabla × propósito** → **[mapa-campos.md §5](./mapa-campos.md)**
+      **Lo que abre:** el multi-link de `Referentes.proyecto` cruza voces ([§2.5](../archivo/mapa-campos.md)) → B.1/E.
+- [x] **A.3** ✅ Mapa **página/vista × tabla × propósito** → **[mapa-campos.md §5](../archivo/mapa-campos.md)**
       (12 páginas + 1 form standalone, leídas por MCP). **No hay páginas huérfanas** — las 9 tablas
       tienen página y ninguna página quedó sin tabla; el problema es **qué campo muestra cada una**.
       **3 hallazgos 🔴 → B.6/B.3:** `veredicto` read-only mata el loop de ADR-021 (`falsos_negativos`
       siempre 0) · la página *Proyectos* no muestra `advertencia_criterios` (el archivado escribe cada
       domingo un aviso que nadie ve) · *Salud del Sistema* no muestra salud (el split partió tablas y
       nadie curó la página) · el form *Nuevo Proyecto* permite proyectos sin criterios ⇒ gate fail-open
-      = ruido sin filtrar. **Aporte a A.5 en [§5.2](./mapa-campos.md)**: el eje operativo aguanta; el
+      = ruido sin filtrar. **Aporte a A.5 en [§5.2](../archivo/mapa-campos.md)**: el eje operativo aguanta; el
       analítico es donde se rompe — pero curar *Salud* primero, o la comparación es tramposa.
 - [x] **A.4** Reconciliar **repo ↔ live**: ✅ **el gap de workflows se cerró solo — Mani re-importó los 3
       `workflow.json` el 2026-07-16** (M2, costos, contadores Apify y `normLang` ya viven en n8n), así que
       la lista de "vacío hasta re-import" quedó sin objeto. Lo que **sí** queda de A.4 es la reconciliación
-      de **config**, ya hecha y documentada en [mapa-campos.md §2.3](./mapa-campos.md) (`Ajustes` live vs.
+      de **config**, ya hecha y documentada en [mapa-campos.md §2.3](../archivo/mapa-campos.md) (`Ajustes` live vs.
       seed: `Días de recencia`=100 y `Bonus idioma`=0.45 son el equipo usando sus knobs, no drift; los 2
       toggles del descubrimiento faltan en `ajustesSeed` → pasada única de `setup-airtable.mjs`).
       ⚠️ **Verificación real pendiente:** el primer ciclo completo cierra el **26/07** (ver §Ciclo del
@@ -203,7 +203,7 @@ cero): [dev-doc.md](dev-doc.md) → **verificar contra el JSON vivo, extender, f
 - [x] **A.5** ✅ **CERRADA (2026-07-17): [ADR-025](../adr/ADR-025-cockpit-producto-propio.md)** — el
       cockpit migra a un **producto propio** (frontend+backend+DB+auth sobre Supabase), toda la
       superficie; Airtable queda como cockpit **interino** curado al mínimo (la guía ejecutable está en
-      [mapa-campos §6](./mapa-campos.md)); B.2 se retira (el muro del plan free fue el empujón). La
+      [mapa-campos §6](../archivo/mapa-campos.md)); B.2 se retira (el muro del plan free fue el empujón). La
       precondición "curar antes de decidir" quedó sin objeto: la decisión no se tomó comparando
       superficies sino por el bloqueo del disparo + la evidencia de §5.2.
 
@@ -221,7 +221,7 @@ correr) y la **racionalización de campos** que salga de la auditoría.
 - [ ] **B.1** Definir el **flujo de una corrida efectiva** de punta a punta: cómo el equipo elige Voz,
       ve sus proyectos, prende/apaga referentes, fija N, dispara, y ve el resultado. Este flujo es el
       contrato que B.2 y el componente C (motor) implementan.
-      **3 decisiones que le abrió la auditoría** ([mapa-campos §2.5 y §5.1](./mapa-campos.md)): el alta
+      **3 decisiones que le abrió la auditoría** ([mapa-campos §2.5 y §5.1](../archivo/mapa-campos.md)): el alta
       de proyecto (el form *Nuevo Proyecto* vive fuera del interface y permite proyectos **sin
       criterios** ⇒ gate fail-open = ruido: hacerlo obligatorio, sacarle el link inverso `Candidatos`, y
       decidir si entra al interface o se borra) · si un referente puede **cruzar voces** (hoy el schema
@@ -239,12 +239,12 @@ correr) y la **racionalización de campos** que salga de la auditoría.
       toggles son la selección. (Descartado: tabla `Corridas` + cron-poll — quema cuota y deja estado colgado.)
 - [ ] **B.3** **Racionalización de campos** (sale de A.2): quitar/estandarizar los campos que la
       auditoría marque innecesarios o inconsistentes; dejar la superficie coherente para el equipo.
-      **Ya en la lista** ([mapa-campos.md §2.1](./mapa-campos.md)): las 4 columnas de calidad que
+      **Ya en la lista** ([mapa-campos.md §2.1](../archivo/mapa-campos.md)): las 4 columnas de calidad que
       `Métricas Global` arrastra del split (`score_aprobados`/`score_descartados`/`separacion_gate`/
       `diagnostico`, muertas en filas GLOBAL) · los links inversos auto-creados que el equipo ve
       (`Proyectos.Referentes`/`.Candidatos`/…, `Voces.Proyectos`/`.Candidatos`) · la descripción de la
       tabla `Voces` en vivo, todavía pre-ADR-009 ("Eje de generación (cómo suena)").
-      **Suma A.3** ([mapa-campos §5.1](./mapa-campos.md)): pasar a **read-only** lo que escribe la
+      **Suma A.3** ([mapa-campos §5.1](../archivo/mapa-campos.md)): pasar a **read-only** lo que escribe la
       máquina y hoy el equipo puede pisar (*Feed*: `titulo`/`thumbnail`/`referente` · *Referentes -
       Revisar*: `tasa_gate`/`tasa_aprobacion`/`videos_evaluados` · las 2 páginas de Métricas: **todo**,
       sobre tablas que el contrato declara solo-lectura). El modelo a copiar es *Configuración Global*.
@@ -255,7 +255,7 @@ correr) y la **racionalización de campos** que salga de la auditoría.
       conducta del motor; el equipo ahora ve y edita los 2 knobs.
 - [ ] **B.5** Toggle de **Voz** visible/editable para el equipo (pareja del campo de datos en E).
 - [ ] **B.6** Cerrar **Métricas + Costos** (arrastre cierres 37-39), ahora con el diagnóstico preciso de
-      [mapa-campos §5.1](./mapa-campos.md): **(1)** `veredicto` **editable** en *Descartes* — **no es
+      [mapa-campos §5.1](../archivo/mapa-campos.md): **(1)** `veredicto` **editable** en *Descartes* — **no es
       cosmético**: es el único campo que lee una máquina ahí, y read-only deja `falsos_negativos` en 0
       para siempre (se lee como "el gate está perfecto"). **(2)** curar *Salud del Sistema*: hoy muestra
       campos de calidad y una columna muerta (`diagnostico` en filas GLOBAL) y **no muestra el embudo**
@@ -267,7 +267,7 @@ correr) y la **racionalización de campos** que salga de la auditoría.
       `summaryFunction: sum`; sin filtro suman toda la historia y `Métricas Global` no se barre nunca).
       **(5)** sumar `advertencia_criterios` +
       `criterios_aprendidos` a la página *Proyectos*. **Hacer (2) antes de A.5** — es la prueba honesta
-      de si Airtable se queda corto ([§5.2](./mapa-campos.md)).
+      de si Airtable se queda corto ([§5.2](../archivo/mapa-campos.md)).
 
 **Hecho cuando:** el equipo puede, desde la superficie elegida, elegir una Voz y un Proyecto, fijar N,
 disparar una corrida, y ver Métricas/Costos reales — con una superficie de campos coherente y sin ruido.
@@ -363,7 +363,7 @@ rompe el cómputo semanal ni la salud por referente.
       archivado, 120 — mismo nombre y semántica que en el motor); un `en_curso` más viejo es zombie y
       sigue contando fallo. Se arrastra con el re-import del archivado.
 - [x] ⭐ **D.3** ✅ **Decidido por Mani (2026-07-16): la salida (b)** de las 3 de
-      [mapa-campos §2.2](./mapa-campos.md) — `Armar filas archivado` ahora lleva **`notas_equipo` y
+      [mapa-campos §2.2](../archivo/mapa-campos.md) — `Armar filas archivado` ahora lleva **`notas_equipo` y
       `viral_por_tamano` a `outputs.metadata`** (al Sheet no van). Dejan de morir con el record cada
       domingo; el *por qué* de un 👎 y la marca viral quedan consultables por SQL sobre `outputs`.
       **La (a) (que las notas entren al destilado de Haiku) queda abierta a propósito:** se decidirá

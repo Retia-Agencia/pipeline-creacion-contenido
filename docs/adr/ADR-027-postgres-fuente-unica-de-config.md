@@ -46,8 +46,8 @@
     dominio corta. No se mantienen los dos vivos.
     *(Lo que pasó de verdad: los **dos** se borraron el 2026-08-05 y no hubo reemplazo, a propósito —
     el modelo vivo son las migraciones de [`core/schema/`](../../core/schema/), no una prosa que las
-    describa. El porqué está en [plan-cockpit-propio §D8](../agents/plan-cockpit-propio.md).)*
+    describa. El porqué está en [plan-cockpit-propio §D8](../archivo/plan-cockpit-propio.md).)*
 - **Toca:** `core/schema/` (migraciones nuevas, schema `app`) · `core/contracts/` · los 3
   `workflow.json` (solo lectura de config) · `setup-airtable.mjs` (queda deprecado al cortar el
   último dominio). Orden y "hecho cuando" de cada corte:
-  [plan-cockpit-propio.md](../agents/plan-cockpit-propio.md).
+  [plan-cockpit-propio.md](../archivo/plan-cockpit-propio.md).

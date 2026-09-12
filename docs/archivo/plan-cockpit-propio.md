@@ -3,11 +3,11 @@
 > **Qué es este doc:** el plan de construcción de la superficie propia que reemplaza a Airtable
 > ([ADR-025](../adr/ADR-025-cockpit-producto-propio.md)). Define **qué componentes tiene el sistema**,
 > **con qué se construye cada uno** y **en qué orden**, con un "hecho cuando" verificable por fase.
-> Es el hermano de [refactor-voces-proyectos.md](./refactor-voces-proyectos.md) para el producto: ese
+> Es el hermano de [refactor-voces-proyectos.md](../agents/refactor-voces-proyectos.md) para el producto: ese
 > plan cierra (su componente B muere acá), este arranca.
 >
 > **El PRD no se reescribe.** El contrato de producto —objetivo, usuarios, FR1–FR10, NFR1–NFR8— es el
-> de [refactor §0](./refactor-voces-proyectos.md), y sigue siendo el juez: si algo de acá no sirve a
+> de [refactor §0](../agents/refactor-voces-proyectos.md), y sigue siendo el juez: si algo de acá no sirve a
 > eso, no va.
 >
 > **Decisiones que lo gobiernan:** [ADR-025](../adr/ADR-025-cockpit-producto-propio.md) (producto
@@ -214,7 +214,7 @@ dominio.
 > motivó este diseño, pero desde
 > [ADR-053](../adr/ADR-053-el-repo-es-la-forma-el-live-es-el-estado.md) un cambio de `parameters` se
 > aplica con `npm run n8n:push` y ya no cuesta un re-import. Lo que todavía lo cuesta es la
-> **topología** — ver [plan-multi-tenant §14.2](./plan-multi-tenant.md), donde queda escrito por qué
+> **topología** — ver [plan-multi-tenant §14.2](../agents/plan-multi-tenant.md), donde queda escrito por qué
 > eso ahora es una decisión y no un límite de la API.
 
 ### D0 — Fundación *(el andamio, sin dominio todavía)*
@@ -366,7 +366,7 @@ Si la app lo vuelve a dejar de solo-lectura, hereda el mismo agujero.
 > observaciones de uso real, de las que 3 eran bugs (miniaturas bloqueadas por CORP, el botón del
 > buscador sin renderizar, las barras del embudo comparando videos con evaluaciones). Dejó los
 > principios **§3.9 y §3.10** de arriba y los ADRs 037/038/039. Detalle en el
-> [handoff, cierre 78](./handoff.md).
+> [handoff, cierre 78](../agents/handoff.md).
 
 Los **3 workflows** dejan de tocar Airtable, y la app también: se borró `lib/airtable.ts` entero.
 El contrato de escritura se cerró con **[ADR-035](../adr/ADR-035-contrato-de-escritura-por-postgrest.md)**

@@ -2,7 +2,7 @@
 
 - **Estado:** aceptada — 2026-07-31 (decisión de Mani, arquitecto). Refina
   [ADR-027](./ADR-027-postgres-fuente-unica-de-config.md) para el corte 3/4 de
-  [D5](../agents/plan-cockpit-propio.md#d5--corte-de-la-config-dominio-por-dominio-sin-tocar-n8n)
+  [D5](../archivo/plan-cockpit-propio.md#d5--corte-de-la-config-dominio-por-dominio-sin-tocar-n8n)
   y fija hasta cuándo vive la traducción de ids que arrastran los cortes 2/4 y 3/4.
 
 - **Contexto:** los cortes de D5 mueven un dominio entero de Airtable a Postgres. Con *Ajustes* y
@@ -18,7 +18,7 @@
   congelada, el motor lee otra fuente, y lo destilado no llega nunca. **Sin un solo error**, y
   encima estrenando la pantalla que existía justamente para mostrar `advertencia_criterios` — que
   hoy no muestra ninguna superficie (el archivado gasta un Haiku cada domingo escribiendo un aviso
-  que nadie lee, [plan-cockpit §D5](../agents/plan-cockpit-propio.md)).
+  que nadie lee, [plan-cockpit §D5](../archivo/plan-cockpit-propio.md)).
 
   Al medir el dato vivo apareció el segundo hecho, que la documentación negaba: **`proyectos[].id`
   y `voces[].id` no pueden dejar de ser record ids de Airtable en este corte.** Cuatro consumidores

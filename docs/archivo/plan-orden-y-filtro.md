@@ -7,7 +7,7 @@
 > ## ✅ EJECUTADO Y LIVE — 2026-08-26
 > Las 7 tareas cerradas, verificadas contra producción pantalla por pantalla, y desplegadas
 > (`d88c419..5915a14`, Vercel `success`). El detalle de lo que se encontró construyendo está en el
-> **cierre 116** de [handoff.md](./handoff.md); las dos reglas que el plan **no** tenía y que se
+> **cierre 116** de [handoff.md](../agents/handoff.md); las dos reglas que el plan **no** tenía y que se
 > pagaron construyendo están en el ADR: **§9 (se ordena por lo que la tarjeta muestra)** y el
 > corolario de **§5 (el default `null` = no reordenar)**.
 >
