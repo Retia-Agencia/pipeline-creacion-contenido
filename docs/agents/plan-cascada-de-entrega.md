@@ -125,7 +125,7 @@ El transcript sobrevive en `app.transcripciones` (ADR-087), pero `views`, `likes
 `thumbnail_url` y `seguidores` **sólo se persisten si el video llega a `app.candidatos`**. Sin
 metadata no hay heat-score ni tarjeta ⇒ **un baúl de videos pagados no se puede armar hoy aunque se
 quiera.** (`app.videos_meta` existe pero la llena el cockpit a pedido, no el motor —
-[ADR-072](../adr/ADR-072-el-guion-crudo-de-un-video-viene-de-donde-este.md).)
+[ADR-072](../adr/ADR-072-el-video-es-la-unidad-una-llave-una-tarjeta.md).)
 
 **Antes de construir nada, medir:** ¿cuántos videos pagados se caen de la ventana por corrida? Si es
 un puñado, este escalón no vale una tabla nueva. **Es una pregunta que hoy no está contestada.**

@@ -2,7 +2,7 @@
 
 - **Fecha:** 2026-09-01
 - **Estado:** aceptada · rung 1 en producción · **`036` aplicada y el motor ya la escribe** (01/09) · **falta la medición**, que la hace la primera corrida de redes
-- **Enmienda a:** [ADR-029](ADR-029-dedup-por-processed-items.md) (el dedup del motor)
+- **Enmienda a:** [ADR-029](ADR-029-dedup-blindado-fail-closed-y-feed.md) (el dedup del motor)
 
 ## Contexto
 
