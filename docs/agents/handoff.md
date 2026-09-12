@@ -29,9 +29,10 @@ tercio del medio eran cierres viejos anidados uno dentro de otro bajo un encabez
 
 | buscás | está en |
 |---|---|
-| **el estado de hoy** | el §ARRANCÁ POR ACÁ de acá abajo (cierre 153) |
+| **el estado de hoy** | el §ARRANCÁ POR ACÁ de acá abajo (cierre 154) |
 | **el refactor del motor** | 🧭 [plan-refactor-motor.md](./plan-refactor-motor.md) — el punto de partida único |
-| **los cierres 145 a 153** | acá abajo, completos |
+| **los mensajes al equipo de redes** | [plan-refactor-motor §9](./plan-refactor-motor.md) — **1 y 2 enviados el 12/09**, el 3 escrito y pendiente |
+| **los cierres 145 a 154** | acá abajo, completos |
 | **los cierres 70 a 144** | [handoff-archivo-2026-06_09.md](./handoff-archivo-2026-06_09.md) |
 | **el refactor Voces→Proyectos** | 🗄️ terminado y archivado el 2026-09-12: [docs/archivo/refactor-voces-proyectos.md](../archivo/refactor-voces-proyectos.md) |
 
@@ -39,7 +40,119 @@ tercio del medio eran cierres viejos anidados uno dentro de otro bajo un encabez
 N`), **nunca anidado dentro del anterior**. Así fue como nacieron las 5.736 líneas de blockquotes
 dentro de blockquotes que se acaban de archivar.
 
-## 🚦 ARRANCÁ POR ACÁ — CIERRE 153 (2026-09-12): la consolidación de `docs/`, y re-medir antes de mover encontró dos docs que mentían sobre sí mismos
+## 🚦 ARRANCÁ POR ACÁ — CIERRE 154 (2026-09-12): los mensajes al equipo SE ENVIARON, y el modelo mental de Mani resultó ser la simplificación que el plan pedía
+
+> 🧠 **Sesión de alineación y comunicación. Cero código, cero motor, cero migraciones, cero n8n.**
+> Lo único que salió al mundo fueron **dos mensajes de WhatsApp**. El resto es diagnóstico escrito
+> en [plan-refactor-motor.md §9](./plan-refactor-motor.md) y §4 (D10, D11).
+
+### 🟢 Lo que se hizo y no se puede deshacer: se mandaron 2 de 3 mensajes
+
+Al grupo *Cockpit - Pipeline de Contenido* (`120363431388941740@g.us`), el 2026-09-12:
+
+| # | qué dice | id |
+|---|---|---|
+| 1 | **El límite.** El buscador solo trae lo más reciente de las cuentas cargadas; no busca "lo más viral de Instagram" ni entra al historial viejo. Se están evaluando otras herramientas | `3EB00FD67BD1504DC97973` |
+| 2 | **Qué es el refactor**, en 4 puntos: cómo se mide un video (dos medidas), cómo se buscan (marca de agua + semanal), criterios de relevancia en formato parejo, y que la herramienta **deja de ser embudo y pasa a medir y ordenar** | `3EB0762A72227C637684C2` |
+
+**El mensaje 3 (las 10 preguntas) NO se envió**, por decisión de Mani: *"creo que sería importante
+revisar las alternativas, literal sentarme a usarlas"*. La respuesta a *"¿se pueden traer los más
+virales?"* cambia qué tiene sentido preguntar. **Está escrito y listo en §9.**
+
+⚠️ **Con el envío nacieron promesas públicas.** La tabla *"lo que los mensajes prometen"* al final de
+§9 las lista con su estado. Dos que conviene tener presentes: **"estoy evaluando otras herramientas"**
+(ya prometido, todavía sin hacer) y **el botón vuelve "en unos días"** — *se le planteó a Mani que no
+hay fecha de vuelta y eligió mandarlo así.*
+
+### 🔑 El hallazgo ordenador: el orden de los mensajes ES el diseño
+
+Los mensajes eran **dos** desde el 12/09 y abrían pidiendo criterio. Mani los frenó con esto:
+
+> *"Ellos esperan una herramienta que literal solo busque los más famosos de todo el internet y los
+> saque, pero eso no se puede ahorita con Apify."*
+
+**Si el equipo se imagina otra herramienta, cualquier respuesta que dé sobre cómo medir un video
+está contestando otra pregunta.** Por eso nació el mensaje 1 y por eso va primero. Quedó como **D11**.
+
+### 🧭 Y el reencuadre de Mani resultó ser la simplificación que C1 exigía
+
+Mani llegó con un modelo propio, sin leer el plan: *referentes como eje central, medidos y con
+semáforo que evoluciona en cada corrida; y el workflow en 5 pasos —* **buscar → medir/ordenar/asignar
+→ entregar → calificar → aprender**.
+
+**Contrastado contra el plan, no lo contradice: lo resume mejor.** El plan tiene cinco piezas
+(§3.1-§3.5) que son **maquinaria interna, no pasos explicables**; las de Mani sí son pasos. O sea que
+**pasa C1** (*"3 a 5 pasos explicables"*) y es la respuesta a **C2** (su sospecha de over-engineering).
+
+| paso de Mani | qué es en el plan | estado |
+|---|---|---|
+| 1. Buscar con base en los referentes | §3.4 marca de agua + §3.5 `pool_crudo` | diseñado, sin construir |
+| 2. Medir | §3.1 `avance(edad)` + §3.2 `viralidad` | falta `D` (Q1) y **M1-bis** |
+| 3. Ordenar y asignar, no matar | §3bis, D3, D8 | 🔴 **reencuadre, no diseño** |
+| 4. Entregar | el Feed | vivo |
+| 5. Calificar y aprender | §3.3 salud del referente | ⛔ **bloqueado por muestra** |
+
+🔑 **El semáforo no es un sexto paso: es la libreta que el paso 5 escribe y el paso 1 lee.** Un
+sustantivo, no un paso. Así el conteo de 5 se sostiene.
+
+### 🩸 El hueco de ese modelo, y hay que decirlo: **el semáforo nace en GRIS**
+
+Mani asume que *"los referentes hacen contenido de calidad"*. **Hoy esa asunción no se puede
+verificar ni refutar:** 137 calificaciones, χ² = 15,9 con p ≈ 0,15 ⇒ **no se distingue una cuenta
+buena de una mala** (hecho #8). Y el combustible no llega: **65 % de los candidatos nunca se
+calificó** (hecho #10), y **nadie definió qué significa el clic de aprobar** (C7).
+
+**La v1 del semáforo solo puede pintarse con lo que NO necesita un humano:**
+`mediana(vistas_normalizadas) / seguidores` (§3.3.a), que se calcula hoy y retroactivo sobre todo el
+pool. El verde/rojo por aprobación humana llega después, y como **veto con muestra suficiente**, no
+como puntaje (D4).
+
+### 📌 Dos decisiones nuevas: D10 y D11 (§4)
+
+- **D10 — al equipo le llegan DOS medidas, no una:** qué tan rápido creció **y** cuánto sobre lo
+  normal de su cuenta. **No se combinan.** Es D5 aplicado: dos números honestos en vez de un
+  compuesto sin calibrar.
+  ⚠️ **Con una deuda anotada:** las dos descuentan edad (una es vistas÷edad, la otra usa
+  `vistas_normalizadas`). **Hay que decidir dónde vive la corrección para no aplicarla dos veces.**
+  Abierto #10 de §11.
+- **D11 — el límite va antes de la propuesta.**
+
+### 🔄 Y el reencuadre que conecta la evaluación de proveedores con un hueco sin dueño
+
+Mani: *"lo de Apify puede ser un componente de añadidura, no de reemplazo"*. **Correcto, y ADR-098 no
+lo bloquea** (decidió una sola cosa: Apify se queda).
+
+Pero la premisa hay que corregirla: *"no se pueden traer videos viejos"* es cierto **del actor de
+Apify**, no del mundo. **Las 7 alternativas evaluadas tienen paginación por cursor**
+([tabla en la evaluación](../archivo/evaluacion-proveedores-scraping.md)). *Un obstáculo escrito se
+re-mide.*
+
+🔑 **Lo que lo vuelve importante:** traer viejo es **backfill**, y el backfill es **una vez por
+cuenta, no por corrida**. Y ahí engancha con un hueco que el plan tiene **sin diseñar**: **C3, el
+arranque en frío.** `viralidad` necesita la base histórica de una cuenta, y una cuenta recién
+agregada no tiene ninguna. **El carril de adición no es un lujo: es lo que hace que crecer el roster
+a cientos (§0, paso 9) funcione de verdad.**
+
+📏 **La aritmética que lo justifica, con sus supuestos marcados porque NO está medida:** 300 cuentas
+nuevas × 100 reels de historia × 0,0023 = **~69 USD por única vez** con Apify, contra un cupo de
+50/mes. Un proveedor que cobre por página podría bajarlo mucho, **pero depende entero de cuántos
+reels trae una página**, que es **M5** y cuesta **0** (trial de 100 requests de HikerAPI).
+⚠️ *Y el tier importa: a 0,02 USD/request el ahorro desaparece. No concluir sin medir.*
+
+### Lo que sigue, en orden
+
+1. 🔴 **M1-bis, la curva del reel joven.** 0 USD y **vence el 2026-10-11**.
+2. 🔴 **Copiar los datasets de Apify.** Misma fecha, **único paso irreversible del tablero**.
+3. ⬜ **Probar HikerAPI (M5) y Meta Graph API de verdad, usándolas.** Es lo que el mensaje 1 ya
+   prometió en público.
+4. ⬜ **Mandar el mensaje 3** (las preguntas) cuando 3 esté contestado.
+
+*Los puntos 1 y 2 no dependen de nadie más y son lo único con fecha de vencimiento en todo el
+proyecto.*
+
+---
+
+## 🔒 CIERRE 153 (2026-09-12): la consolidación de `docs/`, y re-medir antes de mover encontró dos docs que mentían sobre sí mismos
 
 > 🗂️ **Sesión dedicada y desechable, solo documentación. Cero motor, cero cockpit, cero migraciones,
 > cero n8n.** Ejecuta §12 de [plan-refactor-motor.md](./plan-refactor-motor.md). **Cero borrados:**

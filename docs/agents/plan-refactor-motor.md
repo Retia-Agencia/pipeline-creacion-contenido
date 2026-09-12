@@ -511,6 +511,8 @@ mensaje, no de la cabeza de un dev.
 | D5 | **No** se construye un puntaje ponderado (`0,6 × a + 0,4 × b`) | 12/09 | No hay con qué calibrar los pesos. Un número inventado con dos decimales se ve más confiable que uno honesto. Es el error que ya cometió `heat_score` |
 | D6 | La concurrencia del motor queda como está | Mani, 10/09 | Prefiere corridas rápidas y medir |
 | D7 | El botón ▶ queda bloqueado mientras dure el refactor | Mani, 12/09 | Commit `e4c1133` |
+| D10 | **Al equipo le llegan DOS medidas por video, no una**: (a) qué tan rápido creció y (b) cuánto le fue mejor de lo normal para su cuenta. **No se combinan en un número.** | Mani, 12/09 | *"que sean 2 cosas que se miden, así les llegan videos completamente medidos y fundamentados"*. Es **D5 aplicado**: dos números honestos en vez de un compuesto cuyos pesos nadie puede calibrar. ⚠️ Las dos descuentan edad: ver la nota de diseño de §9 |
+| D11 | **El límite va ANTES de la propuesta.** Al equipo se le corrige primero qué NO puede hacer la herramienta, y solo después se le pide criterio | Mani, 12/09 | *"ellos esperan una herramienta que literal busque los más famosos de todo el internet, y eso no se puede con Apify"*. Pedir opinión sobre un sistema que el otro se imagina distinto no produce criterio, produce ruido |
 
 ---
 
@@ -557,6 +559,14 @@ ponga en el motor lo puso un dev por su cuenta, que es exactamente lo que pasó 
 | **Q5** | Si pudieras ver **una sola columna** al lado de cada cuenta para decidir si se queda, ¿cuál? | Define la pantalla de referentes. **Ni Mani ni un agente pueden inventarla** | ⬜ sin preguntar |
 | **Q6** | 🆕 **Abierta:** ¿cómo es su proceso mental cuando salen a buscar videos? Qué miran, en qué orden, qué las hace parar en uno y seguir de largo en otro | Las otras 5 son cerradas y sirven para **decidir**; esta es abierta y sirve para **descubrir lo que no se me ocurrió preguntar**. Pedida por Mani el 12/09 | ⬜ sin preguntar |
 | **Q7** | ¿El umbral de viralidad debería poder ser distinto por proyecto, o uno solo para todos? | Un cociente permite uno solo (§3.2). Confirmar que eso les sirve | ⬜ va como "bonus" en el mensaje |
+
+> 📌 **La redacción final de estas preguntas NO vive acá: vive en §9, mensaje 3.** Esta tabla guarda
+> **por qué bloquea cada una**; §9 guarda **cómo se pregunta**. Un hecho, un dueño.
+> ⚠️ **Y la lista creció el 12/09 al reescribir el mensaje:** se sumaron el **decaimiento de una
+> cuenta** (cómo se dan cuenta de que una que servía dejó de servir, que es lo que alimenta el
+> semáforo evolutivo de §3.3 y no lo preguntaba nadie), la **necesidad de contenido semanal** (que
+> es lo que fija `cap_top_n` con un número honesto en vez de uno heredado), **qué significa aprobar**
+> (C7) y **TikTok** (C5). **Ninguna está preguntada todavía:** el mensaje 3 no se ha enviado.
 
 ### §5.2 · Las que decide una MEDICIÓN
 
@@ -727,132 +737,177 @@ vencimiento es copiar de Apify lo ya pagado antes del 11 de octubre.
 
 ---
 
-## §9 · Los dos mensajes para el equipo de medios
+## §9 · Los TRES mensajes para el equipo de medios
 
-> Versión final del 2026-09-12. **Revisados por Mani y NO ENVIADOS** (decidió cerrar la sesión antes
-> de mandarlos). Grupo: *Cockpit - Pipeline de Contenido*, `120363431388941740@g.us`. Van en
-> **singular** y sin jerga. Mensaje 1 = las preguntas; mensaje 2 = el contexto, se manda después.
->
-> 🚩 **Lo que Mani decidió SACAR, anotado para que nadie lo "recupere" creyendo que fue olvido:**
-> (1) el marco de *"encontré tres cosas rotas"*, porque el mensaje no es una confesión; (2) que la
-> herramienta no está aprendiendo (65 % sin calificar) — se pide aparte, como favor concreto;
-> (3) que el costo no era el problema; (4) **la promesa de cadencia semanal** — se quitó al final,
-> así que **cuando el botón vuelva con menos frecuencia el equipo no va a estar avisado**;
-> (5) la pregunta por el origen del N, contestada por Mani (§0).
+> 🟢 **Los mensajes 1 y 2 SE ENVIARON el 2026-09-12** al grupo *Cockpit - Pipeline de Contenido*
+> (`120363431388941740@g.us`), ids `3EB00FD67BD1504DC97973` y `3EB0762A72227C637684C2`.
+> **El mensaje 3 (las preguntas) NO se envió**: Mani lo dejó para después de probar las
+> alternativas de scraping (§5.2 M5), porque la respuesta a "¿se pueden traer los más virales?"
+> cambia lo que tiene sentido preguntar.
 
-### Mensaje 1 — las preguntas
+### 🔑 Por qué pasaron de dos a tres, y por qué el orden es el diseño
+
+**Mani, 12/09, al reescribirlos:** *"ellos esperan una herramienta que literal solo busque los más
+famosos de todo el internet y los saque, pero eso no se puede ahorita con Apify."*
+
+Los dos mensajes del borrador anterior **abrían pidiendo criterio y explicando una métrica nueva**,
+sobre una expectativa que nadie había corregido. Si el equipo cree que la herramienta puede salir a
+buscar lo más viral de Instagram, cualquier respuesta que den sobre cómo medir un video está
+contestando otra pregunta.
+
+> **Por eso el mensaje 1 ahora es el límite, no la propuesta.** Primero se corrige qué puede y qué
+> no puede hacer la herramienta; después se explica qué se está cambiando; y solo al final se pide
+> criterio. *Pedir opinión sobre un sistema que el otro se imagina distinto no produce criterio,
+> produce ruido.*
+
+### Mensaje 1 — el límite *(ENVIADO)*
 
 ```
-Qué más team? Estoy reconstruyendo la parte del buscador de reels que decide qué videos
-les llegan. Hay unas decisiones ahí que son de criterio de ustedes, no mías, y no quiero
-tomarlas yo desde el código. Son 8 preguntas, contesten como les salga:
+Qué más team. Antes de pedirles opinión sobre unos cambios, les cuento una
+limitación de la herramienta que vale la pena que sepan.
 
-1. Un video "bueno" para ustedes, ¿es el que tiene muchas vistas en general, o el que
-   tiene más vistas de lo normal para esa cuenta? Ejemplo: uno de 80 mil vistas en una
-   cuenta que suele hacer 20 mil, contra uno de 300 mil en una cuenta que suele hacer 2
-   millones. ¿Cuál les sirve más?
+El buscador solo puede traer los reels más recientes de las cuentas que tenemos
+cargadas. No sale a buscar "lo más viral de Instagram" y tampoco entra al historial
+viejo de una cuenta. El servicio que usamos cobra por cada reel que baja y siempre
+arranca por el más nuevo, así que buscar los videos más virales de una cuenta
+implicaría pagar por toda su historia, y eso al plan que tenemos se le dispara.
 
-2. Cuando un reel se acaba de publicar todavía no juntó sus vistas. ¿Cuántos días hay que
-   esperar para saber si le fue bien? ¿2, 7, 30?
+Estoy evaluando otras herramientas a ver si alguna permite eso sin que el costo se
+vaya al techo. Les cuento qué encuentro.
+```
 
-3. Si tuvieran que explicarle a alguien nuevo qué videos sirven para un proyecto y cuáles
-   no, ¿cómo se lo explicarían? Y aparte: ¿hay cosas que nunca sirven, para ningún
-   proyecto, pase lo que pase?
+### Mensaje 2 — qué es el refactor *(ENVIADO)*
 
-4. Cuando miran una cuenta nueva para decidir si la agregan como referente, ¿qué es lo
-   primero que miran? ¿Y qué las hace descartarla de una?
+```
+Ahora sí, lo que estoy cambiando por dentro.
 
-5. Si pudieran ver UNA sola columna al lado de cada cuenta para decidir si la dejan o la
-   sacan, ¿cuál sería?
+Hoy cada corrida hace cuatro cosas: baja los reels nuevos de las cuentas cargadas,
+se queda solo con los que pasan cierto número de vistas, les saca el texto hablado,
+y una IA decide si el tema le sirve al proyecto. Lo que sobrevive es lo que les
+llega al Feed.
 
-6. Cuando el buscador les trae un video que no sirve, ¿qué suele estar mal: el tema, la
-   cuenta de donde salió, o ese video en particular?
+Cambian cuatro cosas.
 
-7. Y una más suelta: quiero saber cuál es su proceso para sacar videos.
+1. Cómo se mide un video. Hoy es un solo número de vistas, igual para toda cuenta y
+todo proyecto, y termina haciendo cosas opuestas según el nicho: en trading la
+mediana de lo que traemos es de unas 22 mil vistas, y en psicología de 256 mil.
+Ahora cada video les va a llegar con dos medidas: qué tan rápido creció, y qué
+tanto le fue mejor de lo normal para su cuenta (una que hace 20 mil saca uno de 60
+mil, o sea 3 veces lo suyo). Como la segunda es una comparación y no un número
+fijo, sirve igual para todos los proyectos.
 
-8. ¿Preferirían poder pedir un mínimo de "qué tan viral" tiene que ser un video antes de
-   que les llegue, o prefieren que les muestre todo ordenado de mejor a peor y ustedes
-   descartan?
+2. Cómo se buscan. Hoy pedimos "lo de los últimos X días" y eso vuelve a bajar los
+mismos videos una y otra vez. Pasa a ser "lo que publicó desde la última vez que la
+miramos", y a correr una vez por semana. Lo que se ahorra no es para gastar menos:
+es para poder seguirle a muchas más cuentas con la misma plata. Hoy son 59 y se
+quedan cortas.
 
-Mientras tanto el botón de "Buscar contenido" va a estar desactivado unos días, dice
+3. Los criterios de relevancia. Hoy son texto libre y cada proyecto lo escribió a
+su manera. Los vuelvo un formato parejo, para separar lo que es del tema, lo que es
+del formato, y lo que no se publica nunca pase lo que pase.
+
+4. El papel de la herramienta. Deja de ser un embudo que descarta y pasa a medir y
+ordenar. Trae, mide y se los muestra de mejor a peor. Quien decide qué sirve siguen
+siendo ustedes.
+
+Cuéntenme qué les parece, sobre todo si algo no les cuadra o si creen que así se
+les puede escapar algo que hoy sí están viendo.
+
+El botón de "Buscar contenido" queda desactivado unos días mientras tanto, dice
 "Bajo construcción por dev". Les aviso cuando vuelva.
 ```
 
-### Mensaje 2 — el contexto (va después del 1)
+### Mensaje 3 — las preguntas *(NO ENVIADO — espera la prueba de alternativas)*
 
 ```
-Les cuento cómo funciona la herramienta hoy y hacia dónde la estoy llevando, para que las
-preguntas tengan sentido.
+Y acá van las decisiones que son de criterio de ustedes y no mías. Son 10 y son
+cortas. Si solo alcanzan tres, que sean la 4, la 5 y la 6.
 
-*Cómo funciona hoy.* Cada corrida hace cuatro cosas seguidas: (1) va a las cuentas de
-referentes que tenemos cargadas y se baja los reels nuevos, (2) se queda solo con los que
-pasan cierto número de vistas, (3) le saca el texto hablado a los que quedaron, y (4) una
-IA lee ese texto y decide si el tema le sirve al proyecto. Lo que sobrevive los cuatro
-pasos es lo que les aparece en el Feed.
+1. De cada video les van a llegar dos números: qué tan viral fue por sí solo, y
+qué tanto le fue mejor de lo normal para esa cuenta. ¿Esos dos les sirven? ¿Falta
+alguno, o se les ocurre una forma mejor de medirlo?
 
-*El reality check, y por eso escribo.* Hoy el paso 2 usa un número fijo de vistas, el
-mismo para toda cuenta y todo proyecto. Estos son los números reales de lo que eso
-produce: en los proyectos de trading, la mediana de vistas de los reels que traemos es de
-unas 22 mil, y solo el 2% de ellos pasa el medio millón. En psicología y comunicación la
-mediana es de 256 mil y pasa un tercio. Es el mismo umbral haciendo dos cosas opuestas
-según el nicho. En la práctica, en trading eso significa que para llenar un pedido de 70
-videos el material que califica son unos 5.
+2. ¿Cada cuánto quieren que corra el buscador? Y como un reel recién publicado
+todavía no juntó sus vistas, ¿cuántos días esperarían antes de que les llegue, a
+cambio de estar más seguras de que le fue bien?
 
-*Lo que propongo.* Que el número de vistas deje de ser un requisito y pase a ser un
-*medidor de viralidad*: en vez de "¿pasó el medio millón?", medir "¿le fue mejor de lo
-normal para esa cuenta?".
+3. Si le explicaran a alguien nuevo qué videos sirven para un proyecto, ¿cómo se lo
+explicarían? ¿Y hay cosas que no sirven para ninguno, pase lo que pase?
 
-Así quedaría en concreto. Una cuenta que normalmente hace 20 mil vistas por reel saca uno
-de 60 mil: eso es 3 veces lo normal de ella, y ese número se los muestro al lado del
-video. Otra que normalmente hace 2 millones saca uno de 900 mil: le fue por debajo de lo
-suyo, así que aparece más abajo aunque el número absoluto sea mucho mayor. ¿Les cuadra que
-funcione así, o se les ocurre algún caso donde esto les dé vuelta algo que ustedes sí
-querrían ver? Esa es la pregunta que más me sirve, porque es la que puede romper la idea
-antes de que la construya.
+4. Cuando miran una cuenta nueva, ¿qué es lo primero que miran y qué la descarta de
+una? ¿Y cómo se dan cuenta de que una que antes servía dejó de servir?
 
-Como es una comparación y no un número, el mismo criterio sirve para todos los proyectos,
-sin configurar un umbral distinto para trading, para psicología y para lo que venga.
+5. Si pudieran ver una sola columna al lado de cada cuenta para decidir si la dejan
+o la sacan, ¿cuál sería?
 
-*Y acá está el cambio de fondo, que es más importante que la fórmula.* Si el filtro de
-vistas deja de ser el que decide, el peso pasa entero a la calidad de los referentes. Un
-buen referente da buenos videos casi solo; uno malo no lo salva ningún filtro, y hoy los
-estamos juzgando con muy poca información. Quiero que la pestaña de Referentes se vuelva
-un tablero de verdad, donde se vea cuáles están rindiendo y cuáles no, y que la lista
-crezca bastante.
+6. La última vez que buscaron videos para un proyecto, ¿qué hicieron paso a paso?
+Dónde buscaron, qué miraron primero, qué las hizo parar en uno y seguir de largo en
+otro.
 
-*Por eso pregunto lo de los días.* Para comparar un reel de ayer con uno de hace un mes
-hay que tener en cuenta que el de ayer todavía no terminó de juntar vistas. Ya estoy
-midiendo cuánto crece un reel con el tiempo para corregir eso. Pero cuánto tiempo le damos
-antes de juzgarlo es decisión de ustedes.
+7. Cuando les llega uno que no sirve, ¿qué suele estar mal: el tema, la cuenta de
+donde salió, o ese video en particular?
 
-Las preguntas 4, 5 y 7 son las que más me sirven: yo puedo construir el tablero, pero el
-criterio de qué hace buena a una cuenta es de ustedes.
+8. ¿Cuántos videos necesitan por semana? Y en general, ¿cuál es su necesidad de
+contenido ahorita?
+
+9. Una idea que se me ocurrió: que la herramienta no descarte nada. Que el trabajo
+esté en tener buenos referentes y en que cada video les llegue bien medido, y de
+ahí ustedes deciden. ¿Les sirve verlo todo ordenado de mejor a peor, o preferirían
+poder esconder lo que esté por debajo de cierto nivel?
+
+10. ¿Usan TikTok como fuente o solo Instagram?
 ```
 
-### ⚠️ Lo que queda ABIERTO sobre estos mensajes
+### Qué cambió contra el borrador del 12/09, y por qué
 
-- **No están enviados.** Falta luz verde de Mani.
-- 🔴 **El párrafo del reality check nombra el medio millón con números, y el medio millón es un
-  pedido del jefe (§0).** Va dirigido a Majo y Jero, que son quienes lo reciben, pero puede llegarle
-  a Daniel de rebote y dicho por Mani. **Se le planteó la alternativa —sacarlo del mensaje y dar esa
-  conversación directo, con los mismos números— y no eligió.** Sin decidir.
-- El mensaje 2 describe el paso 4 como *"decide si el tema le sirve"*. Con §3bis eso pasaría a
-  **asignar** en vez de descartar, pero no está construido ni decidido, así que **se dejó la
-  descripción vieja a propósito.**
+| antes | ahora | por qué |
+|---|---|---|
+| 2 mensajes: preguntas + contexto | **3**: límite → refactor → preguntas | la expectativa había que corregirla antes de pedir criterio |
+| Q1 con ejemplo que inducía la respuesta | abierta, y pide alternativas | *"si contestan lo relativo no aprendiste nada: se los enseñaste"* |
+| **una** métrica (`viralidad`) | **dos**: qué tan rápido creció **+** cuánto sobre lo normal de su cuenta | decisión de Mani: *"que sean 2 cosas que se miden"*, así los videos llegan medidos y fundamentados. Coherente con **D5**: dos números honestos en vez de un compuesto sin calibrar |
+| Q2 preguntaba física del reel (*"¿cuántos días hay que esperar?"*) | cadencia + *cuántos días estarían dispuestas a esperar* | la física la contesta §1.3, no el equipo. `D` es una preferencia, no un hecho |
+| Q7 *"una más suelta"* | el último caso concreto, narrado paso a paso | el recuerdo concreto supera a la descripción abstracta de un proceso |
+| Q8 ambigua entre motor y pantalla | solo pantalla, y presentada como idea | preguntar *"¿el motor debe filtrar?"* reabre **D3**, que ya está decidido |
+| — | **nuevas**: decaimiento de cuentas · necesidad de contenido semanal · TikTok | el semáforo de §3.3 evoluciona por corrida y nada preguntaba por el decaimiento; TikTok cierra **C5** con una frase |
+| el aviso *"las que más me sirven"* iba en el mensaje 2 | va en la **primera línea** del mensaje de preguntas | llegaba después de que ya habían contestado |
 
-### Lo que el mensaje 2 promete, y hay que cumplir
+### 🚩 Lo que se decidió SACAR, para que nadie lo "recupere" creyendo que fue olvido
 
-| promesa | dónde vive |
-|---|---|
-| el número de vistas pasa a ser un medidor, no un requisito | §3.2 |
-| mostrarles el múltiplo al lado del video | §3.2 — **no está construido en el cockpit** |
-| un solo criterio para todos los proyectos | §3.2 (un cociente no tiene escala) |
-| "ya estoy midiendo cuánto crece un reel" | §1.3 (hecho) + M1-bis (falta el tramo joven) |
-| el peso pasa a la calidad de los referentes | §3.3 y §0, depende de Q4/Q5 |
-| tablero de referentes de verdad | §3.3 |
-| que la lista de cuentas crezca | §0, paso 9 de §7 |
+1. **El párrafo del reality check con el medio millón.** Quedó la asimetría entre nichos con sus dos
+   números medidos (22 mil vs 256 mil), **sin nombrar el 500.000 ni el 2 %**. 🔑 **El motivo no es
+   estético: el 500.000 es una instrucción de Daniel (§0).** Dicho a Majo y Jero con números, puede
+   llegarle a él de rebote y en boca de Mani, leído como crítica a su regla por detrás.
+   ⚠️ **Eso deja la conversación con Daniel ABIERTA y sin fecha** (§11, abierto #3). Sacarla del
+   mensaje no la resuelve: la aplaza.
+2. Que la herramienta no está aprendiendo (65 % sin calificar). Se pide aparte, como favor concreto.
+3. Que el costo no era el problema.
+4. **Qué significa "aprobado" (C7) SÍ volvió**, dentro de la pregunta 8. ADR-089 lo define en la base
+   (`calificacion in ('🔥','👍')`) pero **nadie definió qué quiere decir la persona al hacer clic**.
+   Si 🔥 significa *"lo grabo esta semana"* para una y *"está bueno, algún día"* para otra,
+   **todas las correlaciones del repo miden ruido, incluida el +0,044 que justifica este refactor.**
 
-**No se prometió ninguna fecha, a propósito.**
+### ⚠️ Una nota de diseño que el mensaje 2 no dice, y hay que resolver al construir
+
+**Las dos medidas prometidas NO son independientes.** *"Qué tan rápido creció"* es vistas ÷ edad, y
+*"cuánto le fue mejor de lo normal para su cuenta"* usa `vistas_normalizadas`, que **también** está
+corregida por edad vía `avance(edad)` (§3.1). Las dos descuentan lo mismo.
+
+Está bien decirlas así al equipo, porque contestan preguntas distintas. Pero al construir hay que
+**decidir dónde vive la corrección de edad para no aplicarla dos veces.** Sin decidir.
+
+### Lo que los mensajes prometen, y hay que cumplir
+
+| promesa | dónde vive | estado |
+|---|---|---|
+| dos medidas al lado de cada video | §3.1 + §3.2 | **no construido en el cockpit** |
+| un solo criterio para todos los proyectos | §3.2 (un cociente no tiene escala) | diseñado |
+| *"lo que publicó desde la última vez"* en vez de días de recencia | §3.4 marca de agua | diseñado, sin construir |
+| correr una vez por semana | §3.4 | 0 código: es cadencia |
+| criterios de relevancia en formato parejo | §3bis.2 | 🔴 **reencuadre, no diseño** |
+| separar lo que no se publica nunca | §3bis.2, hallazgo 3 | sin diseñar |
+| seguirle a muchas más cuentas | §0 segunda raíz, paso 9 de §7 | ⚠️ **va DESPUÉS de los pasos 6 y 7** |
+| *"estoy evaluando otras herramientas"* | §5.2 **M5** | ⬜ **es el próximo paso** |
+| el botón vuelve *"en unos días"* | D7 | 🔴 **sin fecha. Se le planteó a Mani y eligió dejarlo así** |
 
 ---
 
@@ -944,6 +999,7 @@ siguen gobernando código vivo. Un ADR viejo no es un ADR obsoleto: es historia 
 | **Medido gratis, longitudinal** | 26 días de historia de datasets ya pagados: **las vistas no se congelan**, creció ~100 % en cada ventana de semanas (§1.3) |
 | **Ordenado** | `docs/` auditado, handoff rotado 8.334 → ~1.300, 4 planes archivados (§10) |
 | **Escrito** | los dos mensajes para el equipo (§9), sin enviar |
+| **Enviado (2026-09-12, sesión posterior)** | 🟢 los mensajes **1 y 2** al grupo *Cockpit - Pipeline de Contenido*. Pasaron de 2 a **3**: el nuevo mensaje 1 corrige la expectativa (*"no busca lo más viral de Instagram"*) antes de pedir criterio. **El 3, las preguntas, espera la prueba de alternativas** |
 
 ### Lo que quedó DECIDIDO (§4 + esta sesión)
 
@@ -956,7 +1012,7 @@ queda igual · D7 el ▶ bloqueado · **D8 (12/09): el motor no mata, asigna · 
 
 | # | Abierto | Quién lo cierra |
 |---|---|---|
-| 1 | **Mandar o no los dos mensajes**, y si el párrafo del reality check va adentro o se lo dice Mani directo a Daniel | Mani |
+| 1 | ✅ **CERRADO en parte (12/09): los mensajes 1 y 2 se enviaron.** El párrafo del reality check quedó **sin nombrar el 500.000** (§9). ⚠️ *Sacarlo del mensaje no cierra el tema: lo aplaza al abierto #3.* Falta enviar el mensaje **3** | Mani, tras la prueba de M5 |
 | 2 | **P1 · P2 · P3**, el protocolo de medición de éxito | equipo de redes (§5.1) |
 | 3 | **La conversación con Daniel sobre qué significa accuracy.** Hay dos definiciones en conflicto y el 500k es instrucción suya (§0) | Mani, sin fecha |
 | 4 | **M1-bis**, la curva del reel joven. Gratis, y **vence el 2026-10-11** | un dev, 0 USD |
@@ -964,6 +1020,8 @@ queda igual · D7 el ▶ bloqueado · **D8 (12/09): el motor no mata, asigna · 
 | 6 | **C1-C8** (§5bis): explicable en 5 pasos · sospecha de over-engineering · arranque en frío · `seguidores` como denominador flojo · **TikTok muerto** · revisión del protocolo · qué significa "aprobado" · no hay con qué validar el cambio | varios |
 | 7 | **T1 · T2 · T3 · T5 · T6 · T7 · T8** (§5.3), incluida la discrepancia **26 vs 59 referentes** | un dev |
 | 8 | Copiar los datasets de Apify **antes del 2026-10-11** | un dev |
+| 9 | 🆕 **Probar las alternativas de scraping de verdad, usándolas** (§5.2 **M5** HikerAPI + Meta Graph). Pedido de Mani el 12/09: *"literal sentarme a usarlas"*. **Es lo que el mensaje 1 ya prometió en público** | un dev, 0 USD |
+| 10 | 🆕 **Dónde vive la corrección de edad.** Las dos medidas prometidas al equipo descuentan las dos por edad (§9, nota de diseño). Hay que decidir dónde se aplica para no aplicarla dos veces | un dev |
 
 ### 🩸 Las cuatro correcciones que esta sesión le hizo a sus propias conclusiones
 
