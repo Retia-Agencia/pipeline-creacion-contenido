@@ -20,6 +20,125 @@
 
 **Estados:** ⬜ libre · 🔧 en curso · ✅ hecho · ⛔ bloqueado
 
+## 🚦 ARRANCÁ POR ACÁ — CIERRE 151 (2026-09-12): el proveedor nunca fue el problema, y 25 referentes no pueden dar 150 videos
+
+> 🔬 **Sesión de investigación pura: cero código, cero corridas del motor, cero migraciones.** Todo
+> se midió leyendo la API de Apify y los datasets YA PAGADOS de la exec 183, que no cuesta nada.
+> Disparada por Mani: *"evaluar alternativas al actor de Apify y traer una recomendación con
+> números"*.
+>
+> 📕 **El doc entero es [evaluacion-proveedores-scraping.md](./evaluacion-proveedores-scraping.md)**
+> — 5 actores de Apify y 7 alternativas externas, con precio, paginación, infraestructura y riesgo.
+> Acá van sólo los cinco hechos que cambian decisiones. **No los re-derives.**
+
+**1. 🔴 El cuello de botella no es la plata ni el proveedor: son 25 referentes.** El equipo pide
+~150 videos/semana. El techo físico del roster, con todo comprado y ningún filtro, es **59 a 218
+reels crudos/semana** ⇒ **0,6 a 45 aprobados** (× la tasa de `min_views` medida sobre las 450 filas
+del pool × 39 % de aprobación humana). Para 150 hacen falta **301 a 1.115 referentes con `min_views`
+en 100.000** (25,9 USD/mes, cabe). Con `min_views` en 500.000 hacen falta 1.656-6.132 y **no cabe en
+el cupo a ningún precio** (142 USD/mes).
+
+**2. 🟢 Apify bien usado cuesta 0,84 a 2,41 USD/mes**, con marca de agua por referente
+(`onlyPostsNewerThan` = fecha del reel más nuevo ya comprado de esa cuenta) y **una corrida por
+semana**. El cupo de 50 aguanta **580 a 2.149 referentes** a ese régimen. ⇒ **La marca de agua no es
+la mejora: es el PERMISO para multiplicar los referentes por 12-40.** Es lo que conecta el punto 1
+con el 2, y es la tesis del doc.
+
+**3. 🩸 Y el dato que reordena el diagnóstico de costo entero:** la exec 183 **con la config actual,
+sin marca de agua**, a cadencia semanal cuesta **4,45 USD/mes — el 9 % del cupo**. Los 23,83 USD del
+10/09 no los causó la ventana, ni el actor, ni la falta de `onlyPostsOlderThan`: **los causó disparar
+5 tandas en un día.** El 74 % de re-compra del cierre 149 es re-compra **intradía**. *El proveedor
+nunca fue el problema; la cadencia sí, y es gratis.*
+
+**4. ⛔ Confirmado y extendido: ninguno de los 5 actores de Apify tiene cota superior de fecha**
+(verificado el input schema de `instagram-scraper`, `instagram-api-scraper`, `instagram-post-scraper`,
+`instagram-reel-scraper` y `apidojo/instagram-scraper` vía `GET /v2/acts/<id>/builds/default`). El
+`until` de apidojo dice literal *"Returns posts newer than this date"*: es otro piso. **Y deja de
+importar con marca de agua: el piso de esta corrida es el techo de la anterior.**
+
+**5. 🔓 Dos precios que se creían no consultables SÍ están en la API de Apify** (`pricingInfos[-1]
+.pricingPerEvent.actorChargeEvents[*].eventTieredPricingUsd`; nuestro plan STARTER = tier **BRONZE**,
+verificado porque BRONZE de `instagram-scraper` = 0,0023 y coincide exacto con lo medido):
+- **El add-on `transcript` cuesta 0,041 USD por minuto empezado, por reel.** Supadata `auto` cuesta
+  0,001567 por video ⇒ **26× más caro**. ⛔ **La idea de "que el transcript venga con el reel y
+  Supadata salga del pipeline" queda cerrada con número.** *El handoff decía "Apify no lo expone por
+  API" y era falso.*
+- **`instagram-reel-scraper` NO es más barato** (0,0023, lo mismo). Lo que trae es **`skipPinnedPosts`**,
+  y ese es su único argumento: la fuga de fijados es **26 de 450 reels (5,8 %) hoy** y pasa a ser
+  **el 31 % de la factura** cuando la marca de agua baje el denominador a 85. *Crece justo cuando se
+  arregla la cadencia.*
+
+### Lo que se contestó a Mani, y por qué sus dos intuiciones necesitaban número
+
+- **P: *"¿si Apify no es caro, arreglar la cadencia es suficiente?"*** → **NO.** Es suficiente para el
+  costo y es **hostil al supply**: la marca de agua abarata comprando menos. Es la tensión central
+  del doc y es lo que empujó el punto 1 por encima del 2.
+- **P: *"hay un actor con esquema idéntico 13 % más barato, propongo pasarnos"*** → `instagram-api-scraper`
+  cobra 0,0020 **más 0,001 por arranque de corrida**, y el motor arranca **una corrida por cuenta**
+  (`Split IG referentes`). Punto de equilibrio: **3,3 reels por corrida de actor**. En el régimen con
+  marca de agua (2,4 reels/cuenta) sale **+5,1 % MÁS CARO**. El 13 % sólo aparece mandando todos los
+  handles en UNA corrida (`directUrls` es array). **Ahorro total: 3,76 USD/año.**
+- **P: *"Apify es un cuello de botella, es nuestra única herramienta de scrapeo; miremos Meta Graph
+  API y HikerAPI"*** → 🟡 **Meta Graph API cubre 25-50 % del roster**, medido sobre
+  `metaData.isBusinessAccount` de los reels ya pagados: **5 de 20 cuentas son Business**, otras 5
+  tienen `businessCategoryName` (probables Creator). **Nunca puede ser proveedor único** —la mitad
+  del roster son cuentas personales que `business_discovery` no ve— pero es la única fuente
+  **oficial** posible, imposible de bloquear por scraping. Requiere App Review con Advanced Access.
+
+### Lo evaluado y descartado, con su porqué
+
+- 🔴 **Agent-Reach** (`Panniantong/Agent-Reach`, el repo que mandó Mani). **Su código está limpio**
+  (cero `eval`/`exec`/ofuscación/`shell=True`/`curl|sh`; cookies acotadas por dominio y **sin
+  Instagram** en la lista; el `postinstall` de su dependencia npm **no hace red**). **Queda
+  descalificado por arquitectura, no por seguridad:** su módulo de IG tiene **13 líneas** y delega en
+  **OpenCLI**, que maneja *tu Chrome real logueado* y es **desktop-only, sin headless** ⇒ **no puede
+  correr en el servidor de n8n**. Y el mismo adaptador expone `like`, `follow`, `comment`, `unfollow`.
+  ⚠️ Sus 79.695 ⭐ contra **282 watchers** (ratio 283:1, sano 20-60:1) y OpenCLI 29.225 ⭐ / **62
+  watchers** (471:1): **el conteo de estrellas no es evidencia de uso real** y era la única señal de
+  confianza disponible.
+- ⛔ **instaloader / instagrapi:** el costo no es el código, es proxies + cuentas quemables + el ban
+  cayendo sobre cuentas propias, a cambio de ahorrar ~29 USD/año.
+- 🟨 **`apidojo/instagram-scraper` a 0,00049 (4,7× más barato):** anotado, **no adoptado**. A este
+  régimen ahorra ~1,4 USD/mes, tiene 776 usuarios/30d contra 42.748 del oficial, y su output schema
+  no está verificado. **Se reabre pasados los ~400 referentes.**
+- ⬜ **PreWave** (herramienta interna que el jefe de Mani pidió y aún no llega): casilla abierta. Las
+  3 preguntas que la deciden en 20 minutos están en §7 del doc.
+
+### 📏 Lo que cuesta migrar, para que el cero del ahorro se vea entero
+
+`Normalizar IG` lee **23 campos** del item de Apify. Cualquier proveedor nuevo obliga a remapear los
+23, re-verificar el dedup por `external_id`, y reescribir el pre-flight de cupo de ADR-094 (que lee
+`/v2/users/me/limits` y **no tiene equivalente en ningún otro proveedor**). Son días. **Para ahorrar,
+como máximo, 29 USD al año.**
+
+### ⚠️ Lo que NO se pudo medir, y qué lo cierra
+
+1. **El rango del ritmo de publicación es 59 a 218 reels/semana (4×) y este pool no puede cerrarlo**:
+   14 de 26 cuentas topearon en `resultsLimit = 25`, así que su historia dentro de la ventana está
+   truncada. *Elegir uno de los dos sería inventar precisión.* **Lo cierra** una corrida con
+   `resultsLimit` 100 y ventana 14 d sobre el roster actual (**~1,50 USD**).
+2. **El tamaño de página de `user/medias/chunk` de HikerAPI.** Cobra por PÁGINA, no por reel: si trae
+   12+, su tier de entrada (0,02/req) sale **más barato que Apify** sin prepagar; si trae 1, es 8,7×
+   peor. **Es el único número que podría dar vuelta un veredicto.** **Lo cierra su trial de 100
+   requests: 0 USD.**
+3. **El output schema de `instagram-reel-scraper`** (input idéntico ≠ output idéntico). **Lo cierra**
+   una corrida de 1 reel: **0,0033 USD**.
+
+### 🔴 Lo que esta evaluación NO toca, y sigue siendo el frente más grande
+
+El termómetro roto del cierre anterior: `relevancia_score ↔ aprobado` = **+0,041** y
+`heat_score ↔ aprobado` = **+0,044** (n=136). **Multiplicar los referentes por 12 sin arreglar eso
+multiplica por 12 el material que se juzga con una vara que no mide.** Y sumar 300 cuentas sin el
+ledger por cuenta (`app.v_salud_referentes` + los dos contadores que le faltan, §2.a de la sesión del 11/09) son 300 suscripciones que nadie cancela: hoy ya
+hay 5 corriendo que se llevan el 24 % del gasto y devuelven cero.
+
+### 🩸 El error propio de esta sesión
+
+Se sospechó que el `postinstall` de `@jackwener/opencli` descargaba código en tiempo de instalación,
+**por el nombre del script** (`fetch-adapters.js`). Se bajó el tarball de npm y se leyó: **no hace ni
+una llamada de red**, sincroniza hashes locales. *Un nombre no es una medición, ni siquiera para
+acusar.*
+
 ## 🚦 ARRANCÁ POR ACÁ — sesión del 2026-09-11 (brainstorm del refactor, sin código todavía)
 
 > 🧠 **Esta sesión NO tocó código ni datos: fue brainstorm puro sobre el refactor del motor**,

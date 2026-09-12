@@ -55,6 +55,22 @@ en §Agent skills; acá solo se ubican.
   cero código, y la misma corrida entregó **0**, que es la otra mitad de la noticia: lo que queda
   abierto no es el costo sino `min_views`, que está global en 500.000. El mapa monetario es
   [costos.md](docs/costos.md); esto es el porqué.
+- [docs/agents/evaluacion-proveedores-scraping.md](docs/agents/evaluacion-proveedores-scraping.md) —
+  **¿hay que sacar a Apify?** El inventario de los 5 actores de Apify y las 7 alternativas externas
+  (Meta Graph API, HikerAPI, ScrapeCreators, EnsembleData, Bright Data, instaloader/instagrapi,
+  Agent-Reach), cada una con precio de primera mano, paginación, infraestructura y riesgo. Su
+  hallazgo ordenador, y contradice el título: *el proveedor nunca fue el problema* — **Apify con
+  marca de agua por referente y cadencia semanal cuesta 0,84-2,41 USD/mes** de un cupo de 50, y la
+  config de HOY a cadencia semanal ya cuesta 4,45. Los 23,83 USD del 10/09 los causó **disparar 5
+  tandas en un día**, no la ventana. 🔴 **Y el hallazgo que reordena el norte: 25 referentes no
+  pueden dar los ~150 videos/semana que pide el equipo** — el techo físico del roster son 45
+  aprobados, y para 150 hacen falta **301-1.115 referentes con `min_views` en 100.000**. ⇒ *la marca
+  de agua no es la mejora, es el permiso para multiplicar los referentes por 12-40.* Trae también
+  los dos precios que se creían no consultables (el add-on de transcript de Apify sale **26×
+  Supadata**; el actor "13 % más barato" sale **+5 % más caro** por su cobro de arranque) y el
+  análisis de seguridad de Agent-Reach: **código limpio, descartado por arquitectura** (es
+  desktop-only sobre tu Chrome logueado, no corre en un servidor). **Si la pregunta es "¿nos
+  cambiamos de proveedor?", empieza acá.**
 - [docs/agents/plan-motor-linkedin.md](docs/agents/plan-motor-linkedin.md) — de **esqueleto a motor**:
   las fases 0–4 para que el pipeline de LinkedIn corra. Su hallazgo ordenador: **los dos carriles no
   comparten bloqueos** — el personal está a un pedido (los few-shot) y el copiable necesita los tres.
