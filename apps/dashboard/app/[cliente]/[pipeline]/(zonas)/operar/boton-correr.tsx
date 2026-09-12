@@ -5,6 +5,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { correrAhora, type ResultadoDisparo } from "./actions";
 import { usarCockpit } from "../usar-cockpit";
+import { MOTOR_BLOQUEADO } from "./bloqueo";
 
 // Correr cuesta créditos (Apify + transcripción) aunque no entregue nada nuevo:
 // por eso el click pide confirmación explícita (plan-cockpit §3.3).
@@ -20,6 +21,13 @@ export function BotonCorrer({ deshabilitado }: { deshabilitado: boolean }) {
       setResultado(await correrAhora(cockpit));
     });
   };
+
+  // Bloqueo temporal (ver `bloqueo.ts`). Por sí solo es cosmético: se decide al renderizar,
+  // así que una pestaña abierta de antes lo sigue viendo habilitado. El freno de verdad vive
+  // en la server action, que mira el mismo flag.
+  if (MOTOR_BLOQUEADO) {
+    return <Button disabled>🚧 Bajo construcción por dev</Button>;
+  }
 
   if (deshabilitado) {
     return (

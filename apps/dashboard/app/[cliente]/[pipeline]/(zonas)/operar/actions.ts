@@ -8,6 +8,7 @@ import { queHariaArchivar } from "@/lib/candidatos";
 import { hayBusquedaViva } from "@/lib/descubrimiento";
 import { registrarEvento } from "@/lib/eventos";
 import { ultimasCorridasMotor } from "@/lib/runs";
+import { MOTOR_BLOQUEADO, MOTOR_BLOQUEADO_MENSAJE } from "./bloqueo";
 
 // Las DOS señales que disparan una máquina viven acá, juntas y guardadas por la misma zona.
 // Antes `buscarAhora` estaba en `curar/sugeridos/actions.ts`, al lado de aprobar y descartar —
@@ -67,6 +68,10 @@ function noEsSuMaquina(workflowId: string): ResultadoDisparo | null {
 // `exigirTenant` lo valida contra las instancias visibles. El porqué largo está en `lib/auth.ts`.
 
 export async function correrAhora(enRuta: CockpitEnRuta): Promise<ResultadoDisparo> {
+  // Bloqueo temporal (ver `bloqueo.ts`). Va acá y no solo en el botón por la razón que este
+  // mismo archivo ya documenta sesenta líneas más abajo: el botón deshabilitado es COSMÉTICO.
+  if (MOTOR_BLOQUEADO) return { ok: false, mensaje: MOTOR_BLOQUEADO_MENSAJE };
+
   const { usuario, ctx, cockpit } = await exigirTenant("operar", enRuta.cliente, enRuta.pipeline);
 
   const ajeno = noEsSuMaquina(cockpit.workflowId);
