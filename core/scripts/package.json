@@ -4,7 +4,8 @@
   "type": "module",
   "description": "Validador del contrato de workflows del pipeline (core/contracts/workflow-manifest.md)",
   "scripts": {
-    "validate": "node validate.mjs",
+    "validate": "node validate.mjs && node check-links.mjs",
+    "links": "node check-links.mjs",
     "n8n:diff": "node n8n-sync.mjs diff",
     "n8n:pull": "node n8n-sync.mjs pull",
     "n8n:push": "node n8n-sync.mjs push",
