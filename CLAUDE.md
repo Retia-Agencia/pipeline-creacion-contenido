@@ -46,10 +46,18 @@ en §Agent skills; acá solo se ubican.
   re-litigan y —lo que más importa— **las preguntas abiertas partidas por quién las contesta**
   (equipo de medios · una medición · un dev). Su hallazgo ordenador son **dos raíces, no una**: la
   vara absoluta (`min_views` global) y **el roster de 59 referentes, que físicamente no puede dar los
-  150 videos/semana que el equipo pide**. Y su corrección más cara: *las vistas NO se congelan* —
-  tres docs lo daban por bueno sobre una medición de 52 minutos que no tiene resolución para verlo
-  (§1.2). Trae el resumen no técnico (§8), el mensaje listo para el equipo de medios (§9) y la
-  auditoría de `docs/` (§10). **Si vas a tocar el motor, empezá acá.**
+  150 videos/semana que el equipo pide**. Su formulación más corta, de Mani: *umbral fijo para todo
+  ⇒ pasan poquísimos ⇒ hay que comprar muchísimo para pescar esos pocos* — **la métrica mala no solo
+  entrega mal, es la que CAUSA el costo**, y por eso el entregable es un **protocolo de medición de
+  éxito (P1–P3)** acordado con el equipo de redes, no seis respuestas sueltas (§5.1).
+  🩸 **Su corrección más cara: las vistas NO se congelan.** Tres docs lo daban por bueno sobre una
+  medición de **52 minutos**, que no tiene resolución para verlo (§1.2). Medido de verdad el 12/09 y
+  **gratis** (§1.3): 26 días de historia sacados de los datasets que la re-compra ya había pagado,
+  y en cada ventana de semanas creció **el 100 %** de los reels (122/122, 120/120), ~1-3 %/mes.
+  *Lo que se contaba como desperdicio era el estudio longitudinal que hacía falta.* Falta el tramo
+  del reel **joven**, sale de los mismos datos, cuesta 0, y **vence el 11/10**.
+  Trae el resumen no técnico (§8), los **dos mensajes para el equipo** (§9) y la auditoría de
+  `docs/` (§10). **Si vas a tocar el motor, empezá acá.**
 - [docs/agents/evaluacion-proveedores-scraping.md](docs/agents/evaluacion-proveedores-scraping.md) —
   5 actores de Apify y 7 alternativas externas, con precio, paginación, infraestructura y riesgo
   (cierre 151). Su veredicto: **el proveedor nunca fue el problema, la cadencia sí**. Apify bien

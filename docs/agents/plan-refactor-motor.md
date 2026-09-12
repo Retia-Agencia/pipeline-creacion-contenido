@@ -128,12 +128,71 @@ centímetros concluyendo que no existen los milímetros.
 **Lo que la tabla sí prueba, y es sólido:** la velocidad se divide por ~38 entre el día 0 y el día 6.
 Eso está muy por encima del ruido.
 
+### §1.3 · 🟢 La medición que sí sirve, hecha el 12/09 — y salió GRATIS
+
+**Mani, 12/09:** *"no deberíamos basarnos solamente en una ventana de 52 minutos. Medir el
+crecimiento en un día, en una semana, en un mes. Y de varios videos, con los que ya tenemos
+guardados, para no tener que pagar otra vez."*
+
+🔑 **La salida estaba escondida en el desperdicio.** Las corridas re-compraron los mismos reels una y
+otra vez (74 % del gasto de un día). Eso significa que **el mismo reel ya está medido en varias
+fechas distintas**, dentro de datasets que ya se pagaron. Apify conserva runs desde el **2026-08-17**:
+26 días de historia, miles de reels, **costo cero** (leer datasets no cobra).
+
+> **La re-compra que veníamos contando como pérdida es, para esta pregunta, el activo.**
+
+Resultado, cruzando datasets día contra día (mismo `shortCode`, dos fechas):
+
+| de | a | días | reels en común | crecimiento mediano | subieron |
+|---|---|---|---|---|---|
+| 17/08 | 21/08 | 4 | 200 | +0,89 % | 198/200 |
+| 17/08 | 24/08 | 7 | 193 | +1,19 % | 191/193 |
+| 17/08 | 02/09 | 16 | 120 | +1,61 % | **120/120** |
+| 17/08 | 07/09 | 21 | 122 | +1,92 % | **122/122** |
+| 21/08 | 07/09 | 17 | 317 | +3,08 % | 316/317 |
+| 24/08 | 07/09 | 14 | 331 | +2,79 % | 325/331 |
+| 30/08 | 31/08 | 1 | 480 | +0,08 % | 475/480 |
+| 31/08 | 01/09 | 1 | 1.081 | +0,02 % | 1.013/1.081 |
+| 02/09 | 07/09 | 5 | 1.051 | +0,15 % | 921/1.051 |
+
+**Tres lecturas:**
+
+1. 🔴 **Los videos NO dejan de crecer nunca.** En cada ventana de varios días creció prácticamente
+   **el 100 %** de los reels: 122 de 122, 120 de 120, 316 de 317. Y son reels que **ya eran viejos el
+   17/08** (venían de una ventana de 200 días), o sea justamente los que se daban por congelados.
+   **Segunda señal independiente, y esta sí tiene resolución para verlo.**
+2. **Para un reel maduro la tasa es de 0,02 % a 0,10 % por día** (~1-3 % al mes). Cae **dentro** de la
+   cota que §1.2 había calculado a mano (≤ 0,139 %/día, ~4,2 %/mes), así que las dos mediciones son
+   consistentes: la de 52 minutos no estaba mal, estaba **ciega**.
+3. ✅ **Y eso vuelve el problema manejable:** tratar como definitivas las vistas de un reel maduro
+   mete un error de ~2-3 % sobre varias semanas. Es despreciable frente a lo que queremos distinguir
+   (un video que hizo 3× lo normal de su cuenta).
+
+⚠️ **Lo que esta medición NO contesta, y es la mitad que importa: la curva del reel JOVEN.**
+Los pares de arriba son casi todos reels que **ya eran viejos en la primera medición**, así que
+describen la cola, no el arranque. El tramo día 0 → día 7 sigue sin medirse, y es donde el
+crecimiento es grande (2,29 % en 52 min para los de menos de 24 h).
+**Se saca de los MISMOS datos, sin pagar:** los items de Apify traen `timestamp` de publicación, así
+que basta filtrar los pares por *edad en la primera medición* y quedarse con los que eran nuevos.
+Es una pasada más sobre lo ya descargado. **Tiene fecha de vencimiento: lo más viejo se cae un día
+por día, y el 11/10 no queda nada.**
+
+📏 *Nota de método: el conteo de "reels distintos por día" es una muestra (se leyeron hasta 14
+datasets por día), no un censo. Los porcentajes de crecimiento sí son exactos: se calculan reel por
+reel sobre los que aparecen en ambas fechas.*
+
 **Lo que se cae:** el concepto de *"vistas finales"*. Sin un techo, `vistas / madurez(edad)` no se
 puede calcular, porque no hay a qué normalizar.
 
 **Lo que lo reemplaza:** una **edad de referencia `D`**. En vez de proyectar al infinito, se
 normaliza a *"cuántas vistas tendría este video a los D días"*. Los más nuevos que `D` se inflan;
 los más viejos se desinflan un poco. Funciona exista o no exista el congelamiento.
+
+🩸 **Y una segunda corrección, también de Mani (12/09): la curva NO se asume, se lee.** La primera
+propuesta de `madurez()` traía adentro una forma inventada —*sube hasta el día 7 y ahí se queda
+plana*— que es **un escalón**, y ninguna curva de vistas real se cae de un acantilado. *Eso era yo
+imponiéndole una forma al modelo en vez de medirla.* La regla ahora: `avance(edad)` **no tiene
+fórmula a priori**; es una tabla empírica que sale de §1.3, con la forma que tenga.
 
 🔑 **Y `D` no es un parámetro técnico: es la pregunta *"¿cuánto tiempo le damos a un video para
 demostrar que sirve?"*, que la contesta el equipo de medios.** Ver §5.1 Q1.
@@ -339,6 +398,32 @@ antes del **2026-10-11** se pierde para siempre.
 *"decisiones de métricas para evaluar referentes y videos las define el equipo de medios, no yo; no
 quiero asumir."*
 
+### 🎯 El entregable NO son seis respuestas: es un protocolo de medición de éxito
+
+Mani, 12/09, y esto reordena toda la sección:
+
+> *"Lo que falta es que con el equipo de redes se defina un protocolo de medición de éxito de un
+> video o de una cuenta bien establecido. Porque ahorita es, para cualquier cuenta que agreguemos y
+> para cualquier video, 500.000 views. Y entonces toca scrapear demasiados videos para pescar los
+> pocos que pasan ese umbral."*
+
+**Ese encadenamiento es la tesis corta de todo este plan, y es mejor que la de §0.** §0 habla de "dos
+raíces"; esto dice que es **una sola con dos salidas**: *umbral fijo para todo ⇒ pasan poquísimos ⇒
+hay que comprar muchísimo para pescar esos pocos.* **La métrica mala no solo entrega mal: es la que
+CAUSA el costo.**
+
+Entonces el entregable de la conversación con el equipo es **un documento**, no un cuestionario. Tiene
+que definir tres cosas, y hoy las tres están representadas por un `500000` en una casilla:
+
+| # | Qué define | Preguntas que lo alimentan |
+|---|---|---|
+| **P1** | **Cuándo un video es medible** — cuánto tiempo se le da antes de juzgarlo (la `D` de §3.1) | Q1 |
+| **P2** | **Qué hace exitoso a un VIDEO** — absoluto o relativo a su cuenta, y con qué número | Q2, Q6, bonus |
+| **P3** | **Qué hace exitosa a una CUENTA** — con qué señal y con qué muestra mínima, para no juzgar con 3 datos | Q3, Q4, Q5 |
+
+Después se vuelve ADR y el código lo implementa. **Sin P1-P3 escritos, cualquier número que se
+ponga en el motor lo puso un dev por su cuenta, que es exactamente lo que pasó con el 500.000.**
+
 ### §5.1 · Las que decide el EQUIPO DE MEDIOS (Majo, Jero, el grupo del cockpit)
 
 | id | Pregunta | Por qué bloquea | Estado |
@@ -348,24 +433,26 @@ quiero asumir."*
 | **Q3** | Al mirar una cuenta nueva, ¿qué miras primero y qué la descarta de una? | Define qué columnas van en el dashboard de referentes | ⬜ sin preguntar |
 | **Q4** | Cuando llega un video que no sirve, ¿qué suele estar mal: el tema, la cuenta, o ese video? | Decide dónde poner el esfuerzo: gate, ledger de cuentas, o métrica del video | ⬜ sin preguntar |
 | **Q5** | Si pudieras ver **una sola columna** al lado de cada cuenta para decidir si se queda, ¿cuál? | Define la pantalla de referentes. **Ni Mani ni un agente pueden inventarla** | ⬜ sin preguntar |
-| **Q6** | ¿El umbral de viralidad debería poder ser distinto por proyecto, o uno solo para todos? | Un cociente permite uno solo (§3.2). Confirmar que eso les sirve | ⬜ sin preguntar |
+| **Q6** | 🆕 **Abierta:** ¿cómo es su proceso mental cuando salen a buscar videos? Qué miran, en qué orden, qué las hace parar en uno y seguir de largo en otro | Las otras 5 son cerradas y sirven para **decidir**; esta es abierta y sirve para **descubrir lo que no se me ocurrió preguntar**. Pedida por Mani el 12/09 | ⬜ sin preguntar |
+| **Q7** | ¿El umbral de viralidad debería poder ser distinto por proyecto, o uno solo para todos? | Un cociente permite uno solo (§3.2). Confirmar que eso les sirve | ⬜ va como "bonus" en el mensaje |
 
 ### §5.2 · Las que decide una MEDICIÓN
 
 | id | Pregunta | Cómo se contesta | Costo | Estado |
 |---|---|---|---|---|
-| **M1** | ¿Qué forma tiene `avance(edad)`? | Re-medir por URL la cohorte congelada (`docs/experimentos/2026-09-10-cohorte-maduracion.json`, 446 reels, t0 = 10/09 21:43) | ~0,35 USD | ⬜ **Mani dijo "hagamos el experimento" el 11/09 y sigue sin correr** |
+| ~~M1~~ | ~~¿Qué forma tiene `avance(edad)`? Re-medir la cohorte congelada~~ | ✅ **SUPERADA el 12/09 por un método mejor y gratis.** No hace falta comprar nada: la re-compra dejó el mismo reel medido en varias fechas dentro de datasets ya pagados (§1.3). 26 días de historia, miles de reels, **0 USD** |
+| **M1-bis** | 🔴 **La curva del reel JOVEN (día 0 → día 7)**, que es la que falta | Misma fuente de §1.3, una pasada más: filtrar los pares por `timestamp` de publicación y quedarse con los que eran **nuevos en la primera medición** | **0 USD** | ⬜ **el número que desbloquea todo, y vence el 11/10** |
 | **M2** | ¿Cuál es el `ritmo_publicacion` real de cada referente? | Del pool crudo (§3.5). 🆕 **O ya: una corrida con `resultsLimit = 100` y ventana de 14 d sobre el roster** — el rango actual es 59-218 reels/semana (4× de ancho) porque **14 de 26 cuentas topearon en `resultsLimit = 25`** y su historia está truncada | ~1,50 USD | ⬜ **es el número que cierra el cálculo de supply de §0** |
 | **M5** | 🆕 ¿Cuántos reels trae una página de `user/medias/chunk` de HikerAPI? Cobra por PÁGINA: con 12+ sale **más barato que Apify**; con 1, 8,7× peor | Su trial de 100 requests | **0 USD** | ⬜ *el único número que podría dar vuelta un veredicto de proveedor* |
 | **M3** | ¿La duración colisiona entre videos distintos del mismo creador? (ADR-086) | Las 3 consultas ya escritas en el handoff, después de la primera corrida de redes | 0 | ⛔ bloqueado por el ⛔ del botón |
 | **M4** | ¿`cap_top_n` muerde cuando el piso baje? | Re-leer `filtrados` después del cambio de vara | 0 | ⬜ posterior |
 
-> ⚠️ **M1 tiene un problema de método sin resolver, y es la pregunta abierta más técnica del plan.**
-> Para tener pares reales (mismo video joven y maduro) hay que esperar a que los más jóvenes crucen
-> la edad `D`. Con `D = 7` eso es ~el 17/09; con `D = 30`, el 10/10 — y ahí choca con el borrado de
-> datasets del 11/10. La alternativa es una **cohorte sintética** (encadenar el crecimiento de cada
-> bucket de edad: los de 1 día dan el tramo 1→2, los de 3 dan 3→4), que se puede correr hoy pero
-> asume que videos distintos a edades distintas crecen al mismo ritmo relativo. **Sin decidir.**
+> ✅ **El dilema "esperar vs cohorte sintética" que esta sección planteaba QUEDÓ RESUELTO, y por un
+> tercer camino que no estaba sobre la mesa.** Decía que había que elegir entre esperar al 17/09 por
+> pares longitudinales reales, o aceptar los supuestos de una cohorte sintética hoy. **No hace falta
+> ninguno de los dos: los pares longitudinales reales YA EXISTEN**, dentro de los datasets que la
+> re-compra pagó (§1.3). Cubren 26 días hacia atrás, no hay que esperar, y no cuestan nada.
+> *Salió de que Mani rechazara basar la decisión en una ventana de 52 minutos.*
 
 ### §5.3 · Las que decide un DEV
 
@@ -403,7 +490,8 @@ quiero asumir."*
 
 | # | Paso | Depende de | Costo | Reversible |
 |---|---|---|---|---|
-| 1 | **Preguntarle al equipo de medios** (§5.1, mensaje en §9) | — | 0 | sí |
+| 0 | 🔴 **Sacar la curva del reel joven de los datasets ya pagados** (M1-bis) | — | **0 USD** | sí, y **vence el 11/10** |
+| 1 | **Preguntarle al equipo de medios** (§5.1, los dos mensajes de §9) y con eso escribir el **protocolo de éxito P1-P3** | — | 0 | sí |
 | 2 | Crear `app.pool_crudo` y empezar a llenarla | T1, T2 | 0 | sí |
 | 3 | Copiar los datasets de Apify **antes del 2026-10-11** | paso 2 | 0 | ⛔ **no: lo que no se copie se pierde** |
 | 4 | Correr M1 y construir `avance(edad)` | Q1, método de M1 | 0,35 USD | sí |
@@ -457,17 +545,35 @@ de cuentas en vez de 59, dentro del mismo tope**.
 
 **Lo que hace falta antes de construir.** Dos cosas.
 
-La primera: **decisiones que no son técnicas.** ¿Cuántos días le damos a un video para demostrar que
-funciona? ¿Qué hace que una cuenta valga la pena o que la saquemos? ¿Qué columna quieren ver al lado
-de cada cuenta? Eso no lo puede inventar un programador. Está en §5.1 y hay un mensaje listo en §9.
+La primera: **un protocolo de medición de éxito, acordado con el equipo de redes.** Hoy el criterio
+es un solo número (500.000 reproducciones) que aplica igual a toda cuenta y a todo video, y de ahí
+sale todo lo demás: como pasan poquísimos, hay que comprar muchísimo para pescar esos pocos. Hace
+falta escribir tres cosas: cuánto tiempo se le da a un video antes de juzgarlo, qué hace bueno a un
+video, y qué hace buena a una cuenta. Eso no lo puede inventar un programador. Está en §5.1 y hay
+dos mensajes listos en §9.
 
 La segunda: **una medición que cuesta 0,35 dólares** y todavía no se corrió. Sirve para saber cuánto
 crece un video según su edad, que es lo que permite comparar uno de 2 días con uno de 2 meses.
 
-**Una corrección importante de esta sesión.** Tres documentos del repo decían que un video deja de
-sumar reproducciones a los 2 o a los 7 días. Mani preguntó de dónde salía eso y resultó que la
-medición no lo probaba: se hizo con 52 minutos de diferencia, y con esa ventana un video que crece
-66 % al año igual aparece como "0,00 %". Los videos sí siguen creciendo. Está corregido en §1.2.
+**Una corrección importante de esta sesión, en dos tiempos.** Tres documentos del repo decían que un
+video deja de sumar reproducciones a los 2 o a los 7 días. Mani preguntó de dónde salía eso y
+resultó que la medición se había hecho con **52 minutos** de diferencia: con esa ventana, un video
+que crece 66 % al año igual aparece como "0,00 %".
+
+Después Mani puso el dedo en el problema de fondo: *una ventana de 52 minutos solo puede ver lo que
+cambia en 52 minutos; había que medir en días, semanas y meses, y con los videos que ya teníamos
+guardados para no pagar otra vez*. **Se hizo, y salió gratis.** Como la herramienta venía comprando
+los mismos videos una y otra vez, resulta que ya teníamos cada video medido en varias fechas. 26
+días de historia, miles de videos, cero pesos.
+
+**El resultado: los videos no dejan de crecer nunca.** En cada ventana de varias semanas creció
+prácticamente el 100 % de ellos (122 de 122 en una, 120 de 120 en otra), incluso los que ya eran
+viejos. Crecen poco, entre 1 % y 3 % al mes, pero nunca se detienen. *Lo que sobraba en la
+herramienta resultó ser justo lo que hacía falta para contestar esto.* Está en §1.3.
+
+**Lo que todavía falta medir** es cuánto crece un video en sus **primeros días**, que es cuando más
+se mueve. Sale de los mismos datos y tampoco cuesta, pero hay que hacerlo antes del 11 de octubre:
+lo más viejo se borra un día por día.
 
 **Un riesgo de orden, para no equivocarse.** Es tentador salir a sumar cuentas ya, porque es lo que
 más falta. Sería un error: hoy la herramienta no sabe distinguir un video bueno de uno malo (se
@@ -482,109 +588,111 @@ vencimiento es copiar de Apify lo ya pagado antes del 11 de octubre.
 
 ---
 
-## §9 · Mensaje listo para el equipo de medios
+## §9 · Los dos mensajes para el equipo de medios
 
-> Para mandar al grupo del cockpit o a Majo directo. Cubre Q1–Q6 de §5.1 sin jerga.
+> Escritos el 2026-09-12. **Mensaje 1 = las preguntas. Mensaje 2 = el contexto**, se manda después.
+> Grupo: *Cockpit - Pipeline de Contenido*. Van en **singular** (Mani habla por sí mismo, no por un
+> equipo) y **sin jerga**.
+>
+> 🚩 **Tres cosas que Mani decidió sacar del mensaje 2, y quedan anotadas para que nadie las
+> "recupere" creyendo que fue un olvido:** (1) el marco de *"encontré tres cosas rotas"*, porque el
+> mensaje no es una confesión; (2) que la herramienta no está aprendiendo (65 % sin calificar) — se
+> pide aparte, otro día, como favor concreto y no como diagnóstico; (3) que el costo no era el
+> problema. **El "por qué ahora" del mensaje va hacia adelante, no hacia atrás.**
+
+### Mensaje 1 — las preguntas
 
 ```
-Hola! Estamos reconstruyendo la parte del buscador de reels que decide qué videos
-les mostramos, y hay unas decisiones que no queremos tomar nosotros desde el código
-porque son de criterio de ustedes. Son 5 preguntas, contesten como les salga:
+Hola! Estoy reconstruyendo la parte del buscador de reels que decide qué videos les
+llegan, y hay unas decisiones que no quiero tomar yo desde el código porque son de
+criterio de ustedes. Son 6 preguntas, contesten como les salga:
 
-1. Cuando un reel se acaba de publicar todavía no juntó sus vistas. ¿Cuántos días
-   les parece que hay que esperar para saber si a un video le fue bien? ¿2, 7, 30?
+1. Cuando un reel se acaba de publicar todavía no juntó sus vistas. ¿Cuántos días les
+   parece que hay que esperar para saber si a un video le fue bien? ¿2, 7, 30?
 
-2. Un video "bueno" para ustedes, ¿es el que tiene muchas vistas en general, o el
-   que tiene más vistas de lo normal para esa cuenta? Ejemplo: un video de 80 mil
-   vistas en una cuenta que suele hacer 20 mil, contra uno de 300 mil en una cuenta
-   que suele hacer 2 millones. ¿Cuál les sirve más?
+2. Un video "bueno" para ustedes, ¿es el que tiene muchas vistas en general, o el que
+   tiene más vistas de lo normal para esa cuenta? Ejemplo: un video de 80 mil vistas en
+   una cuenta que suele hacer 20 mil, contra uno de 300 mil en una cuenta que suele
+   hacer 2 millones. ¿Cuál les sirve más?
 
-3. Cuando miran una cuenta nueva para decidir si la agregan como referente, ¿qué es
-   lo primero que miran? ¿Y qué las hace descartarla de una?
+3. Cuando miran una cuenta nueva para decidir si la agregan como referente, ¿qué es lo
+   primero que miran? ¿Y qué las hace descartarla de una?
 
-4. Cuando el buscador les trae un video que no sirve, ¿qué suele estar mal: el tema,
-   la cuenta de donde salió, o ese video en particular?
+4. Cuando el buscador les trae un video que no sirve, ¿qué suele estar mal: el tema, la
+   cuenta de donde salió, o ese video en particular?
 
-5. Si pudieran ver UNA sola columna al lado de cada cuenta para decidir si la dejan
-   o la sacan, ¿cuál sería?
+5. Si pudieran ver UNA sola columna al lado de cada cuenta para decidir si la dejan o la
+   sacan, ¿cuál sería?
 
-Bonus: ¿preferirían poder pedir un mínimo de "qué tan viral" tiene que ser un video
-antes de que se los mostremos, o prefieren que les mostremos todo ordenado de mejor
-a peor y ustedes descartan?
+6. Y una más suelta: cuéntenme cómo es su proceso cuando salen a buscar videos. Qué
+   miran, en qué orden, qué las hace parar en uno y seguir de largo en otro. No busco una
+   respuesta corta, es lo que más me sirve para entender qué debería estar haciendo la
+   herramienta por ustedes.
+
+Bonus: ¿preferirían poder pedir un mínimo de "qué tan viral" tiene que ser un video antes
+de que les llegue, o prefieren que les muestre todo ordenado de mejor a peor y ustedes
+descartan?
 
 Mientras tanto el botón de "Buscar contenido" va a estar desactivado unos días, dice
-"Bajo construcción por dev". Les avisamos cuando vuelva.
+"Bajo construcción por dev". Les aviso cuando vuelva.
 ```
 
----
+### Mensaje 2 — el contexto (va después del 1)
 
-## §10 · Auditoría de `docs/` — qué sobra, qué falta y qué duele
+```
+Les cuento cómo funciona la herramienta hoy y hacia dónde la estoy llevando, para que las
+preguntas tengan sentido.
 
-> Pedido de Mani el 12/09: *"la carpeta de docs está llena de vainas viejas, revisá qué podemos
-> borrar para que esto quede como el punto de partida."*
->
-> ✅ **EJECUTADO el 2026-09-12, con su visto bueno.** `handoff.md` pasó de **8.334 a ~1.300 líneas**
-> y los 4 planes ejecutados están en [`docs/archivo/`](../archivo/). **Cero borrados.** Se
-> re-apuntaron **~90 links** en 24 archivos y se verificó con un chequeo de links repo-wide: **0
-> rotos causados por el movimiento** (quedan 5 previos, listados en §10.5).
+*Cómo funciona hoy.* Cada corrida hace cuatro cosas seguidas: (1) va a las cuentas de
+referentes que tenemos cargadas y se baja los reels nuevos, (2) se queda solo con los que
+pasan cierto número de vistas, (3) le saca el texto hablado a los que quedaron, y (4) una
+IA lee ese texto y decide si el tema le sirve al proyecto. Lo que sobrevive los cuatro
+pasos es lo que les aparece en el Feed.
 
-### §10.1 · El problema real no son los planes viejos: es el handoff
+*Lo que voy a cambiar, y es el cambio de fondo.* Hoy el paso 2 usa un número fijo: el
+mismo mínimo de vistas para toda cuenta y todo video. Eso trata igual a una cuenta de 20
+mil seguidores y a una de 5 millones, y a un reel de ayer y a uno de hace dos meses.
 
-| archivo | líneas |
+La idea es reemplazarlo por una medida *relativa*: en vez de "¿pasó los X mil?", preguntar
+"¿le fue mejor de lo normal para esa cuenta?". Un video que hizo el triple de lo que esa
+cuenta suele hacer es interesante aunque el número absoluto sea chico. Y al revés: un
+video grande en una cuenta gigante puede ser apenas normal.
+
+Eso tiene una ventaja práctica: como es una comparación y no un número, *el mismo criterio
+sirve para todos los proyectos*, sin tener que configurar un número distinto para trading,
+para psicología y para lo que venga.
+
+*Por eso pregunto lo de los días.* Para comparar un reel de ayer con uno de hace un mes
+hay que tener en cuenta que el de ayer todavía no terminó de juntar vistas. Estoy midiendo
+cuánto crece un reel con el tiempo para poder corregir eso. Pero *cuánto tiempo le damos
+antes de juzgarlo* es una decisión de ustedes, no mía: es cuánto están dispuestas a
+esperar.
+
+*Cada cuánto va a correr.* Hoy se puede disparar muchas veces al día, pero eso no tiene
+sentido: entre una corrida y otra las cuentas no alcanzan a publicar nada nuevo, así que
+trae lo mismo. Va a quedar corriendo una vez por semana, y cada corrida va a traer solo lo
+que se publicó desde la anterior. Si necesitan algo puntual fuera de ese ritmo, me dicen.
+
+*Y lo que más peso tiene, que es donde más las necesito.* Al final, lo que determina la
+calidad de lo que les llega son las cuentas que seguimos. Un buen referente da buenos
+videos casi solo; uno malo no lo salva ningún filtro. Hoy tenemos pocas cuentas cargadas y
+las juzgamos con muy poca información. Quiero que la pestaña de Referentes se vuelva un
+tablero de verdad, donde se vea cuáles están rindiendo y cuáles no, y que la lista crezca
+bastante.
+
+Por eso las preguntas 3, 5 y 6 son las que más me sirven: yo puedo construir el tablero,
+pero el criterio de qué hace buena a una cuenta es de ustedes.
+```
+
+### Lo que el mensaje 2 promete, y hay que cumplir
+
+| promesa | dónde vive |
 |---|---|
-| **`docs/agents/handoff.md`** | **8.215** |
-| `docs/agents/plan-multi-tenant.md` | 1.638 |
-| `docs/archivo/plan-orden-y-filtro.md` | 1.305 |
-| `docs/verificaciones-humanas.md` | 1.117 |
-| `docs/agents/plan-transcript-completo.md` | 1.051 |
-| *(los otros 100+ archivos)* | < 1.000 c/u |
+| medida relativa en vez del mínimo fijo | §3.2 |
+| un solo criterio para todos los proyectos | §3.2, la propiedad de que un cociente no tiene escala |
+| "estoy midiendo cuánto crece un reel" | §1.3 (hecho) + M1-bis (falta el tramo joven) |
+| **corridas una vez por semana** | §3.4. *No estaba en el pedido original; se metió porque es lo único del mensaje que les cambia el día a día, y es mejor que lo sepan por Mani a que lo descubran* |
+| tablero de referentes de verdad | §3.3, y depende de Q3/Q5 |
+| que la lista de cuentas crezca | §0 segunda raíz, paso 9 de §7 |
 
-El handoff es **el doble del segundo más grande de todo el repo**, y es justamente el que dice
-"leelo al empezar la sesión". Nadie lee 8.215 líneas, así que en la práctica se lee el encabezado y
-el resto es peso muerto que igual entra al contexto de cada agente.
-
-Y tiene un síntoma estructural visible: **cuatro secciones "ARRANCÁ POR ACÁ" apiladas** (líneas 23,
-142, 300, y una marcada 🪦 SUPERSEDED en la 6987). Cuatro puertas de entrada es ninguna.
-
-**Propuesta:** rotar. Dejar el protocolo + el ARRANCÁ vigente + los últimos ~6 cierres, y mover el
-resto a `docs/agents/handoff-archivo-2026-06_08.md`. Queda en ~800 líneas y no se pierde nada (el
-archivo sigue en el repo, y git tiene todo igual).
-
-### §10.2 · Planes ya ejecutados — candidatos a archivar
-
-| archivo | líneas | estado | evidencia |
-|---|---|---|---|
-| `plan-orden-y-filtro.md` | 1.305 | ✅ ejecutado y live | *"✅ EJECUTADO Y LIVE — 2026-08-26, las 7 tareas cerradas y desplegadas"* |
-| `mapa-campos.md` | 637 | 🪦 obsoleto | Mapea Airtable, purgado el 2026-08-03. Ya tiene su aviso de vigencia |
-| `plan-cockpit-propio.md` | 577 | ✅ construido | El cockpit está en producción con 17 pantallas |
-| `plan-rescate-huerfanos.md` | 396 | ✅ ejecutado | *"✅ RESULTADO — corrida 2026-08-31 04:30, cerrada ok en 13 min"* |
-
-**2.915 líneas.** Recomiendo **mover a `docs/archivo/`, no borrar**: git conserva el contenido igual,
-pero borrar pierde la capacidad de encontrarlo cuando alguien pregunte *"¿por qué esta pantalla
-ordena así?"*. Mover cuesta lo mismo y no tiene downside.
-
-### §10.3 · Vivos — no tocar
-
-`plan-cascada-de-entrega` (pendiente vivo) · `plan-costo-apify` (base de este refactor) ·
-`evaluacion-proveedores-scraping` (nuevo, 12/09) · `plan-transcript-completo` (tareas 8-11 abiertas) ·
-`plan-modo-seleccion` (acordado, sin construir) · `plan-motor-linkedin` (⛔ producto) ·
-`plan-multi-tenant` (Fase 5 pendiente) · `refactor-voces-proyectos` (tablero activo) ·
-`verificaciones-humanas` (4 abiertas) · `context` · `dev-doc` · `costos` · los runbooks.
-
-### §10.4 · Los 97 ADRs NO se tocan
-
-Son el registro permanente de por qué el sistema es como es, una decisión por archivo, y varios
-siguen gobernando código vivo. Un ADR viejo no es un ADR obsoleto: es historia que se cita. El índice
-(`docs/adr/README.md`) ya los ordena.
-
-### §10.5 · 🩸 Lo que la auditoría encontró de paso
-
-- **`plan-modo-seleccion.md §Fase 4` dice "A revisar el 2026-09-04"** para los cinco canarios de
-  adopción. Hoy es el **12/09**: nadie los miró. Es exactamente el patrón que el `CLAUDE.md` global
-  de Mani ya tiene documentado con sangre: *el trabajo con fecha que nadie agenda se ve idéntico al
-  que no tiene fecha.*
-- **El `CLAUDE.md` del repo dice "ADRs 001-097 (97 archivos)" y en disco hay 97.** Por una vez
-  coincide. *Ese mismo renglón ya estuvo mal dos veces (dijo 083 con 84, y 094 con 97), y por eso el
-  propio doc aclara que el número sale de `ls docs/adr`.*
-- **Este documento hay que registrarlo** en el mapa de docs del `CLAUDE.md` del repo, o nace
-  invisible para el próximo agente. Pendiente.
+**No se prometió ninguna fecha, a propósito.**
