@@ -976,3 +976,78 @@ citado como si estuviera medido.**
 4. **El proveedor nunca fue el problema.** Era la cadencia, y es gratis.
 
 *Las cuatro las disparó Mani preguntando de dónde salía el número, no un agente revisando su trabajo.*
+
+---
+
+## §12 · 🗂️ La sesión de consolidación de docs — dedicada, y se descarta al terminar
+
+> Decidido por Mani el 2026-09-12 al cierre: **esto va en su propia sesión, literal solo para esto, y
+> después se descarta.** No se ejecutó nada.
+
+### El diagnóstico: el problema NO es cuántos docs hay
+
+La regla que lo arreglaría **ya está escrita** en el `CLAUDE.md` del repo —*"Docs lean: un hecho, un
+dueño"*— y todo lo que se rompió esta sesión fue una violación de ella, no falta de regla:
+
+- *"las vistas se congelan"* vivía en **3 docs con dos números distintos** (48 horas y 7 días) para
+  la misma tabla
+- el conteo de referentes en 2 lugares con dos cifras (**26** y **59**)
+- *"374 eventos, volvieron dos"* estaba en **3 copias que vencieron el mismo día**
+- 🩸 `costos.md §4.3.2` **ya había medido la métrica relativa** y nadie la citó, así que esta sesión
+  la volvió a descubrir desde cero
+
+> **Mergear 22 docs en 4 sin cambiar eso deja 4 docs que se contradicen ADENTRO.** El conteo baja y
+> el problema no.
+
+**Pero sí sobran docs, y la causa es estructural:** cada `plan-*.md` mezcla **cuatro cosas que
+envejecen a velocidades distintas** — estado (días), decisiones (permanentes), mediciones (datos) y
+diseño (temporal). *Mezcladas en un archivo, el conjunto se pudre a la velocidad de la parte más
+rápida.*
+
+### La estructura propuesta: 4 tipos, cada uno contesta UNA pregunta
+
+| pregunta | dónde | por qué |
+|---|---|---|
+| **¿Por qué es así?** | `docs/adr/` | **El único tipo que no se pudrió en 4 meses.** Un archivo, una decisión, siempre enlazado. No tocar |
+| **¿Qué queremos?** | `ROADMAP.md` | Uno, y ya manda sobre los demás |
+| **¿Cómo está hoy?** | `docs/agents/handoff.md` | Uno, recién rotado |
+| **¿Cómo funciona / se opera?** | `dev-doc` · `context` · `runbooks` · `onboarding` | Referencia, cambia despacio |
+
+**Y los `plan-*.md` no son un quinto tipo: son temporales por definición.** La regla propuesta:
+cuando un plan se ejecuta **se desarma en los cuatro** (decisiones → ADR · mediciones →
+`docs/experimentos/` · estado → handoff · el archivo → `docs/archivo/`) y deja de existir. *Se hizo
+a mano con 4 de ellos el 12/09; la idea es que sea la regla y no una limpieza excepcional.*
+
+### Los merges concretos, medidos
+
+**22 docs vivos, ~13.000 líneas. Los `plan-*.md` son 5.100 en 7 archivos.**
+
+| doc | líneas | propuesta |
+|---|---|---|
+| `plan-costo-apify.md` | 350 | **mergear en `costos.md`**. Su tesis murió el 12/09; lo que sobrevive es mecánica que pertenece al mapa monetario. Así *"cuánto cuesta"* tiene **una sola puerta** |
+| `evaluacion-proveedores-scraping.md` | 554 | su veredicto son **5 hechos**: un ADR (*"el proveedor no es el problema, la cadencia sí"*) + los números a `costos.md`, el resto al archivo |
+| `refactor-voces-proyectos.md` | 467 | el handoff lo llama *"tablero activo"* pero es de **julio**, era Airtable, y sus componentes D y E están ✅. ⚠️ **Verificar si sigue vivo ANTES de archivarlo** |
+| `plan-modo-seleccion.md` | 291 | *"acordado sin construir"* desde el 21/08. O se construye, o su decisión es un ADR + una tarea y el plan se va |
+| `PLAN.md §3.1` | — | es una **tabla-resumen de ADRs**: duplicado literal de `docs/adr/README.md`. Se reemplaza por un link |
+
+**≈1.600 líneas menos y dos docs menos donde el costo puede contradecirse a sí mismo.**
+
+### El script, y por qué va con advertencia
+
+`CLAUDE.md` son **563 líneas escritas a mano que se desincronizan solas**: dijo *"083 ADRs"* con 84
+en disco, y *"094"* con 97. El 12/09 se rompieron **~90 links** moviendo archivos y se encontraron
+porque a alguien se le ocurrió chequear, **no porque algo avisara**.
+
+Propuesta: ~40 líneas en `core/scripts`, al lado de `validate`, que falle si (a) hay links `.md`
+rotos, (b) un doc vivo no está en el mapa del `CLAUDE.md`, o (c) el mapa apunta a algo archivado.
+*El chequeador de links ya se escribió inline el 12/09; sería formalizarlo.*
+
+⚠️ **Advertencia que va con la propuesta:** es **una pieza nueva que mantener**, y Mani viene
+sospechando de over-engineering (§5bis C2). **Si suena a eso, la regla sola (un hecho, un dueño) más
+los merges de arriba ya son el 80 %.**
+
+### ⚠️ Antes de ejecutar
+
+**Verificar que el diagnóstico siga vigente.** Entre esta nota y esa sesión va la **sesión de
+simplificar el motor** (§5bis C2), que puede matar `plan-refactor-motor.md` entero y cambiar la
+lista. *Un plan de limpieza que no se re-mide antes de correr limpia el mapa de ayer.*

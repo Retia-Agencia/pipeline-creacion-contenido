@@ -71,7 +71,9 @@ en §Agent skills; acá solo se ubican.
   sobre-diseñado y dejó un criterio de aceptación — **si no se puede explicar al equipo de redes en
   3 a 5 pasos, el diseño está mal** (§5bis C1/C2).
   Trae el resumen no técnico (§8), los **dos mensajes para el equipo** (§9, sin enviar), la auditoría
-  de `docs/` (§10) y **§11 con todo lo que quedó abierto**. **Si vas a tocar el motor, empezá acá.**
+  de `docs/` (§10), **§11 con todo lo que quedó abierto** y **§12, la consolidación de `docs/`**
+  (merges + chequeador de links) que Mani mandó a **su propia sesión dedicada y desechable**.
+  **Si vas a tocar el motor, empezá acá.**
 - [docs/agents/evaluacion-proveedores-scraping.md](docs/agents/evaluacion-proveedores-scraping.md) —
   5 actores de Apify y 7 alternativas externas, con precio, paginación, infraestructura y riesgo
   (cierre 151). Su veredicto: **el proveedor nunca fue el problema, la cadencia sí**. Apify bien

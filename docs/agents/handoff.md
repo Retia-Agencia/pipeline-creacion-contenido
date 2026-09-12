@@ -29,9 +29,9 @@ tercio del medio eran cierres viejos anidados uno dentro de otro bajo un encabez
 
 | buscás | está en |
 |---|---|
-| **el estado de hoy** | el §ARRANCÁ POR ACÁ de acá abajo (cierre 151) |
+| **el estado de hoy** | el §ARRANCÁ POR ACÁ de acá abajo (cierre 152) |
 | **el refactor del motor** | 🧭 [plan-refactor-motor.md](./plan-refactor-motor.md) — el punto de partida único |
-| **los cierres 145 a 151** | acá abajo, completos |
+| **los cierres 145 a 152** | acá abajo, completos |
 | **los cierres 70 a 144** | [handoff-archivo-2026-06_09.md](./handoff-archivo-2026-06_09.md) |
 | **el tablero del refactor Voces→Proyectos** | [refactor-voces-proyectos.md](./refactor-voces-proyectos.md) §4–§5 |
 
@@ -39,7 +39,76 @@ tercio del medio eran cierres viejos anidados uno dentro de otro bajo un encabez
 N`), **nunca anidado dentro del anterior**. Así fue como nacieron las 5.736 líneas de blockquotes
 dentro de blockquotes que se acaban de archivar.
 
-## 🚦 ARRANCÁ POR ACÁ — CIERRE 151 (2026-09-12): el proveedor nunca fue el problema, y 25 referentes no pueden dar 150 videos
+## 🚦 ARRANCÁ POR ACÁ — CIERRE 152 (2026-09-12): brainstorm del refactor del motor, y cuatro conclusiones propias que se cayeron
+
+> 🧠 **Sesión de brainstorm y documentación. Cero código del motor, cero corridas, cero migraciones.**
+> Lo único aplicado al producto fue **bloquear el botón ▶** (`e4c1133`).
+>
+> 📕 **El doc es [plan-refactor-motor.md](./plan-refactor-motor.md) y es el punto de partida único.**
+> Consolida las sesiones del 10, 11 y 12/09. **No re-derives nada de acá: está todo allá**, con §11
+> listando lo que quedó abierto y §8 el resumen sin jerga.
+
+**Lo que hay que saber antes de tocar el motor, en orden de cuánto cambia decisiones:**
+
+1. 🩸 **El `min_views = 500.000` NO es un default de dev: es una instrucción explícita del jefe**, y
+   *"para él eso es accuracy"* (Mani). ⇒ el refactor **no es un arreglo técnico, es una
+   renegociación de qué significa accuracy**. Hay dos definiciones en tensión y **un video de 500k
+   que el equipo no aprueba sube una y baja la otra** (ADR-089, que ya lleva el aviso). Quién da esa
+   conversación **queda ABIERTO**.
+2. 🟢 **Las vistas NO se congelan, y ahora está medido de verdad y GRATIS.** 5.706 reels comparados
+   entre fechas, **95,8 % creció**; en las ventanas de semanas, ~100 % (122/122, 120/120). ~1-3 %/mes.
+   **La salida estaba en el desperdicio:** la re-compra dejó el mismo reel medido en varias fechas
+   dentro de datasets ya pagados. Script y dato crudo en
+   [`docs/experimentos/`](../experimentos/crecimiento-historico-apify.mjs). **Falta el tramo del reel
+   JOVEN, sale de los mismos datos, cuesta 0 y VENCE EL 2026-10-11.**
+3. 🧭 **Reencuadre de Mani: el motor no mata videos, los ASIGNA · ORDENA · MIDE.** Con el obstáculo
+   medido: hoy el gate **no puede** asignar, porque puntúa cada par (video × proyecto) con la prosa
+   de ese proyecto y **15 proyectos son 15 rúbricas incomparables**. *El mismo bug que `min_views`,
+   por segunda vez: un número absoluto usado como si fuera comparable.*
+4. ⬜ **Los dos mensajes al equipo de redes están escritos y SIN ENVIAR** (§9). Falta luz verde.
+
+### 🩸 Cuatro conclusiones de este repo que esta sesión desmintió
+
+Van juntas porque **el patrón es uno**: un número o una forma que nadie verificó, citado como si
+estuviera medido. **Las cuatro las disparó Mani preguntando de dónde salía el dato.**
+
+| decía | dice |
+|---|---|
+| `cap_top_n` es *"un techo estructural"* | **nunca muerde**: sobreviven 15/14/6 de un cupo de 250 |
+| *"las views se congelan"* (48 h en `costos.md`, 7 d acá) | **nunca dejan de crecer**; la medición era de 52 min y no tenía resolución |
+| `madurez()` sube hasta el día 7 y se aplana | **eso es un escalón inventado**; la curva se lee, no se asume |
+| *"el costo de Apify no es sostenible"* | **0,84-2,41 USD/mes** bien usado; lo caro fue disparar 5 tandas en un día |
+
+Las cuatro quedaron **marcadas en su doc de origen**, no sólo acá.
+
+### Lo demás que se hizo
+
+- **`docs/` ordenado:** este handoff pasó de **8.334 a ~1.300 líneas** (tenía 4 «ARRANCÁ POR ACÁ» y
+  5.736 líneas de cierres anidados unos dentro de otros); 4 planes ejecutados a
+  [`docs/archivo/`](../archivo/); ~90 links re-apuntados, 0 rotos.
+- **Medido contra prod:** 59 referentes activos **todos de Instagram** (⇒ el eje TikTok corre vacío,
+  y el onboarding ya lo dice con el número) · el ledger de cuentas **ve 3-6 de las ~59 que se
+  compran** · 15 proyectos piden N=320 · criterios de relevancia: mediana 879 chars de prosa con
+  **seis tipos de regla revueltos**, incluida una de **cumplimiento** ("no recomendaciones explícitas
+  de inversión") que hoy se puede perder cuando alguien reescriba las de tema.
+- ✅ **Cerrado el origen del N:** sale de **sesiones de grabación ya comprometidas con clientes**
+  (Mani). Demanda derivada, no aspiración.
+- ⭐ **Hallazgo que no es corrección sino lo contrario:** `costos.md §4.3.2` **ya había probado una
+  métrica relativa** (≥2× la mediana de la propia cuenta) y medido que mantiene la dirección de las
+  vistas absolutas (12,0 % → 41,1 %). *Estaba escrito y sin conectar, así que se volvió a descubrir.*
+
+### ⚠️ Dos advertencias para quien siga
+
+- **Mani sospecha que `plan-refactor-motor.md` está sobre-diseñado** y abrió sesión aparte para
+  simplificarlo. Su criterio de aceptación, que está en el encabezado del doc: **si no se le puede
+  explicar al equipo de redes en 3 a 5 pasos, el diseño está mal.**
+- **La consolidación de `docs/` (merges + script) tiene su propia sesión dedicada** y va a
+  §12 del plan. **Re-medir el diagnóstico antes de correrla**: la sesión de simplificar va antes y
+  puede cambiar la lista.
+
+---
+
+## 🔒 CIERRE 151 (2026-09-12) — El proveedor nunca fue el problema, y 25 referentes no pueden dar 150 videos
 
 > 🔬 **Sesión de investigación pura: cero código, cero corridas del motor, cero migraciones.** Todo
 > se midió leyendo la API de Apify y los datasets YA PAGADOS de la exec 183, que no cuesta nada.
