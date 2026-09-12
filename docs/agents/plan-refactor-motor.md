@@ -2,7 +2,7 @@
 
 > **Estado: brainstorm consolidado, CERO código aplicado.** Escrito el 2026-09-12 a pedido de Mani
 > como **punto de partida único** del refactor. Consolida las sesiones del 10, 11 y 12 de septiembre
-> y lo que ya estaba medido en [plan-costo-apify.md](./plan-costo-apify.md),
+> y lo que ya estaba medido en [plan-costo-apify.md](../archivo/plan-costo-apify.md),
 > [costos.md](../costos.md), [plan-cascada-de-entrega.md](./plan-cascada-de-entrega.md) y los
 > cierres 145–149 del [handoff](./handoff.md).
 >

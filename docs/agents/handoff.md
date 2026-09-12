@@ -271,7 +271,7 @@ El texto original está en [handoff-archivo-2026-06_09.md](./handoff-archivo-202
 > - **[docs/costos.md](../costos.md)** — el mapa monetario entero: los 3 proveedores, el diagrama de
 >   dónde se paga, el histórico, la tabla de decisión ventana × umbral **con costo por celda**, y
 >   los pendientes de plata. **Si la pregunta es "cuánto cuesta", empieza acá.**
-> - **[plan-costo-apify.md](./plan-costo-apify.md)** — el diagnóstico, las predicciones escritas
+> - **[plan-costo-apify.md](../archivo/plan-costo-apify.md)** — el diagnóstico, las predicciones escritas
 >   antes de correr y su veredicto. **Si la pregunta es "por qué", empieza acá.**
 >
 > ✅ **Aplicado y verificado por la fachada que lee el motor (no por el eco del PATCH):**

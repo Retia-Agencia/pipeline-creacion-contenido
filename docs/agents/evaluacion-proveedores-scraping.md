@@ -9,7 +9,7 @@
 > medir está marcado ⚠️ y dice por qué y qué experimento lo cerraría.
 
 **Docs hermanos.** El mapa monetario es [costos.md](../costos.md); el diagnóstico del gasto es
-[plan-costo-apify.md](./plan-costo-apify.md). Este doc es el tercero: **el proveedor**. El norte del
+[plan-costo-apify.md](../archivo/plan-costo-apify.md). Este doc es el tercero: **el proveedor**. El norte del
 producto está en [ROADMAP §1](../../ROADMAP.md) y la métrica única en
 [ADR-089](../adr/ADR-089-una-sola-metrica-aprobados-contra-lo-pedido.md).
 

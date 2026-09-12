@@ -24,8 +24,14 @@
 > al lado el comando que lo reproduce. Los que no se pudieron medir están marcados ⚠️ y dicen por
 > qué. *Un doc de costos con cifras de hace un mes es peor que no tenerlo: da la sensación de saber.*
 
-**Docs hermanos:** el diagnóstico y el plan de ataque viven en
-[plan-costo-apify.md](agents/plan-costo-apify.md) — este doc es el **mapa**, aquel es el **plan**.
+🚪 **Y es la ÚNICA puerta: si la pregunta empieza con "cuánto cuesta", empieza acá.** El
+diagnóstico del gasto de Apify vivía aparte, en `plan-costo-apify.md`, y el 2026-09-12 se archivó
+porque ya no aportaba nada: al medirlo pieza por pieza, **16 de sus 19 hallazgos ya estaban en este
+doc, y los otros 3 también, con otras palabras**. Lo único suyo que faltaba es la advertencia de §5
+sobre la palanca 0. *Dos docs sobre el mismo gasto no son dos fuentes: son dos fechas de
+vencimiento distintas.* Queda en [docs/archivo/plan-costo-apify.md](./archivo/plan-costo-apify.md)
+para leer el porqué con su narrativa original.
+
 El norte del producto está en [ROADMAP §1](../ROADMAP.md) y la métrica única en
 [ADR-089](adr/ADR-089-una-sola-metrica-aprobados-contra-lo-pedido.md).
 
@@ -662,6 +668,13 @@ de las dos cuesta (§9).
 | 6 | **Podar por RENDIMIENTO las 5 cuentas de 0 útiles** (§4.3.3) | **−24 % del gasto, 0 útiles perdidos** (medido) | borrar links | ⬜ |
 | 8 | **Auditar cada referente a las 2 corridas** contra su tasa de útiles (§4.3.4) | evita que una cuenta mala quede como suscripción de 3 USD/año | el ledger de §4.3.7 | ⬜ |
 | 7 | Borrar el proyecto duplicado por la tilde | evita pagar dos veces el mismo criterio | limpieza de datos | ⬜ |
+
+⚠️ **La palanca 0 se aplicó por SQL, no por la pantalla de Ajustes, así que no dejó fila en
+`app.eventos`: para cualquier canario que se lea por eventos, ese cambio es invisible.** Y por el
+mismo camino dejó `app.ajustes.actualizado_en` mintiendo — es `default now()`, que sólo dispara en
+INSERT, y el único que la escribía era el cockpit a mano. Lo arregla la migración
+[`043`](../core/schema/043_ajustes_actualizado_en.sql) (ADR-097), **escrita y todavía sin correr**.
+*Un knob que se mueve por fuera de la pantalla se mueve también por fuera del registro.*
 
 ### 5.1 La fórmula proporcional
 

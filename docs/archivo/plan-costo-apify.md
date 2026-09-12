@@ -1,8 +1,23 @@
 # Plan — ~~el costo de Apify no es sostenible~~
 
+> # 🗄️ ARCHIVADO el 2026-09-12 — su contenido vive en [docs/costos.md](../costos.md).
+>
+> **No lo leas para saber cuánto cuesta algo: esa pregunta tiene UNA puerta, y es `costos.md`.**
+>
+> Se archivó después de medirlo pieza por pieza contra el mapa monetario: **16 de sus 19 hallazgos
+> ya estaban en `costos.md`**, y los 3 que el grep no encontró también, escritos con otras palabras
+> (las predicciones commiteadas están en su §3.3.1, los 13 proyectos con la voz apagada en su §7).
+> Lo único suyo que no tenía dueño era la advertencia de que la palanca 0 se aplicó por SQL y no
+> dejó fila en `app.eventos`; esa se mergeó en `costos.md §5`.
+>
+> **Para qué sirve todavía:** para leer el diagnóstico con su narrativa original — el día que Apify
+> se comió medio cupo en 21 horas, las predicciones escritas y commiteadas **antes** de disparar la
+> corrida de control, y el veredicto que le ganó a la predicción.
+
+
 > 🩸 **EL TÍTULO QUEDÓ DESMENTIDO el 2026-09-12, y por dos mediciones distintas.** Apify **sí** es
 > sostenible: bien usado cuesta **0,84-2,41 USD/mes**, y el cupo de 50 aguanta **580-2.149
-> referentes** ([evaluacion-proveedores-scraping.md](./evaluacion-proveedores-scraping.md)). Más
+> referentes** ([evaluacion-proveedores-scraping.md](../agents/evaluacion-proveedores-scraping.md)). Más
 > todavía: la exec 183 **con la config de entonces y SIN marca de agua**, a cadencia semanal, cuesta
 > **4,45 USD/mes — el 9 % del cupo.**
 >
@@ -13,7 +28,7 @@
 > **El diagnóstico de este doc sigue siendo correcto en su mecánica** (dónde se paga, qué filtro
 > corre después del pago, por qué la profundidad es un knob de volumen). Lo que caducó es su
 > conclusión de urgencia. **El estado vivo del tema es
-> [plan-refactor-motor.md](./plan-refactor-motor.md).**
+> [plan-refactor-motor.md](../agents/plan-refactor-motor.md).**
 
 > **Estado al 2026-09-10 21:42 UTC.** Nace del reporte de Marú sobre las corridas de Juan Pablo
 > Vieira (2 proyectos, muchos referentes, ~32 videos por proyecto y al menos uno fuera de tema) y de

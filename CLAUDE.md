@@ -78,14 +78,6 @@ en §Agent skills; acá solo se ubican.
   5 actores de Apify y 7 alternativas externas, con precio, paginación, infraestructura y riesgo
   (cierre 151). Su veredicto: **el proveedor nunca fue el problema, la cadencia sí**. Apify bien
   usado son 0,84-2,41 USD/mes y el cupo aguanta 580-2.149 referentes.
-- [docs/agents/plan-costo-apify.md](docs/agents/plan-costo-apify.md) — el **diagnóstico** del gasto
-  de Apify y el plan de palancas, con las predicciones de la corrida de control **escritas y
-  commiteadas antes de dispararla** (§3.1) y su veredicto (§3.2). Su hallazgo ordenador: *el costo
-  no depende de lo que se entrega sino de lo que se colecta, y los dos números no se tocan* — el
-  motor pagaba **529 reels por cada video entregado**. Bajó 6,00 → 1,04 USD (83 %) con dos knobs y
-  cero código, y la misma corrida entregó **0**, que es la otra mitad de la noticia: lo que queda
-  abierto no es el costo sino `min_views`, que está global en 500.000. El mapa monetario es
-  [costos.md](docs/costos.md); esto es el porqué.
 - [docs/agents/evaluacion-proveedores-scraping.md](docs/agents/evaluacion-proveedores-scraping.md) —
   **¿hay que sacar a Apify?** El inventario de los 5 actores de Apify y las 7 alternativas externas
   (Meta Graph API, HikerAPI, ScrapeCreators, EnsembleData, Bright Data, instaloader/instagrapi,
@@ -128,6 +120,11 @@ por qué. **No los leas para saber qué existe hoy.**
 - `plan-orden-y-filtro.md` — ✅ ejecutado y live el 26/08. Lo vigente son sus decisiones, y esas
   viven en [ADR-076](docs/adr/ADR-076-ordenar-es-una-vista-no-una-consulta.md).
 - `plan-rescate-huerfanos.md` — ✅ ejecutado (corrida del 31/08, cerrada `ok` en 13 min).
+- `plan-costo-apify.md` — 🪦 su tesis (*"el costo de Apify no es sostenible"*) quedó desmentida el
+  12/09, y su mecánica ya vivía en [costos.md](docs/costos.md): medido pieza por pieza, **16 de sus
+  19 hallazgos estaban allá, y los otros 3 también con otras palabras**. Lo único que no tenía dueño
+  era la advertencia de que la palanca 0 se aplicó por SQL y no dejó fila en `app.eventos`, y esa se
+  mergeó. *Dos docs sobre el mismo gasto no son dos fuentes: son dos fechas de vencimiento.*
 
 ⚠️ **Los 97 [ADRs](docs/adr/) NO se archivan.** Un ADR viejo no es un ADR obsoleto: es historia que
 se cita, y varios gobiernan código vivo.
