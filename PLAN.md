@@ -185,24 +185,19 @@ afuera (humano en el loop por diseño).
 
 ## 3. Decisiones
 
-### 3.1 Tomadas — viven en [`docs/adr/`](./docs/adr/README.md) (porqué + alternativas allá, no acá)
+### 3.1 Tomadas — viven en [`docs/adr/`](./docs/adr/README.md), y ese índice es su único dueño
 
-| # | Decisión (una frase) | ADR |
-|---|---|---|
-| D1 | Motores heterogéneos, contrato común | [ADR-001](./docs/adr/ADR-001-motores-heterogeneos-contrato-comun.md) |
-| D2 | Supabase como registro central; Sheets/Notion siguen como destinos nativos | [ADR-002](./docs/adr/ADR-002-supabase-registro-central.md) |
-| D3 | Multi-cliente desde el día 1 | [ADR-003](./docs/adr/ADR-003-multicliente-desde-dia-1.md) |
-| D4 | Interfaz del jefe simple: dashboard solo-lectura + resumen push | [ADR-004](./docs/adr/ADR-004-interfaz-jefe-dashboard-y-push.md) |
-| D5 | Hosting n8n: managed (fase 1) → VPS (fase 2) | [ADR-005](./docs/adr/ADR-005-hosting-n8n-managed-fase1.md) |
-| D6 | Plano de datos, sin "workflow padre" orquestador | [ADR-006](./docs/adr/ADR-006-plano-de-datos-sin-workflow-padre.md) |
-| D7 | Convergencia gradual a motor único — dirección, no compromiso | [ADR-007](./docs/adr/ADR-007-convergencia-gradual-motor-unico.md) |
-| — | Airtable como cockpit del equipo de redes (revisa D4) | [ADR-008](./docs/adr/ADR-008-airtable-cockpit-equipo-redes.md) |
-| — | Scripts literales + aprendizaje en el scoring (revisa ADR-008) | [ADR-009](./docs/adr/ADR-009-scripts-literales-y-aprendizaje-en-scoring.md) |
+**Acá no hay tabla, y es a propósito.** El índice completo, con el porqué y las alternativas de cada
+decisión, está en **[`docs/adr/README.md`](./docs/adr/README.md)**.
 
-> **Esta tabla cubre solo las decisiones fundacionales (001–009).** De ADR-010 en adelante el índice
-> completo y al día vive en **[`docs/adr/README.md`](./docs/adr/README.md)**, que es su único dueño —
-> mantener dos listas de lo mismo garantiza que una de las dos mienta (y esta ya venía mintiendo por
-> omisión: van 43). Acá quedan las que fijaron la forma del sistema.
+Lo único que este doc aporta sobre esa lista es **cuáles fijaron la forma del sistema:
+[ADR-001 a ADR-009](./docs/adr/README.md)** — motores heterogéneos con contrato común, Supabase como
+registro central, multi-cliente desde el día 1, y las cuatro que siguen. De ADR-010 en adelante son
+decisiones sobre un sistema cuya forma ya estaba puesta.
+
+> 🩸 **Acá vivía esa tabla con las 9 repetidas —título, ruta y todo— y su nota decía "van 43" cuando
+> ya eran 98.** Mantener dos listas de lo mismo garantiza que una mienta, y la que miente siempre es
+> la copia: el índice se actualiza al escribir un ADR, esta tabla sólo si alguien se acuerda.
 
 ### 3.2 Abiertas (bloquean lo que se indica)
 
