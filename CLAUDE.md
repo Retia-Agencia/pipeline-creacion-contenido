@@ -56,8 +56,22 @@ en §Agent skills; acá solo se ubican.
   y en cada ventana de semanas creció **el 100 %** de los reels (122/122, 120/120), ~1-3 %/mes.
   *Lo que se contaba como desperdicio era el estudio longitudinal que hacía falta.* Falta el tramo
   del reel **joven**, sale de los mismos datos, cuesta 0, y **vence el 11/10**.
-  Trae el resumen no técnico (§8), los **dos mensajes para el equipo** (§9) y la auditoría de
-  `docs/` (§10). **Si vas a tocar el motor, empezá acá.**
+  🩸 **Y el dato que cambia la naturaleza del cambio: el `min_views = 500.000` NO es un default de
+  dev, es una instrucción explícita del jefe** — *"para él eso es accuracy"* (Mani, 12/09). O sea que
+  el refactor no es un arreglo técnico sino una **renegociación de qué significa accuracy**: hoy hay
+  dos definiciones en conflicto (vistas absolutas vs `aprobados / N pedido` de ADR-089) y **un video
+  de 500k que el equipo no aprueba sube una y baja la otra**. Esa conversación queda ABIERTA y no la
+  decide un dev.
+  🧭 **Reencuadre de Mani del 12/09 (§3bis): el motor no mata videos, los ASIGNA · ORDENA · MIDE.**
+  El gate no debería ser el embudo sino el que asigna. Su obstáculo medido: hoy **no puede** asignar,
+  porque puntúa cada par (video × proyecto) con la prosa de ese proyecto, y 15 proyectos son 15
+  rúbricas incomparables — **el mismo bug que `min_views`, por segunda vez: un número absoluto usado
+  como si fuera comparable.**
+  ⚠️ **Antes de construir nada de ese plan, leé su encabezado:** Mani sospecha que está
+  sobre-diseñado y dejó un criterio de aceptación — **si no se puede explicar al equipo de redes en
+  3 a 5 pasos, el diseño está mal** (§5bis C1/C2).
+  Trae el resumen no técnico (§8), los **dos mensajes para el equipo** (§9, sin enviar), la auditoría
+  de `docs/` (§10) y **§11 con todo lo que quedó abierto**. **Si vas a tocar el motor, empezá acá.**
 - [docs/agents/evaluacion-proveedores-scraping.md](docs/agents/evaluacion-proveedores-scraping.md) —
   5 actores de Apify y 7 alternativas externas, con precio, paginación, infraestructura y riesgo
   (cierre 151). Su veredicto: **el proveedor nunca fue el problema, la cadencia sí**. Apify bien

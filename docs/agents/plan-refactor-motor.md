@@ -12,6 +12,16 @@
 > preguntas abiertas, y es la sección que más importa**, porque casi todas las contesta el equipo de
 > medios y no un dev. §8 es el resumen sin jerga.
 >
+> ⚠️ **LEÉ ESTO ANTES DE CONSTRUIR NADA DE ACÁ.** Al cerrar la sesión del 12/09 Mani dijo que
+> **sospecha que esta solución está sobre-diseñada** y abrió una sesión aparte para re-pensarla más
+> simple. Y dejó un **criterio de aceptación del diseño, no de la documentación**:
+>
+> > *"Para el equipo de redes es muy importante que se pueda explicar en un paso a paso de 3, 4,
+> > máximo 5 pasos, y que se sepa qué pasa en cada uno."*
+>
+> **Si el diseño no cabe en 5 pasos explicables, el diseño está mal.** Nada de este documento es
+> definitivo por estar escrito acá. Ver §5bis C1 y C2.
+
 > ⛔ **El botón ▶ del cockpit está bloqueado a propósito** desde el 2026-09-12 (commit `e4c1133`,
 > flag en `apps/dashboard/app/[cliente]/[pipeline]/(zonas)/operar/bloqueo.ts`). Correr hoy paga
 > Apify para entregar casi nada. Desbloquear = poner `MOTOR_BLOQUEADO` en `false`.
@@ -42,12 +52,40 @@ Y de esa vara salen los dos síntomas que se veían como problemas separados:
 
 **Son el mismo bug visto desde dos lados.**
 
+### 🩸 El dato que cambia la naturaleza del cambio: **el 500.000 es una INSTRUCCIÓN, no un default**
+
+**Mani, 12/09, al cierre de la sesión:** *"mi jefe le pide a los de redes mínimo videos de 500k
+explícitamente. Para él eso es accuracy."*
+
+**Todo este documento venía tratando el `min_views = 500.000` como una mala configuración técnica.
+No lo es: es una directiva de negocio.** Y eso cambia tres cosas:
+
+1. **El refactor no es un arreglo, es una renegociación de qué significa "accuracy".** Hoy hay dos
+   definiciones en conflicto y nadie las ha puesto en la misma mesa: para el jefe, accuracy = vistas
+   absolutas altas; para el norte escrito del repo (ADR-089), accuracy = `aprobados / N pedido`.
+   **Un video de 500k que el equipo no aprueba sube la primera métrica y baja la segunda.**
+2. **No alcanza con cambiar el código.** Se puede construir la medida relativa entera y el pedido
+   seguirá siendo "mínimo 500k", porque viene de arriba.
+3. **El argumento tiene que ser medido, no estético**, y ya lo está: en trading la mediana del pool
+   es **22.394** vistas y sólo el **2,4 %** llega a 500k, así que para llenar `N = 70` el material
+   que califica son **5 videos**. En psicología/comunicación la mediana es **256.556** y pasa el
+   **33,5 %**. *Es el mismo umbral haciendo dos cosas opuestas según el nicho.*
+
+⚠️ **Queda ABIERTO y no lo decide un dev:** quién y cómo tiene esa conversación con Daniel. No se
+asume que se dará, ni que saldrá bien. **Mientras no se dé, la medida relativa puede convivir con el
+piso de 500k como orden y no como filtro, pero el pedido de negocio no cambia solo.**
+
 ### 🔴 Y hay una SEGUNDA raíz, descubierta el 12/09 por la sesión de proveedores (cierre 151)
 
 > **El roster de referentes es físicamente demasiado chico para lo que el equipo pide.**
 
-El equipo pide ~150 videos por semana. El techo del roster actual, **comprando todo y sin ningún
-filtro**, es de **59 a 218 reels crudos por semana**, que después de `min_views` y del 39 % de
+El equipo pide ~150 videos por semana. ✅ **Y el 12/09 se cerró de dónde sale ese número, que estaba
+anotado como pregunta abierta: Mani — *"lo piden porque tienen sesiones de grabación con clientes que
+los necesitan para sus redes"*.** O sea **demanda derivada de compromisos ya tomados**, no una
+aspiración. Eso refuerza D1 (el N es piso duro) y quita del mapa la salida fácil de "bajémosle el N".
+
+El techo del roster actual, **comprando todo y sin ningún filtro**, es de **59 a 218 reels crudos por
+semana**, que después de `min_views` y del 39 % de
 aprobación humana quedan en **0,6 a 45 aprobados**. Para llegar a 150 harían falta **301 a 1.115
 referentes** (con `min_views` en 100.000). Con el piso en 500.000 harían falta 1.656-6.132 y **no
 cabe en el cupo a ningún precio**.
@@ -378,6 +416,68 @@ antes del **2026-10-11** se pierde para siempre.
 
 ---
 
+## §3bis · 🧭 El reencuadre del 12/09: el motor no mata, ASIGNA · ORDENA · MIDE
+
+**Mani, 12/09:** *"el workflow no es tanto de matar videos, sino de asignar, ordenar y medir.
+Entonces tal vez el gate de relevancia no debe ser el embudo, sino el que asigna de la mejor manera.
+Y esa relevancia hoy es full lenguaje natural: tal vez un formato estructurado."*
+
+**Esto cierra el círculo con D3.** Si la métrica ordena (D3) y la relevancia asigna, **el motor deja
+de tener filtros y pasa a ser un router con ranking.** Lo único que corta es el presupuesto, y eso es
+honesto: *"alcanza para transcribir N, hago los mejores N"* es una frase distinta de *"estos son
+malos"*.
+
+### §3bis.1 · 🔑 El obstáculo real: hoy el gate NO PUEDE asignar
+
+El fan-out arma pares (video × proyecto) y le pide al modelo **un puntaje independiente por par**,
+usando la prosa de ese proyecto. **15 proyectos activos = 15 rúbricas y 15 escalas distintas.**
+Entonces *"saca 0,7 en Trading y 0,6 en Storytelling ⇒ va a Trading"* compara números que **no son
+comparables**.
+
+> 🩸 **Es el MISMO bug que `min_views`, por segunda vez.** `min_views` compara videos de edades y
+> cuentas distintas con un número absoluto. `relevancia_score` compara proyectos con puntajes
+> absolutos producidos por rúbricas distintas. Los dos fallan por lo mismo: **un número absoluto
+> usado como si fuera comparable.** Y el arreglo tiene la misma forma: **volverlo relativo.**
+
+Para asignar: **una sola llamada que ve el video y los proyectos candidatos y los ordena entre sí**,
+en vez de N llamadas independientes que emiten un puntaje cada una. Es una pregunta comparativa (lo
+que los modelos hacen bien) en vez de N calibraciones absolutas (lo que hacen mal).
+
+📏 **Y sale más barato**, medido en las corridas del 10/09: **2.516 videos colectados generan 4.734
+pares** (1,88 proyectos por video). Pasar de puntuar por par a asignar por video **corta las llamadas
+casi a la mitad**.
+
+### §3bis.2 · 📏 Los criterios ya piden estructura: medido sobre los 15 proyectos activos
+
+`criterios_relevancia` es prosa libre, mediana **879 caracteres** (min 367, max 1.343). 8 de 15
+tienen además `criterios_aprendidos`. Adentro de esa prosa conviven **al menos seis tipos de regla
+distintos**, y cada proyecto inventó su propio formato:
+
+| proyecto | qué hay metido en el mismo campo |
+|---|---|
+| Comunicación para líderes | 🔑 **inventó un esquema a mano**: `RELEVANTE: … NO RELEVANTE: …` |
+| Autoestima · Emociones | lista de temas en prosa (*"prioriza contenido que aborde X, Y, Z"*) |
+| Trading fast tips | tema **+ formato** (*"corto/medianamente corto"*) **+ regla de cumplimiento** (*"no recomendaciones explícitas de inversión"*) |
+| Marketing | 🔴 **criterios de CUENTA, no de video**: *"trae referentes que hagan…"*, *"cuentas con trayectoria o portafolio verificable"* |
+
+**Tres hallazgos, y ninguno es estético:**
+
+1. **El equipo ya intentó estructurar y el campo no lo dejó.** Ese `RELEVANTE / NO RELEVANTE` escrito
+   a mano es alguien pidiendo un esquema. Como no existe, cada proyecto inventó el suyo.
+2. **El campo está sobrecargado.** En Marketing hay criterios de *referente* donde van los de
+   *video*, y el motor sólo aplica ese texto a videos: **esa mitad no la usa nadie.**
+3. **Hay reglas que no son de relevancia sino de CUMPLIMIENTO.** *"No recomendaciones explícitas de
+   inversión"* no es "fuera de tema", es "esto no se publica nunca". Hoy viven revueltas, así que una
+   se puede perder cuando alguien reescribe la otra. **Deberían vivir aparte y por encima de los
+   proyectos.**
+
+⚠️ **Todo §3bis está ABIERTO: es un reencuadre, no un diseño.** No hay esquema propuesto, no hay
+prompt escrito, no hay medición de si asignar comparativamente funciona mejor. El esquema, si se
+hace, **sale de lo que el equipo ya escribió** (la tabla de arriba es su borrador) y de la Q3 del
+mensaje, no de la cabeza de un dev.
+
+---
+
 ## §4 · Decisiones ya tomadas — no re-litigar
 
 | # | Decisión | Quién / cuándo | Fundamento |
@@ -466,6 +566,23 @@ ponga en el motor lo puso un dev por su cuenta, que es exactamente lo que pasó 
 | **T8** | 🆕 ¿Cuántos referentes activos hay realmente? `app.referentes` dice **59 activos**; el cierre 151 midió sobre **26 cuentas**. El cálculo de supply de §0 escala con ese número | ⬜ **sin resolver — no se eligió uno para no inventar** |
 | **T5** | El arreglo del run que no cierra con cero entregas (cierre 149 §1) está diagnosticado y **no aplicado** | ⬜ |
 | **T6** | La tarifa de Supadata en `app.tarifas` está mal por **5,7×** (dice 0,009 USD/video; es por crédito: `auto` = 1 crédito = 0,00157 USD, `generate` = 2 créditos/minuto) | ⬜ solo corregido en el doc |
+
+---
+
+## §5bis · 🚧 Restricciones de construcción — huecos que NO son preguntas para el equipo
+
+Salieron del repaso del 12/09. **No bloquean, pero cualquier diseño que las ignore nace roto.**
+
+| # | Restricción | Estado |
+|---|---|---|
+| **C1** | 🔴 **La herramienta tiene que poder explicarse en 3 a 5 pasos.** Pedido explícito de Mani (12/09): *"para el equipo de redes es muy importante que se pueda explicar en un paso a paso de 3, 4, máximo 5 pasos, y que se sepa qué pasa en cada uno."* **Es un criterio de aceptación del diseño, no un requisito de documentación.** Si el diseño no cabe en 5 pasos explicables, el diseño está mal. | ⬜ **abierta** |
+| **C2** | ⚠️ **Sospecha de over-engineering, de Mani.** Va a abrir una sesión aparte a re-diseñar esto más simple. **Nada de este plan es definitivo por estar escrito acá.** | ⬜ sesión aparte |
+| **C3** | **Arranque en frío de la fórmula.** `viralidad` necesita la base de la cuenta, y una cuenta recién agregada no tiene historia. Y vamos a agregar cientos (§0). **Sin diseñar.** | ⬜ **abierta** |
+| **C4** | **`seguidores` es un denominador flojo** para juzgar cuentas (§3.3.a): se compran, y en Instagram hoy el alcance viene mucho del explore. Una cuenta de 5k puede hacer 500k sistemáticamente. **Es la parte más débil de todo lo propuesto**; debería salir de Q4/Q5 y no de un dev. | ⬜ **abierta** |
+| **C5** | 🔴 **TikTok está muerto y ningún doc lo decía.** Los **59 referentes activos son TODOS de Instagram** (medido contra prod el 12/09) y las corridas traen `apify_tt: 1`. El eje de TikTok está prendido y no trae nada. **O se apaga, o se explica.** | ⬜ **abierta** |
+| **C6** | **El protocolo de éxito necesita fecha de revisión.** Escrito una vez y nunca revisado, en seis meses es el 500.000 otra vez con mejor prosa. | ⬜ **abierta** |
+| **C7** | **Nadie ha definido qué significa "aprobado".** El norte es `aprobados / N pedido`, pero aprobar es un clic humano sin criterio escrito. **Si el equipo aprueba de forma inconsistente, ninguna métrica puede correlacionar con eso.** Candidato a ser un P4 del protocolo. | ⬜ **abierta** |
+| **C8** | **No vamos a poder saber si el cambio funcionó.** 65 % de los candidatos nunca se calificó, así que no hay con qué comparar la vara nueva contra la vieja. *Mani decidió sacar esto del mensaje al equipo y pedirlo aparte, otro día, como favor concreto.* | ⬜ **abierta** |
 
 ---
 
@@ -590,48 +707,50 @@ vencimiento es copiar de Apify lo ya pagado antes del 11 de octubre.
 
 ## §9 · Los dos mensajes para el equipo de medios
 
-> Escritos el 2026-09-12. **Mensaje 1 = las preguntas. Mensaje 2 = el contexto**, se manda después.
-> Grupo: *Cockpit - Pipeline de Contenido*. Van en **singular** (Mani habla por sí mismo, no por un
-> equipo) y **sin jerga**.
+> Versión final del 2026-09-12. **Revisados por Mani y NO ENVIADOS** (decidió cerrar la sesión antes
+> de mandarlos). Grupo: *Cockpit - Pipeline de Contenido*, `120363431388941740@g.us`. Van en
+> **singular** y sin jerga. Mensaje 1 = las preguntas; mensaje 2 = el contexto, se manda después.
 >
-> 🚩 **Tres cosas que Mani decidió sacar del mensaje 2, y quedan anotadas para que nadie las
-> "recupere" creyendo que fue un olvido:** (1) el marco de *"encontré tres cosas rotas"*, porque el
-> mensaje no es una confesión; (2) que la herramienta no está aprendiendo (65 % sin calificar) — se
-> pide aparte, otro día, como favor concreto y no como diagnóstico; (3) que el costo no era el
-> problema. **El "por qué ahora" del mensaje va hacia adelante, no hacia atrás.**
+> 🚩 **Lo que Mani decidió SACAR, anotado para que nadie lo "recupere" creyendo que fue olvido:**
+> (1) el marco de *"encontré tres cosas rotas"*, porque el mensaje no es una confesión; (2) que la
+> herramienta no está aprendiendo (65 % sin calificar) — se pide aparte, como favor concreto;
+> (3) que el costo no era el problema; (4) **la promesa de cadencia semanal** — se quitó al final,
+> así que **cuando el botón vuelva con menos frecuencia el equipo no va a estar avisado**;
+> (5) la pregunta por el origen del N, contestada por Mani (§0).
 
 ### Mensaje 1 — las preguntas
 
 ```
-Hola! Estoy reconstruyendo la parte del buscador de reels que decide qué videos les
-llegan, y hay unas decisiones que no quiero tomar yo desde el código porque son de
-criterio de ustedes. Son 6 preguntas, contesten como les salga:
+Qué más team? Estoy reconstruyendo la parte del buscador de reels que decide qué videos
+les llegan. Hay unas decisiones ahí que son de criterio de ustedes, no mías, y no quiero
+tomarlas yo desde el código. Son 8 preguntas, contesten como les salga:
 
-1. Cuando un reel se acaba de publicar todavía no juntó sus vistas. ¿Cuántos días les
-   parece que hay que esperar para saber si a un video le fue bien? ¿2, 7, 30?
+1. Un video "bueno" para ustedes, ¿es el que tiene muchas vistas en general, o el que
+   tiene más vistas de lo normal para esa cuenta? Ejemplo: uno de 80 mil vistas en una
+   cuenta que suele hacer 20 mil, contra uno de 300 mil en una cuenta que suele hacer 2
+   millones. ¿Cuál les sirve más?
 
-2. Un video "bueno" para ustedes, ¿es el que tiene muchas vistas en general, o el que
-   tiene más vistas de lo normal para esa cuenta? Ejemplo: un video de 80 mil vistas en
-   una cuenta que suele hacer 20 mil, contra uno de 300 mil en una cuenta que suele
-   hacer 2 millones. ¿Cuál les sirve más?
+2. Cuando un reel se acaba de publicar todavía no juntó sus vistas. ¿Cuántos días hay que
+   esperar para saber si le fue bien? ¿2, 7, 30?
 
-3. Cuando miran una cuenta nueva para decidir si la agregan como referente, ¿qué es lo
+3. Si tuvieran que explicarle a alguien nuevo qué videos sirven para un proyecto y cuáles
+   no, ¿cómo se lo explicarían? Y aparte: ¿hay cosas que nunca sirven, para ningún
+   proyecto, pase lo que pase?
+
+4. Cuando miran una cuenta nueva para decidir si la agregan como referente, ¿qué es lo
    primero que miran? ¿Y qué las hace descartarla de una?
-
-4. Cuando el buscador les trae un video que no sirve, ¿qué suele estar mal: el tema, la
-   cuenta de donde salió, o ese video en particular?
 
 5. Si pudieran ver UNA sola columna al lado de cada cuenta para decidir si la dejan o la
    sacan, ¿cuál sería?
 
-6. Y una más suelta: cuéntenme cómo es su proceso cuando salen a buscar videos. Qué
-   miran, en qué orden, qué las hace parar en uno y seguir de largo en otro. No busco una
-   respuesta corta, es lo que más me sirve para entender qué debería estar haciendo la
-   herramienta por ustedes.
+6. Cuando el buscador les trae un video que no sirve, ¿qué suele estar mal: el tema, la
+   cuenta de donde salió, o ese video en particular?
 
-Bonus: ¿preferirían poder pedir un mínimo de "qué tan viral" tiene que ser un video antes
-de que les llegue, o prefieren que les muestre todo ordenado de mejor a peor y ustedes
-descartan?
+7. Y una más suelta: quiero saber cuál es su proceso para sacar videos.
+
+8. ¿Preferirían poder pedir un mínimo de "qué tan viral" tiene que ser un video antes de
+   que les llegue, o prefieren que les muestre todo ordenado de mejor a peor y ustedes
+   descartan?
 
 Mientras tanto el botón de "Buscar contenido" va a estar desactivado unos días, dice
 "Bajo construcción por dev". Les aviso cuando vuelva.
@@ -649,50 +768,189 @@ pasan cierto número de vistas, (3) le saca el texto hablado a los que quedaron,
 IA lee ese texto y decide si el tema le sirve al proyecto. Lo que sobrevive los cuatro
 pasos es lo que les aparece en el Feed.
 
-*Lo que voy a cambiar, y es el cambio de fondo.* Hoy el paso 2 usa un número fijo: el
-mismo mínimo de vistas para toda cuenta y todo video. Eso trata igual a una cuenta de 20
-mil seguidores y a una de 5 millones, y a un reel de ayer y a uno de hace dos meses.
+*El reality check, y por eso escribo.* Hoy el paso 2 usa un número fijo de vistas, el
+mismo para toda cuenta y todo proyecto. Estos son los números reales de lo que eso
+produce: en los proyectos de trading, la mediana de vistas de los reels que traemos es de
+unas 22 mil, y solo el 2% de ellos pasa el medio millón. En psicología y comunicación la
+mediana es de 256 mil y pasa un tercio. Es el mismo umbral haciendo dos cosas opuestas
+según el nicho. En la práctica, en trading eso significa que para llenar un pedido de 70
+videos el material que califica son unos 5.
 
-La idea es reemplazarlo por una medida *relativa*: en vez de "¿pasó los X mil?", preguntar
-"¿le fue mejor de lo normal para esa cuenta?". Un video que hizo el triple de lo que esa
-cuenta suele hacer es interesante aunque el número absoluto sea chico. Y al revés: un
-video grande en una cuenta gigante puede ser apenas normal.
+*Lo que propongo.* Que el número de vistas deje de ser un requisito y pase a ser un
+*medidor de viralidad*: en vez de "¿pasó el medio millón?", medir "¿le fue mejor de lo
+normal para esa cuenta?".
 
-Eso tiene una ventaja práctica: como es una comparación y no un número, *el mismo criterio
-sirve para todos los proyectos*, sin tener que configurar un número distinto para trading,
-para psicología y para lo que venga.
+Así quedaría en concreto. Una cuenta que normalmente hace 20 mil vistas por reel saca uno
+de 60 mil: eso es 3 veces lo normal de ella, y ese número se los muestro al lado del
+video. Otra que normalmente hace 2 millones saca uno de 900 mil: le fue por debajo de lo
+suyo, así que aparece más abajo aunque el número absoluto sea mucho mayor. ¿Les cuadra que
+funcione así, o se les ocurre algún caso donde esto les dé vuelta algo que ustedes sí
+querrían ver? Esa es la pregunta que más me sirve, porque es la que puede romper la idea
+antes de que la construya.
+
+Como es una comparación y no un número, el mismo criterio sirve para todos los proyectos,
+sin configurar un umbral distinto para trading, para psicología y para lo que venga.
+
+*Y acá está el cambio de fondo, que es más importante que la fórmula.* Si el filtro de
+vistas deja de ser el que decide, el peso pasa entero a la calidad de los referentes. Un
+buen referente da buenos videos casi solo; uno malo no lo salva ningún filtro, y hoy los
+estamos juzgando con muy poca información. Quiero que la pestaña de Referentes se vuelva
+un tablero de verdad, donde se vea cuáles están rindiendo y cuáles no, y que la lista
+crezca bastante.
 
 *Por eso pregunto lo de los días.* Para comparar un reel de ayer con uno de hace un mes
-hay que tener en cuenta que el de ayer todavía no terminó de juntar vistas. Estoy midiendo
-cuánto crece un reel con el tiempo para poder corregir eso. Pero *cuánto tiempo le damos
-antes de juzgarlo* es una decisión de ustedes, no mía: es cuánto están dispuestas a
-esperar.
+hay que tener en cuenta que el de ayer todavía no terminó de juntar vistas. Ya estoy
+midiendo cuánto crece un reel con el tiempo para corregir eso. Pero cuánto tiempo le damos
+antes de juzgarlo es decisión de ustedes.
 
-*Cada cuánto va a correr.* Hoy se puede disparar muchas veces al día, pero eso no tiene
-sentido: entre una corrida y otra las cuentas no alcanzan a publicar nada nuevo, así que
-trae lo mismo. Va a quedar corriendo una vez por semana, y cada corrida va a traer solo lo
-que se publicó desde la anterior. Si necesitan algo puntual fuera de ese ritmo, me dicen.
-
-*Y lo que más peso tiene, que es donde más las necesito.* Al final, lo que determina la
-calidad de lo que les llega son las cuentas que seguimos. Un buen referente da buenos
-videos casi solo; uno malo no lo salva ningún filtro. Hoy tenemos pocas cuentas cargadas y
-las juzgamos con muy poca información. Quiero que la pestaña de Referentes se vuelva un
-tablero de verdad, donde se vea cuáles están rindiendo y cuáles no, y que la lista crezca
-bastante.
-
-Por eso las preguntas 3, 5 y 6 son las que más me sirven: yo puedo construir el tablero,
-pero el criterio de qué hace buena a una cuenta es de ustedes.
+Las preguntas 4, 5 y 7 son las que más me sirven: yo puedo construir el tablero, pero el
+criterio de qué hace buena a una cuenta es de ustedes.
 ```
+
+### ⚠️ Lo que queda ABIERTO sobre estos mensajes
+
+- **No están enviados.** Falta luz verde de Mani.
+- 🔴 **El párrafo del reality check nombra el medio millón con números, y el medio millón es un
+  pedido del jefe (§0).** Va dirigido a Majo y Jero, que son quienes lo reciben, pero puede llegarle
+  a Daniel de rebote y dicho por Mani. **Se le planteó la alternativa —sacarlo del mensaje y dar esa
+  conversación directo, con los mismos números— y no eligió.** Sin decidir.
+- El mensaje 2 describe el paso 4 como *"decide si el tema le sirve"*. Con §3bis eso pasaría a
+  **asignar** en vez de descartar, pero no está construido ni decidido, así que **se dejó la
+  descripción vieja a propósito.**
 
 ### Lo que el mensaje 2 promete, y hay que cumplir
 
 | promesa | dónde vive |
 |---|---|
-| medida relativa en vez del mínimo fijo | §3.2 |
-| un solo criterio para todos los proyectos | §3.2, la propiedad de que un cociente no tiene escala |
-| "estoy midiendo cuánto crece un reel" | §1.3 (hecho) + M1-bis (falta el tramo joven) |
-| **corridas una vez por semana** | §3.4. *No estaba en el pedido original; se metió porque es lo único del mensaje que les cambia el día a día, y es mejor que lo sepan por Mani a que lo descubran* |
-| tablero de referentes de verdad | §3.3, y depende de Q3/Q5 |
-| que la lista de cuentas crezca | §0 segunda raíz, paso 9 de §7 |
+| el número de vistas pasa a ser un medidor, no un requisito | §3.2 |
+| mostrarles el múltiplo al lado del video | §3.2 — **no está construido en el cockpit** |
+| un solo criterio para todos los proyectos | §3.2 (un cociente no tiene escala) |
+| "ya estoy midiendo cuánto crece un reel" | §1.3 (hecho) + M1-bis (falta el tramo joven) |
+| el peso pasa a la calidad de los referentes | §3.3 y §0, depende de Q4/Q5 |
+| tablero de referentes de verdad | §3.3 |
+| que la lista de cuentas crezca | §0, paso 9 de §7 |
 
 **No se prometió ninguna fecha, a propósito.**
+
+---
+
+## §10 · Auditoría de `docs/` — qué sobra, qué falta y qué duele
+
+> Pedido de Mani el 12/09: *"la carpeta de docs está llena de vainas viejas, revisá qué podemos
+> borrar para que esto quede como el punto de partida."*
+>
+> ✅ **EJECUTADO el 2026-09-12, con su visto bueno.** `handoff.md` pasó de **8.334 a ~1.300 líneas**
+> y los 4 planes ejecutados están en [`docs/archivo/`](../archivo/). **Cero borrados.** Se
+> re-apuntaron **~90 links** en 24 archivos y se verificó con un chequeo de links repo-wide: **0
+> rotos causados por el movimiento** (quedan 5 previos, listados en §10.5).
+
+### §10.1 · El problema real no son los planes viejos: es el handoff
+
+| archivo | líneas |
+|---|---|
+| **`docs/agents/handoff.md`** | **8.215** |
+| `docs/agents/plan-multi-tenant.md` | 1.638 |
+| `docs/archivo/plan-orden-y-filtro.md` | 1.305 |
+| `docs/verificaciones-humanas.md` | 1.117 |
+| `docs/agents/plan-transcript-completo.md` | 1.051 |
+| *(los otros 100+ archivos)* | < 1.000 c/u |
+
+El handoff es **el doble del segundo más grande de todo el repo**, y es justamente el que dice
+"leelo al empezar la sesión". Nadie lee 8.215 líneas, así que en la práctica se lee el encabezado y
+el resto es peso muerto que igual entra al contexto de cada agente.
+
+Y tiene un síntoma estructural visible: **cuatro secciones "ARRANCÁ POR ACÁ" apiladas** (líneas 23,
+142, 300, y una marcada 🪦 SUPERSEDED en la 6987). Cuatro puertas de entrada es ninguna.
+
+**Propuesta:** rotar. Dejar el protocolo + el ARRANCÁ vigente + los últimos ~6 cierres, y mover el
+resto a `docs/agents/handoff-archivo-2026-06_08.md`. Queda en ~800 líneas y no se pierde nada (el
+archivo sigue en el repo, y git tiene todo igual).
+
+### §10.2 · Planes ya ejecutados — candidatos a archivar
+
+| archivo | líneas | estado | evidencia |
+|---|---|---|---|
+| `plan-orden-y-filtro.md` | 1.305 | ✅ ejecutado y live | *"✅ EJECUTADO Y LIVE — 2026-08-26, las 7 tareas cerradas y desplegadas"* |
+| `mapa-campos.md` | 637 | 🪦 obsoleto | Mapea Airtable, purgado el 2026-08-03. Ya tiene su aviso de vigencia |
+| `plan-cockpit-propio.md` | 577 | ✅ construido | El cockpit está en producción con 17 pantallas |
+| `plan-rescate-huerfanos.md` | 396 | ✅ ejecutado | *"✅ RESULTADO — corrida 2026-08-31 04:30, cerrada ok en 13 min"* |
+
+**2.915 líneas.** Recomiendo **mover a `docs/archivo/`, no borrar**: git conserva el contenido igual,
+pero borrar pierde la capacidad de encontrarlo cuando alguien pregunte *"¿por qué esta pantalla
+ordena así?"*. Mover cuesta lo mismo y no tiene downside.
+
+### §10.3 · Vivos — no tocar
+
+`plan-cascada-de-entrega` (pendiente vivo) · `plan-costo-apify` (base de este refactor) ·
+`evaluacion-proveedores-scraping` (nuevo, 12/09) · `plan-transcript-completo` (tareas 8-11 abiertas) ·
+`plan-modo-seleccion` (acordado, sin construir) · `plan-motor-linkedin` (⛔ producto) ·
+`plan-multi-tenant` (Fase 5 pendiente) · `refactor-voces-proyectos` (tablero activo) ·
+`verificaciones-humanas` (4 abiertas) · `context` · `dev-doc` · `costos` · los runbooks.
+
+### §10.4 · Los 97 ADRs NO se tocan
+
+Son el registro permanente de por qué el sistema es como es, una decisión por archivo, y varios
+siguen gobernando código vivo. Un ADR viejo no es un ADR obsoleto: es historia que se cita. El índice
+(`docs/adr/README.md`) ya los ordena.
+
+### §10.5 · 🩸 Lo que la auditoría encontró de paso
+
+- **`plan-modo-seleccion.md §Fase 4` dice "A revisar el 2026-09-04"** para los cinco canarios de
+  adopción. Hoy es el **12/09**: nadie los miró. Es exactamente el patrón que el `CLAUDE.md` global
+  de Mani ya tiene documentado con sangre: *el trabajo con fecha que nadie agenda se ve idéntico al
+  que no tiene fecha.*
+- **El `CLAUDE.md` del repo dice "ADRs 001-097 (97 archivos)" y en disco hay 97.** Por una vez
+  coincide. *Ese mismo renglón ya estuvo mal dos veces (dijo 083 con 84, y 094 con 97), y por eso el
+  propio doc aclara que el número sale de `ls docs/adr`.*
+- **Este documento hay que registrarlo** en el mapa de docs del `CLAUDE.md` del repo, o nace
+  invisible para el próximo agente. Pendiente.
+
+---
+
+## §11 · Estado al cerrar la sesión del 2026-09-12
+
+> Este plan nació y creció en una sola sesión de brainstorm. **Cero código del motor tocado, cero
+> corridas, cero migraciones.** Lo único que se aplicó al producto fue **bloquear el botón ▶**
+> (commit `e4c1133`). Todo lo demás es diagnóstico y diseño propuesto.
+
+### Lo que se hizo
+
+| | |
+|---|---|
+| **Bloqueado** | el ▶ del cockpit, botón + server action, flag único en `operar/bloqueo.ts` |
+| **Medido contra prod** | `cap_top_n` nunca muerde (15/14/6 de 250) · `min_views` mata 74-83 % · el ledger ve 3-6 de ~59 cuentas · 59 referentes activos, **todos Instagram** · 15 proyectos activos piden N=320 · criterios: mediana 879 chars de prosa libre · 2.516 videos → 4.734 pares |
+| **Medido gratis, longitudinal** | 26 días de historia de datasets ya pagados: **las vistas no se congelan**, creció ~100 % en cada ventana de semanas (§1.3) |
+| **Ordenado** | `docs/` auditado, handoff rotado 8.334 → ~1.300, 4 planes archivados (§10) |
+| **Escrito** | los dos mensajes para el equipo (§9), sin enviar |
+
+### Lo que quedó DECIDIDO (§4 + esta sesión)
+
+D1 el N es piso duro · D2 el relleno se queda · D3 **la viralidad ordena, no filtra** · D4 `p_a` no
+es sólo `tasa_aprobacion` · D5 nada de puntajes ponderados sin con qué calibrar · D6 la concurrencia
+queda igual · D7 el ▶ bloqueado · **D8 (12/09): el motor no mata, asigna · ordena · mide** (§3bis) ·
+**D9 (12/09): la curva de crecimiento no se asume, se lee** (§1.3).
+
+### 🔴 Lo que quedó ABIERTO — nada de esto se decidió, y no hay que asumirlo
+
+| # | Abierto | Quién lo cierra |
+|---|---|---|
+| 1 | **Mandar o no los dos mensajes**, y si el párrafo del reality check va adentro o se lo dice Mani directo a Daniel | Mani |
+| 2 | **P1 · P2 · P3**, el protocolo de medición de éxito | equipo de redes (§5.1) |
+| 3 | **La conversación con Daniel sobre qué significa accuracy.** Hay dos definiciones en conflicto y el 500k es instrucción suya (§0) | Mani, sin fecha |
+| 4 | **M1-bis**, la curva del reel joven. Gratis, y **vence el 2026-10-11** | un dev, 0 USD |
+| 5 | **Todo §3bis**: esquema estructurado de criterios, prompt comparativo, y si asignar funciona mejor. **Es un reencuadre, no un diseño** | sesión aparte |
+| 6 | **C1-C8** (§5bis): explicable en 5 pasos · sospecha de over-engineering · arranque en frío · `seguidores` como denominador flojo · **TikTok muerto** · revisión del protocolo · qué significa "aprobado" · no hay con qué validar el cambio | varios |
+| 7 | **T1 · T2 · T3 · T5 · T6 · T7 · T8** (§5.3), incluida la discrepancia **26 vs 59 referentes** | un dev |
+| 8 | Copiar los datasets de Apify **antes del 2026-10-11** | un dev |
+
+### 🩸 Las cuatro correcciones que esta sesión le hizo a sus propias conclusiones
+
+Van escritas porque el patrón se repitió, y es el mismo: **un número o una forma que nadie verificó,
+citado como si estuviera medido.**
+
+1. **`cap_top_n` no era el techo.** El handoff lo llamaba "techo estructural"; nunca muerde.
+2. **Las vistas no se congelan.** Tres docs lo daban por bueno sobre 52 minutos de medición.
+3. **La curva no tiene escalón.** `madurez()` traía una forma inventada adentro.
+4. **El proveedor nunca fue el problema.** Era la cadencia, y es gratis.
+
+*Las cuatro las disparó Mani preguntando de dónde salía el número, no un agente revisando su trabajo.*
