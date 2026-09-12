@@ -1,5 +1,24 @@
 # Plan — El modo selección, y que el Feed deje de ser una sala de espera
 
+> # 🗄️ ARCHIVADO el 2026-09-12 — CONSTRUIDO. Su encabezado de abajo miente sobre su propio estado.
+>
+> **Ese encabezado dice *"acordado con Mani el 2026-08-21, sin construir"*, y era falso desde el
+> 29/08.** Medido el 12/09 contra el propio doc: las **fases 0, 1, 2, 3, 4 y 6 están ✅**. *Un plan
+> que no actualiza su encabezado se lee como pendiente para siempre.*
+>
+> **Dónde vive cada cosa ahora:**
+>
+> | | |
+> |---|---|
+> | **la decisión de fondo** | [ADR-075 — agrupar es aprobar](../adr/ADR-075-agrupar-es-aprobar.md). No hizo falta un ADR nuevo: ya estaba escrita |
+> | **lo que quedaba abierto** | [verificaciones-humanas.md](../verificaciones-humanas.md) §18, §19 y §20 — el `.docx` en Word, el modo selección en celular, y los cinco canarios vencidos |
+> | **la corrida real con el fix** (Fase 6, puntos 2 y 3) | congelada por producto: **el ▶ está bloqueado** desde el 12/09. No es deuda de este plan |
+>
+> **Para qué sirve todavía:** por sus mediciones del 21/08 —cuatro de las cinco corrigieron un doc
+> que estaba mal— y por el registro de cómo se rompió la medición de `app.eventos` dos veces el
+> 29/08, que es el porqué de la regla *un canario se re-mide, no se cita*.
+
+
 > **Estado:** acordado con Mani el 2026-08-21, sin construir. Sale de la sesión de `/grill-with-docs`
 > posterior al cierre 114. Su decisión de fondo está en
 > [ADR-075](../adr/ADR-075-agrupar-es-aprobar.md).

@@ -1112,6 +1112,71 @@ generate"*, que es exactamente la confusión que costó la fuga de plata de ADR-
 
 ---
 
+## 18. ⬜ **Abrir el `.docx` de una colección EN WORD** *(mudada de plan-modo-seleccion §Fase 5 el 2026-09-12)*
+
+**Por qué un agente no puede cerrarla:** `file` y `textutil` dicen que el paquete es un zip OOXML
+válido. **Son dos señales de lo mismo, y ninguna es Word.** Un `.docx` puede ser estructuralmente
+válido y aun así abrirse roto, con el estilo perdido o un aviso de recuperación.
+
+**Los pasos:** bajar el `.docx` de una colección con varios videos → abrirlo en Word (no en Pages,
+no en Google Docs: Word es el que usa el equipo) → mirar que abra **sin diálogo de recuperación**,
+que los guiones estén completos y que los separadores entre videos se vean.
+
+**Qué significa si falla:** el entregable del modo selección no sirve, y el fallo es **mudo** —
+nadie se entera hasta que alguien del equipo intenta usarlo.
+
+---
+
+## 19. ⬜ **El modo selección EN CELULAR** *(mudada de plan-modo-seleccion §Fase 5 el 2026-09-12)*
+
+**Por qué un agente no puede cerrarla:** el botón `Seleccionar` se eligió **justamente porque en
+celular no existe el hover**. Esa decisión nunca se probó en un teléfono de verdad, y un emulador de
+escritorio no reproduce el área del dedo ni el scroll con inercia.
+
+**Por qué importa, y no es teórico:** *Majo cura desde donde puede.* Si el modo selección no se deja
+usar en el teléfono, la funcionalidad existe para quien la construyó y no para quien la opera.
+
+**Los pasos:** abrir el Feed en un celular real → `Seleccionar` → marcar 3 tarjetas → aplicar la
+acción en lote → confirmar que el resultado quedó.
+
+---
+
+## 20. ⏰ **Los cinco canarios de adopción — vencidos, nadie los miró** *(mudada de plan-modo-seleccion §Fase 4 el 2026-09-12)*
+
+🩸 **Decían "a revisar el 2026-09-04" y al 12/09 nadie los corrió.** Es el patrón que ya está
+documentado con sangre: *el trabajo con fecha que nadie agenda se ve idéntico al que no tiene fecha.*
+
+**Las consultas, redefinidas por fecha y por autor** (un `count(*)` crudo dejó de distinguir
+adopción de carga masiva el día que Majo cargó 288 marcas de una):
+
+```sql
+-- Grabados (ADR-069/070): marcas nuevas, sin la carga masiva del 20/08.
+select count(*) from app.grabados where grabado_en > '2026-08-21';
+
+-- Guion limpio (ADR-074): el canario vive en app.eventos, que nadie pisa. La tabla se
+-- contaminó dos veces, y la segunda la contaminó la sesión que lo redefinió.
+select count(*) from app.eventos where tipo = 'colecciones.limpiar' and usuario_id <> '<uuid de Mani>';
+
+-- Metadata comprada (ADR-072): las 5 que hay son verificaciones. Adopción = la fila 6.
+select count(*) from app.videos_meta;
+
+-- Corrida de origen (ADR-081): la escribe el motor, así que la primera fila es uso real.
+select count(*) from app.candidatos where run_id is not null;
+
+-- Prescore métrico (ADR-092): nace en cero sin contaminar.
+select count(*) from app.candidatos where prescore_metrico is not null;
+```
+
+🔑 **Y la pregunta que ningún `count(*)` contesta —*¿alguien volvió un segundo día?*— se lee de
+`app.eventos` contando DÍAS DISTINTOS por persona.** *Un canario se re-mide, no se cita — y uno mal
+consultado miente igual que uno mal escrito:* `videos_meta` se contó en 4 una vez por pedirle una
+columna que no existe, y son 5.
+
+**Qué significa si ninguno se despertó:** no que el sistema esté roto, sino que **se construyó algo
+que nadie usa**, y eso no se ve en ninguna pantalla verde.
+
+---
+
 ## Registro — lo que ya se cerró, para no repetirlo
 
 | # | Qué | Cuándo |

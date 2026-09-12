@@ -156,8 +156,9 @@ se cita, y varios gobiernan código vivo.
   descartable, lo que se pagó no.
   🐤 **Su canario es el más limpio de los cuatro porque nace sin ruido: `select count(*) from
   app.colecciones` daba CERO el 21/08** —la de prueba se borró— así que la primera fila es adopción
-  y no una verificación propia. A revisar el **2026-09-04**, junto con los otros tres
-  ([plan-modo-seleccion §Fase 4](docs/agents/plan-modo-seleccion.md)).
+  y no una verificación propia. ⏰ **Decía "a revisar el 2026-09-04" y al 12/09 nadie lo miró**; los
+  cinco viven ahora en
+  [verificaciones-humanas §20](docs/verificaciones-humanas.md), con sus consultas.
   ✅ **Y la pregunta que ningún `count(*)` contesta —*¿alguien volvió un segundo día?*— se lee de
   `app.eventos` contando DÍAS DISTINTOS por persona, no eventos. Al 21/08 21:20 la respuesta es SÍ,
   una: Majo Duarte, el 20/08 y el 21/08** (37 calificaciones y 6 referentes ese segundo día). Los

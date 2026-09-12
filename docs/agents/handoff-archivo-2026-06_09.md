@@ -1798,7 +1798,7 @@ un piso, no un resultado.
 > | Los otros ⬜ de [verificaciones-humanas](../verificaciones-humanas.md) | §3 Jero · §4-bis 2 sesiones · §4-ter/§4-quater Majo · §10 Alejandro | Ninguno es de código |
 > | ~~Aplicar la `034` + push del motor~~ | — | ✅ **CERRADO el 31/08** (ADR-081). Migración aplicada por Mani y verificada por su efecto (`23503` de la FK), nodo empujado al live, y la faceta vista filtrar en el navegador con 6 candidatos de prueba **creados y borrados**. Solo queda deployar el dashboard |
 | ~~El repo quedó atrás del live en 2 nodos del motor~~ | — | ✅ **CERRADO el 31/08 por el merge** (`68b79df`). No hacía falta ningún porqué nuevo: los dos nodos eran los cambios de la otra sesión, ya argumentados en `491aa39` y ADR-030 §Enmienda. `n8n:diff` verde en los 5, y el live confirmado por lectura directa de la API (`RETRIES=4`, corte en sin-voz, jitter, `run_id`) |
-| Los **4 canarios** | — | A re-mirar el **2026-09-04** ([plan-modo-seleccion §Fase 4](./plan-modo-seleccion.md)) |
+| Los **4 canarios** | — | A re-mirar el **2026-09-04** ([plan-modo-seleccion §Fase 4](../archivo/plan-modo-seleccion.md)) |
 | **La tanda 2 de ADR-083: que las corridas registren más** | quien tome la sesión | 📌 Decidido con Mani el 31/08 y **aplazado a propósito**. Son tres cosas: `descartes.run_id` (migración + ADR, para contestar *"qué videos mató esta corrida"*), **checkpoints parciales en el motor** (hoy un fallo deja `metricas` en NULL, medido: las 12), y los `Cerrar run` de archivado y descubrimiento enriquecidos. **Va después de la pantalla y no antes**: sin ella, verificar un checkpoint obliga a entrar a n8n a mano, que es lo que la pantalla elimina |
 | **Cargar `N8N_BASE_URL` + `N8N_WF_*` en Vercel** (opcional) | Mani | 📌 Sin ellas el link *"ver en n8n"* de una corrida **que salió bien** no aparece (solo lo ve `dev`). El de una corrida **fallida** funciona igual, sin configurar nada. Están en el `.env` de la raíz; el `.env.example` del dashboard ya las documenta |
 > | ~~La topología de n8n sigue siendo ritual manual~~ | — | ✅ **CERRADO el 30/08** (ADR-053 §Enmienda). `n8n:push` empuja nodos y conexiones; el re-import queda solo para crear un workflow de cero. El bloqueo no eran las credenciales sino que `cuerpoPut` mandaba las conexiones del live |
@@ -3076,7 +3076,7 @@ un piso, no un resultado.
 > rescataron sus 70 candidatos sin volver a pagar nada.** `main` = **`13a528e`**, pusheado.
 > **Migraciones: ninguna. n8n: el fix está en el repo y NO se pudo empujar (ver abajo).**
 >
-> El plan entero vive en [plan-modo-seleccion.md](./plan-modo-seleccion.md); acá va el estado.
+> El plan entero vive en [plan-modo-seleccion.md](../archivo/plan-modo-seleccion.md); acá va el estado.
 >
 > ### 🟢 Lo primero, porque cambia prioridades: MAJO ESTÁ USANDO LA HERRAMIENTA
 >
