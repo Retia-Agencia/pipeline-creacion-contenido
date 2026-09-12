@@ -47,6 +47,20 @@ en §Agent skills; acá solo se ubican.
   más abajo, en `Armar candidato`— así que el escalón "dejar pasar para rellenar" **nunca pudo vivir
   en el gate**, y desde el cierre 134 vive donde corresponde. Trae el estado de todo lo aplicado, lo pendiente en orden de retorno, las
   mediciones escritas antes de mirarlas, y los invariantes que no hay que re-litigar.
+- 🧭 [docs/agents/plan-refactor-motor.md](docs/agents/plan-refactor-motor.md) — **el punto de
+  partida del refactor del motor (2026-09-12)**. Consolida las sesiones del 10, 11 y 12/09 en un solo
+  doc: los hechos con su fuerza de evidencia, el diseño propuesto, las decisiones que no se
+  re-litigan y —lo que más importa— **las preguntas abiertas partidas por quién las contesta**
+  (equipo de medios · una medición · un dev). Su hallazgo ordenador son **dos raíces, no una**: la
+  vara absoluta (`min_views` global) y **el roster de 59 referentes, que físicamente no puede dar los
+  150 videos/semana que el equipo pide**. Y su corrección más cara: *las vistas NO se congelan* —
+  tres docs lo daban por bueno sobre una medición de 52 minutos que no tiene resolución para verlo
+  (§1.2). Trae el resumen no técnico (§8), el mensaje listo para el equipo de medios (§9) y la
+  auditoría de `docs/` (§10). **Si vas a tocar el motor, empezá acá.**
+- [docs/agents/evaluacion-proveedores-scraping.md](docs/agents/evaluacion-proveedores-scraping.md) —
+  5 actores de Apify y 7 alternativas externas, con precio, paginación, infraestructura y riesgo
+  (cierre 151). Su veredicto: **el proveedor nunca fue el problema, la cadencia sí**. Apify bien
+  usado son 0,84-2,41 USD/mes y el cupo aguanta 580-2.149 referentes.
 - [docs/agents/plan-costo-apify.md](docs/agents/plan-costo-apify.md) — el **diagnóstico** del gasto
   de Apify y el plan de palancas, con las predicciones de la corrida de control **escritas y
   commiteadas antes de dispararla** (§3.1) y su veredicto (§3.2). Su hallazgo ordenador: *el costo
