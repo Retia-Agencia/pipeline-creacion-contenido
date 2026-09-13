@@ -741,7 +741,14 @@ vencimiento es copiar de Apify lo ya pagado antes del 11 de octubre.
 
 > 🟢 **Los mensajes 1 y 2 SE ENVIARON el 2026-09-12** al grupo *Cockpit - Pipeline de Contenido*
 > (`120363431388941740@g.us`), ids `3EB00FD67BD1504DC97973` y `3EB0762A72227C637684C2`.
-> **El mensaje 3 (las preguntas) NO se envió**: Mani lo dejó para después de probar las
+> ➕ **Y ese mismo día salió un tercero, corto**, escrito por Mani y enviado por él: la frase que
+> conecta los dos anteriores (*la vara alta es lo que obliga a ir a buscar contenido viejo, que es
+> justo lo que el plan de Apify no aguanta ⇒ no son dos problemas, la forma de medir es la que
+> causaba el costo*). 🔑 **Su texto exacto NO quedó capturado acá**, porque el puente de WhatsApp
+> estaba caído al cerrar la sesión. *Se anota como enviado y sin transcribir, no se inventa.*
+> ⚠️ **Sigue en pie el criterio de que NO nombra el 500.000**, por lo de §0 y §9 más abajo.
+>
+> **El mensaje de las 10 PREGUNTAS (abajo, "Mensaje 3") NO se envió**: Mani lo dejó para después de probar las
 > alternativas de scraping (§5.2 M5), porque la respuesta a "¿se pueden traer los más virales?"
 > cambia lo que tiene sentido preguntar.
 
@@ -817,7 +824,7 @@ El botón de "Buscar contenido" queda desactivado unos días mientras tanto, dic
 "Bajo construcción por dev". Les aviso cuando vuelva.
 ```
 
-### Mensaje 3 — las preguntas *(NO ENVIADO — espera la prueba de alternativas)*
+### Mensaje de las preguntas — las 10 *(NO ENVIADO — espera la prueba de alternativas)*
 
 ```
 Y acá van las decisiones que son de criterio de ustedes y no mías. Son 10 y son
