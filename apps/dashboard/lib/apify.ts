@@ -110,6 +110,40 @@ export async function traerVideoUrls(urls: readonly string[]): Promise<Map<strin
   return salida;
 }
 
+/** El cupo mensual de Apify tal como lo cobra el proveedor, no como lo modela el repo. */
+export type SaldoApify = { usadoUsd: number; topeUsd: number; finCiclo: string };
+
+/**
+ * Cuánto va gastado del cupo mensual de Apify. Es el mismo endpoint que lee el pre-flight del motor
+ * (`Cupo Apify (pre-flight)`, ADR-094), así que el botón y el motor miran el mismo número.
+ *
+ * ⚠️ El cupo es UNO para todo: lo comparten el motor, esta app y las sesiones de agente
+ * (docs/costos.md §1.1). Lo que queda es lo que queda para todos.
+ *
+ * Fail-open a `null`, igual que sus hermanas: sin el saldo, la confirmación dice el costo y calla
+ * lo que queda. No saberlo no puede impedir correr.
+ */
+export async function saldoApify(): Promise<SaldoApify | null> {
+  const token = process.env.APIFY_TOKEN;
+  if (!token) return null;
+  try {
+    const res = await fetch("https://api.apify.com/v2/users/me/limits", {
+      headers: { authorization: `Bearer ${token}` },
+      cache: "no-store",
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json())?.data;
+    const usadoUsd = Number(data?.current?.monthlyUsageUsd);
+    const topeUsd = Number(data?.limits?.maxMonthlyUsageUsd);
+    const finCiclo = data?.monthlyUsageCycle?.endAt;
+    if (!Number.isFinite(usadoUsd) || !Number.isFinite(topeUsd) || typeof finCiclo !== "string") return null;
+    return { usadoUsd, topeUsd, finCiclo };
+  } catch {
+    return null;
+  }
+}
+
 /** Una corrida del actor. Los items crudos, sin interpretar. Nunca tira: devuelve `[]`. */
 async function correrActor(urls: readonly string[]): Promise<Record<string, unknown>[]> {
   if (urls.length === 0) return [];

@@ -66,6 +66,51 @@ export function pideMasQueElTecho(pide: number, techo: number): boolean {
   return pide > techo;
 }
 
+/**
+ * Lo que Apify cobra por cada item devuelto (`apify/instagram-scraper`, pay-per-event, sin tramos
+ * ni costo de arranque). Verificado contra la factura el 10/09: docs/costos.md §1 y §4.3.1.
+ */
+export const USD_POR_REEL_APIFY = 0.0023;
+
+export type CostoCorrida = { cuentas: number; resultadosPorCuenta: number; usd: number };
+
+/**
+ * **El techo de lo que cobra Apify** por una corrida: cuentas de Instagram **distintas** que la
+ * corrida va a mirar × resultados por cuenta × precio.
+ *
+ * Cuenta handles distintos y no la suma de `cuentas` por proyecto porque el motor deduplica las
+ * URLs antes de llamar a Apify (`ig_urls: [...new Set(ig_urls)]` en `Armar plan de corrida`): una
+ * cuenta que alimenta tres proyectos se compra una vez. Sumar por proyecto inflaría el número ~2,5×.
+ *
+ * Es cota superior, no pronóstico: una cuenta que publicó menos que el knob devuelve menos. Se elige
+ * sobreestimar porque este número existe para frenar, no para tranquilizar.
+ */
+export function costoDeCorrida(
+  referentes: { handle: string; plataforma: string; activo: boolean; proyectoIds: string[] }[],
+  proyectosQueCorren: Set<string>,
+  resultadosPorCuenta: number,
+): CostoCorrida {
+  const handles = new Set(
+    referentes
+      .filter(
+        (r) =>
+          r.activo &&
+          r.plataforma.toLowerCase().includes("insta") &&
+          r.proyectoIds.some((id) => proyectosQueCorren.has(id)),
+      )
+      .map((r) => r.handle.trim().replace(/^@/, "").toLowerCase()),
+  );
+  const cuentas = handles.size;
+  const porCuenta = Math.max(0, resultadosPorCuenta);
+  return { cuentas, resultadosPorCuenta: porCuenta, usd: cuentas * porCuenta * USD_POR_REEL_APIFY };
+}
+
+/** Cuántas corridas enteras entran en lo que queda del cupo. Una corrida que no cobra no agota nada. */
+export function busquedasQueAlcanzan(libreUsd: number, costoUsd: number): number {
+  if (costoUsd <= 0) return Number.POSITIVE_INFINITY;
+  return Math.max(0, Math.floor(libreUsd / costoUsd));
+}
+
 export type VistaOperar = {
   porVoz: { voz: Voz; proyectos: ProyectoDelPlan[] }[];
   // Proyectos activos que NO van a correr: sin voz linkeada, o su voz está apagada.

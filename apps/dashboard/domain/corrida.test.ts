@@ -23,8 +23,61 @@ import {
   veredictoIA,
   workflowDe,
   VENTANA_CORRIDA_MIN,
+  busquedasQueAlcanzan,
+  costoDeCorrida,
   type Corrida,
 } from "./corrida.ts";
+
+describe("costoDeCorrida", () => {
+  const ref = (handle: string, proyectoIds: string[], extra: Partial<{ plataforma: string; activo: boolean }> = {}) => ({
+    handle,
+    plataforma: "instagram",
+    activo: true,
+    proyectoIds,
+    ...extra,
+  });
+
+  it("una cuenta que alimenta varios proyectos se paga UNA vez, como deduplica el motor", () => {
+    const costo = costoDeCorrida(
+      [ref("@braidenshaw", ["p1", "p2"]), ref("braidenshaw", ["p3"]), ref("@melrobbins", ["p1"])],
+      new Set(["p1", "p2", "p3"]),
+      25,
+    );
+    assert.equal(costo.cuentas, 2);
+    assert.equal(costo.usd.toFixed(4), (2 * 25 * 0.0023).toFixed(4));
+  });
+
+  it("no cobra cuentas apagadas, de TikTok, ni de proyectos que no corren", () => {
+    const costo = costoDeCorrida(
+      [
+        ref("apagada", ["p1"], { activo: false }),
+        ref("tiktokera", ["p1"], { plataforma: "tiktok" }),
+        ref("huerfana", ["pX"]),
+        ref("viva", ["p1"]),
+      ],
+      new Set(["p1"]),
+      25,
+    );
+    assert.equal(costo.cuentas, 1);
+  });
+
+  it("el roster de hoy (59 cuentas × 25) da los 3,39 USD medidos en docs/costos.md", () => {
+    const referentes = Array.from({ length: 59 }, (_, i) => ref(`cuenta${i}`, ["p1"]));
+    assert.equal(costoDeCorrida(referentes, new Set(["p1"]), 25).usd.toFixed(2), "3.39");
+  });
+});
+
+describe("busquedasQueAlcanzan", () => {
+  it("cuenta corridas enteras, nunca media", () => {
+    assert.equal(busquedasQueAlcanzan(22.29, 3.39), 6);
+    assert.equal(busquedasQueAlcanzan(3, 3.39), 0);
+  });
+
+  it("un saldo negativo no da corridas negativas, y una corrida gratis no agota nada", () => {
+    assert.equal(busquedasQueAlcanzan(-1, 3.39), 0);
+    assert.equal(busquedasQueAlcanzan(5, 0), Number.POSITIVE_INFINITY);
+  });
+});
 
 const voces = [
   { id: "vozA", nombre: "Cora" },

@@ -2,7 +2,16 @@
 
 import { comoRuta, rutaDe, type CockpitEnRuta } from "@/domain/rutas";
 import { revalidatePath } from "next/cache";
-import { hayCorridaViva } from "@/domain/corrida";
+import {
+  armarVistaOperar,
+  costoDeCorrida,
+  hayCorridaViva,
+  proyectosDelPlan,
+  type CostoCorrida,
+} from "@/domain/corrida";
+import { saldoApify, type SaldoApify } from "@/lib/apify";
+import { leerConfigOperar } from "@/lib/config";
+import { leerBanco } from "@/lib/referentes";
 import { exigirTenant } from "@/lib/auth";
 import { queHariaArchivar } from "@/lib/candidatos";
 import { hayBusquedaViva } from "@/lib/descubrimiento";
@@ -143,6 +152,28 @@ export async function correrAhora(enRuta: CockpitEnRuta): Promise<ResultadoDispa
     // el guard single-flight del motor la ignora igual con 200 (ADR-023 C.3).
     mensaje: "Señal enviada. En unos segundos la corrida aparece abajo como “Corriendo”.",
   };
+}
+
+/**
+ * Lo que el ▶ dice **antes** de disparar: cuánto cobra Apify y cuántas búsquedas quedan en el cupo.
+ *
+ * 🩸 Existe porque el 10/09 varias búsquedas seguidas se comieron casi la mitad del cupo de 50 USD
+ * y la confirmación decía solo "¿Seguro?" (docs/costos.md §4.3.5). Mismo patrón que
+ * `queHariaElArchivado`: se cuenta al apretar, y fail-open — perder el número no puede impedir
+ * correr (invariante #1 de PLAN §2.5).
+ */
+export async function queCostariaCorrer(
+  enRuta: CockpitEnRuta,
+): Promise<{ costo: CostoCorrida; saldo: SaldoApify | null } | null> {
+  const { ctx } = await exigirTenant("operar", enRuta.cliente, enRuta.pipeline);
+  try {
+    const [config, banco, saldo] = await Promise.all([leerConfigOperar(ctx), leerBanco(ctx), saldoApify()]);
+    const vista = armarVistaOperar(config.voces, config.proyectos, config.resultadosPorCuenta);
+    return { costo: costoDeCorrida(banco, proyectosDelPlan(vista), config.resultadosPorCuenta), saldo };
+  } catch (e) {
+    console.error("[operar] no se pudo estimar el costo de la corrida:", e);
+    return null;
+  }
 }
 
 // ── Buscar cuentas nuevas ────────────────────────────────────────────────────
