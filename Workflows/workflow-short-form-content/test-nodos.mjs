@@ -20,6 +20,11 @@ import { readFileSync } from 'node:fs';
 // ADR-095 §3.2: la tabla de fixtures vive UNA vez en el dominio puro y se corre contra la copia
 // textual del nodo `Transcribir (Supadata)` — si divergen, esto falla ruidoso.
 import { CASOS_COBERTURA, CASOS_ENCOLADO, CASOS_REINTENTO, CASOS_RESPUESTA, CASOS_SEGMENTOS, UMBRAL_COBERTURA } from '../../apps/dashboard/domain/cobertura.ts';
+// ADR-099: la fila que escribe `Preparar pool crudo` (origen=motor) tiene que ser IDENTICA a la del
+// backfill para el mismo item de Apify. Se importa el normalizador del backfill y se pinza contra la
+// copia textual del nodo — si divergen, el motor y el backfill guardarian filas distintas del mismo
+// reel-observacion.
+import { normalizarItem } from '../../core/scripts/backfill-pool-crudo.mjs';
 
 const w = JSON.parse(readFileSync(new URL('./workflow.json', import.meta.url), 'utf8'));
 const jsCode = (n) => {
@@ -2349,6 +2354,154 @@ seccion('Centinela — Resumen del run cierra con el embudo, no con una entrega 
     traducidos: [evaluado], transcritos: [evaluado], plan: { projects: { P1: { nombre: 'P1', n: 5 } } },
   });
   check('una corrida que SÍ entrega no queda marcada sin_entregas', ok.sin_entregas === false && ok.outputs === 1, JSON.stringify({ s: ok.sin_entregas, o: ok.outputs }));
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Preparar pool crudo — lo que se PAGÓ a Apify, IDÉNTICO al backfill (ADR-099, handoff #1)
+// ════════════════════════════════════════════════════════════════════════════
+// El nodo escribe `app.pool_crudo` con `origen='motor'` justo después de la colecta y antes de
+// dedup/min_views/pretrim. La fila del motor para un item IG tiene que ser LA MISMA que la del
+// backfill (`normalizarItem`) para ese item — misma cadena de campos, `publicado_en` en ISO
+// completo, 0 → null. Por eso el nodo lee los items CRUDOS de Apify, no los normalizados.
+const runPoolCrudo = (igItems = [], ttItems = [], { iid = 'inst-42', runId = 'run-7' } = {}) => {
+  const $ = (n) => {
+    if (n === 'Config') return { first: () => ({ json: { instance_id: iid } }) };
+    if (n === 'Abrir run en el registro') {
+      if (runId === '__throw') throw new Error('nodo sin ejecutar (mock)');
+      return { first: () => ({ json: runId ? { id: runId } : {} }) };
+    }
+    if (n === 'Apify — IG Reels') return { all: () => igItems.map((j) => ({ json: j })) };
+    if (n === 'Apify — TikTok Perfil') return { all: () => ttItems.map((j) => ({ json: j })) };
+    throw new Error('nodo no mockeado: ' + n);
+  };
+  const logs = [];
+  const out = new Function('$', 'console', jsCode('Preparar pool crudo'))($, { log: (m) => logs.push(m) });
+  const filas = out.flatMap((i) => i.json.filas);
+  return { out, filas, logs };
+};
+const IG_REEL = {
+  id: '3533826375939613252', shortCode: 'DEKrF2ryWJE', type: 'Video',
+  ownerUsername: '@Vieira_Trading', videoViewCount: null, videoPlayCount: 44210,
+  likesCount: 1200, commentsCount: 33, followersCount: 55000, videoDuration: 42.5,
+  timestamp: '2026-09-01T10:00:00.000Z', url: 'https://www.instagram.com/reel/DEKrF2ryWJE/',
+};
+const TT_REEL = {
+  id: '77', webVideoUrl: 'https://tt/77', authorMeta: { name: 'X', fans: 200 },
+  diggCount: 20, commentCount: 20, playCount: 5000, videoMeta: { duration: 31 },
+  createTimeISO: '2026-09-02T10:00:00.000Z',
+};
+
+seccion('Preparar pool crudo — la fila IG es IDÉNTICA a la del backfill (ADR-099)');
+{
+  const { filas } = runPoolCrudo([IG_REEL], []);
+  const ig = filas.find((f) => f.plataforma === 'instagram');
+  // 🔑 El invariante que da todo el valor: motor y backfill escriben la MISMA fila para el mismo
+  // item. Se compara sobre las claves del MAPEO — `medido_en`/`apify_dataset_id`/`run_id`/`origen`
+  // difieren a propósito (el motor mide en vivo, el backfill copia un dataset viejo).
+  const bf = normalizarItem(IG_REEL, { medido_en: ig.medido_en, apify_run_id: null, apify_dataset_id: ig.apify_dataset_id, origen: 'motor' });
+  const CLAVES_MAPEO = ['plataforma', 'external_id', 'handle', 'publicado_en', 'vistas', 'likes', 'comentarios', 'seguidores', 'duracion_seg'];
+  const distintas = CLAVES_MAPEO.filter((k) => JSON.stringify(ig[k]) !== JSON.stringify(bf[k]));
+  check('la fila IG del motor coincide con normalizarItem del backfill en todas las claves de mapeo',
+    distintas.length === 0, 'difieren: ' + distintas.map((k) => `${k}: ${JSON.stringify(ig[k])} vs ${JSON.stringify(bf[k])}`).join(', '));
+  check('publicado_en va en ISO COMPLETO, no recortado a día (por eso lee crudo, no Normalizar)',
+    ig.publicado_en === '2026-09-01T10:00:00.000Z', String(ig.publicado_en));
+  check('las vistas caen a videoPlayCount cuando videoViewCount es null (cadena del motor)',
+    ig.vistas === 44210, String(ig.vistas));
+  check('el handle se normaliza (sin @, minúsculas)', ig.handle === 'vieira_trading', String(ig.handle));
+  check('origen = motor', ig.origen === 'motor', String(ig.origen));
+  check('run_id de la corrida viaja en la fila', ig.run_id === 'run-7', String(ig.run_id));
+  check('instance_id viaja en la fila (nunca hardcodeado: sale del Config/plan)', ig.instance_id === 'inst-42', String(ig.instance_id));
+}
+
+seccion('Preparar pool crudo — TikTok mapea con la misma forma y coerción');
+{
+  const { filas } = runPoolCrudo([], [TT_REEL]);
+  const tt = filas.find((f) => f.plataforma === 'tiktok');
+  check('el reel de TikTok produce una fila', !!tt, JSON.stringify(filas));
+  check('external_id, handle y publicado_en (ISO) salen del item crudo de TT',
+    tt.external_id === '77' && tt.handle === 'x' && tt.publicado_en === '2026-09-02T10:00:00.000Z', JSON.stringify(tt));
+  check('vistas/likes/comentarios/seguidores/duración salen de los campos de TT',
+    tt.vistas === 5000 && tt.likes === 20 && tt.comentarios === 20 && tt.seguidores === 200 && tt.duracion_seg === 31, JSON.stringify(tt));
+  check('la fila TT tiene EXACTAMENTE la misma forma que la IG (mismas claves)',
+    Object.keys(tt).sort().join(',') === Object.keys(runPoolCrudo([IG_REEL], []).filas[0]).sort().join(','),
+    'TT: ' + Object.keys(tt).sort().join(','));
+  check('origen = motor también en TT', tt.origen === 'motor', String(tt.origen));
+}
+
+seccion('Preparar pool crudo — campos faltantes: null, nunca 0 ni "" (un 0 mentiría)');
+{
+  const { filas } = runPoolCrudo([{ id: 'p', type: 'Video', url: 'u' }], []);
+  const f = filas[0];
+  check('un scrape a medias guarda null en las métricas, no 0', f.vistas === null && f.seguidores === null && f.likes === null && f.comentarios === null && f.duracion_seg === null, JSON.stringify(f));
+  check('sin timestamp, publicado_en es null (no una fecha inventada)', f.publicado_en === null, String(f.publicado_en));
+}
+{
+  // Un 0 explícito de Apify también cae a null (numero() exige > 0), igual que el backfill.
+  const { filas } = runPoolCrudo([{ id: 'z', type: 'Video', url: 'u', videoPlayCount: 0, videoDuration: 0 }], []);
+  check('un 0 de Apify cae a null (misma coerción numero() del backfill)', filas[0].vistas === null && filas[0].duracion_seg === null, JSON.stringify(filas[0]));
+}
+
+seccion('Preparar pool crudo — descartes idénticos al backfill');
+{
+  const { filas, logs } = runPoolCrudo(
+    [IG_REEL, { error: 'Forbidden' }, { id: 'x', type: 'Image', url: 'u' }, { type: 'Video' }],
+    [],
+  );
+  check('un {error} (rechazo), una foto (type!=Video) y un item sin id no producen fila',
+    filas.length === 1 && filas[0].external_id === IG_REEL.id, JSON.stringify(filas.map((f) => f.external_id)));
+  check('y el log dice cuántas se descartaron', logs.some((l) => /descartadas/.test(l)), JSON.stringify(logs));
+}
+
+seccion('Preparar pool crudo — el fan-out no duplica la observación (PK en memoria)');
+{
+  // El mismo reel IG repetido en la rama (misma plataforma+external_id+dataset) es UNA observación.
+  // TT es otro reel distinto ⇒ queda 1 IG + 1 TT.
+  const { filas } = runPoolCrudo([IG_REEL, IG_REEL], [TT_REEL]);
+  check('el reel repetido cuenta una sola vez por (plataforma, external_id, dataset)',
+    filas.length === 2 && filas.filter((f) => f.external_id === IG_REEL.id).length === 1, JSON.stringify(filas.map((f) => f.plataforma + ':' + f.external_id)));
+}
+
+seccion('Preparar pool crudo — SUMIDERO: nunca tumba la corrida (invariante #1)');
+{
+  // Registro caído: `Abrir run en el registro` no devolvió id ⇒ run_id null, la corrida sigue.
+  const { filas } = runPoolCrudo([IG_REEL], [], { runId: null });
+  check('sin run_id la fila sale igual, con run_id null', filas.length === 1 && filas[0].run_id === null, JSON.stringify(filas[0] && filas[0].run_id));
+}
+{
+  // `Abrir run` lanzó (nodo sin ejecutar): el try/catch lo absorbe y no rompe.
+  let exploto = null, filas = null;
+  try { filas = runPoolCrudo([IG_REEL], [], { runId: '__throw' }).filas; } catch (e) { exploto = e.message; }
+  check('si Abrir run lanza, el nodo NO explota y escribe igual con run_id null', exploto === null && filas && filas[0].run_id === null, String(exploto));
+}
+{
+  // Sin instancia no hay tenant válido: no se escribe esa fila (no cae en la empresa equivocada).
+  const { filas } = runPoolCrudo([IG_REEL], [], { iid: null });
+  check('sin instance_id no se escribe (nunca hardcodea ni cae al tenant equivocado)', filas.length === 0, JSON.stringify(filas));
+}
+{
+  // Sin nada que guardar, igual emite un item (filas: []) para no cortar la cadena en seco.
+  const { out, filas } = runPoolCrudo([], []);
+  check('sin items emite un lote vacío (POST con filas [] es no-op), no corta la rama', out.length === 1 && filas.length === 0, JSON.stringify(out));
+}
+
+seccion('Preparar pool crudo — chunk para no reventar el body de PostgREST');
+{
+  const muchos = [];
+  for (let i = 0; i < 1201; i++) muchos.push(Object.assign({}, IG_REEL, { id: 'reel-' + i, url: 'u' + i }));
+  const { out, filas } = runPoolCrudo(muchos, []);
+  check('1201 observaciones se parten en lotes de <=500 (3 lotes)', out.length === 3, out.length + ' lotes');
+  check('y cada lote manda como mucho 500 filas', out.every((i) => i.json.filas.length <= 500), 'algún lote se pasó de 500');
+  check('sin perder ni duplicar filas en el chunking', filas.length === 1201, filas.length + ' filas');
+}
+
+// La copia textual del mapeo está pinada contra el backfill: si alguien toca una y no la otra, los
+// tres tests de "idéntico al backfill" de arriba fallan. Este check adicional prueba que el nodo
+// realmente contiene los marcadores de copia textual, para que el pin no se pueda saltear borrándolos.
+seccion('Preparar pool crudo — la copia textual está marcada (no se puede desincronizar en silencio)');
+{
+  const src = jsCode('Preparar pool crudo');
+  check('el nodo tiene los marcadores de COPIA TEXTUAL',
+    src.includes('⤵ COPIA TEXTUAL') && src.includes('⤴ FIN COPIA TEXTUAL'), 'faltan los marcadores');
 }
 
 console.log(fail ? `\n${fail} test(s) en rojo` : '\nTodo en verde');

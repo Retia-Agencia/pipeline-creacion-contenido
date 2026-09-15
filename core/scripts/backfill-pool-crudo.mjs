@@ -29,6 +29,15 @@ const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE;
 
 const APPLY = process.argv.includes('--apply');
 
+// Override manual del corte (ISO). Si no viene, el corte se lee de los DATOS: el arranque
+// (runs.inicio) del primer run del motor. Ver resolverCorte() para la regla exacta. `--corte
+// 2026-09-15T00:00:00Z`.
+function leerCorteFlag(argv = process.argv) {
+  const i = argv.indexOf('--corte');
+  return i >= 0 && argv[i + 1] ? argv[i + 1] : null;
+}
+const CORTE_FLAG = leerCorteFlag();
+
 // El actor de reels que YA se paga (costos §1.1, ADR-072). El backfill solo mira ESTE actor: las
 // corridas de otros actores (p.ej. el de perfiles del descubrimiento) no son scrapes de reels.
 const ACTOR_ID = 'shu8hvrXbJbY3Eb9W';               // apify/instagram-scraper
@@ -122,6 +131,94 @@ export function esRunDeReels(run) {
   return !actId || actId === ACTOR_ID;
 }
 
+// ── Corte por arranque del motor: NO copiar runs que empezaron cuando el motor ya escribía ──
+// 🩸 Desde que el motor escribe app.pool_crudo (nodos 'Preparar/POST pool crudo'), usa un dataset_id
+// SINTÉTICO ('motor:<run_id>:<fecha>') porque el nodo Apify de n8n no expone el dataset real. El
+// backfill, en cambio, keyea por run.defaultDatasetId REAL. Sin corte, re-correr el backfill vuelve
+// a insertar las MISMAS observaciones bajo el dataset real → doble conteo que sesga la curva de
+// crecimiento de reels jóvenes (M1-bis). El corte separa las dos épocas: antes del motor lo copia el
+// backfill; desde el motor lo escribe el motor.
+//
+// Se compara run.startedAt < corte (el mismo campo que da `medido_en`). `startedAt >= corte` se
+// salta. Sin corte (null), se copia todo: es el comportamiento anterior, para el primer backfill.
+//
+// ⚠️ Un corte NO-null pero ILEGIBLE es un error, no "copiá todo": antes esta función devolvía la
+// lista entera sin filtrar, lo que hacía que un --corte mal tipeado re-insertara la época del motor
+// (doble conteo M1-bis) en silencio. Ahora TIRA: quien resuelve el corte (resolverCorte) es el que
+// decide si un corte ausente es legítimo (sinCorte) o un fallo (error). Acá un corte presente que no
+// parsea siempre es un bug.
+//
+// ponytail: el techo es que el corte es un único instante global; si mañana hubiera varias
+// instancias arrancando el motor en fechas distintas, el corte tendría que ser por instancia. Hoy
+// hay una sola instancia `reels`, así que un corte global alcanza. Upgrade path: pasar el corte a
+// un Map<instance_id, corte> y filtrar por la instancia del run cuando el manifest lo exponga.
+export function runsHastaCorte(runs, corte) {
+  const lista = Array.isArray(runs) ? runs : [];
+  if (!corte) return { copiar: lista, saltadas: 0 };
+  const t = Date.parse(corte);
+  if (!Number.isFinite(t)) {
+    throw new Error(`Corte ilegible (no es fecha ISO): ${JSON.stringify(corte)}`);
+  }
+  const copiar = [];
+  let saltadas = 0;
+  for (const run of lista) {
+    const ini = Date.parse(run && run.startedAt);
+    if (Number.isFinite(ini) && ini >= t) saltadas++;
+    else copiar.push(run);
+  }
+  return { copiar, saltadas };
+}
+
+// ── resolverCorte: la decisión PURA de qué instante de corte usar (unit-testable, sin red) ──
+// Recibe lo ya leído por la red y devuelve exactamente uno de:
+//   { corte }        → hay un instante confiable (ISO); runsHastaCorte filtra por él
+//   { sinCorte: true } → NO hay filas del motor: primer backfill legítimo, copia todo
+//   { error }        → algo salió mal y copiar todo sería un doble conteo silencioso: se BLOQUEA
+//
+// Entradas:
+//   flag         : valor de --corte (ISO) o null/undefined
+//   filaMotor    : la primera fila origen='motor' ({ run_id, medido_en }) o null si no hay ninguna
+//   inicioRun    : runs.inicio del run_id de esa fila (ISO) o null si no se pudo resolver
+//   errorLectura : true si alguno de los GET falló / vino con forma inesperada
+//
+// 🩸 El corte se deriva del ARRANQUE del motor (runs.inicio), NO de cuándo escribió (medido_en). El
+// nodo 'Preparar pool crudo' estampa medido_en DESPUÉS de que Apify terminó; el Apify run de esa
+// misma corrida arrancó minutos/una hora ANTES. Usar medido_en dejaba startedAt < corte justo para
+// los runs que el motor YA escribió, y el backfill los re-insertaba bajo el dataset real (doble
+// conteo en la PRIMERA corrida del motor). El propio run del motor es un Apify run arrancado después
+// de inicio, así que `>= inicio` lo captura bien.
+export function resolverCorte({ flag, filaMotor, inicioRun, errorLectura } = {}) {
+  // 1) --corte manual gana, pero tiene que parsear. Ilegible = error (no "copiá todo").
+  if (flag) {
+    const t = Date.parse(flag);
+    if (!Number.isFinite(t)) {
+      return { error: `--corte ilegible (no es fecha ISO): ${JSON.stringify(flag)}` };
+    }
+    return { corte: flag };
+  }
+  // 2) Si la lectura de los datos falló, NO inventamos un corte ni copiamos todo: se bloquea.
+  if (errorLectura) {
+    return { error: 'no se pudo leer el corte del motor (GET falló o vino con forma inesperada)' };
+  }
+  // 3) Sin filas del motor: primer backfill legítimo, copia todo.
+  if (!filaMotor) {
+    return { sinCorte: true };
+  }
+  // 4) Hay fila del motor pero sin run_id (registro caído esa corrida) → no hay instante confiable.
+  if (!filaMotor.run_id) {
+    return { error: "fila del motor sin run_id: no hay arranque confiable, pasá --corte <ISO>" };
+  }
+  // 5) run_id presente pero el lookup de runs.inicio no devolvió nada.
+  if (!inicioRun) {
+    return { error: `no se encontró runs.inicio para run_id=${filaMotor.run_id}` };
+  }
+  // 6) inicioRun tiene que parsear.
+  if (!Number.isFinite(Date.parse(inicioRun))) {
+    return { error: `runs.inicio ilegible: ${JSON.stringify(inicioRun)}` };
+  }
+  return { corte: inicioRun };
+}
+
 // ── Apify: listar TODOS los actor-runs conservados (pagina de a 200) ──
 async function listarRuns() {
   const runs = [];
@@ -143,6 +240,54 @@ async function itemsDelDataset(datasetId) {
   // `null` y no `[]` cuando no se pudo leer: un 429 o un dataset ya vencido NO es un dataset vacío,
   // y confundirlos haría que el backfill termine en verde habiendo perdido historia pagada.
   return Array.isArray(d) ? d : null;
+}
+
+// ── El corte tomado de los DATOS: el ARRANQUE (runs.inicio) del primer run del motor ──
+// Dos GET, sin costo:
+//   1) primera fila origen='motor' (perfil `app`): select=run_id,medido_en&order=medido_en.asc&limit=1
+//   2) runs.inicio de ese run_id (schema public, PostgREST lo expone en el perfil por defecto).
+// Devuelve { filaMotor, inicioRun, errorLectura } — insumos crudos para resolverCorte (pura). NO
+// decide acá: quién bloquea y quién copia-todo lo decide resolverCorte, testeable sin red.
+//
+// Se lee runs.inicio (arranque) y NO medido_en (escritura): ver el comentario de resolverCorte.
+// getJson devuelve null tanto en error (non-2xx / parse fail) como —para estos endpoints— nunca en
+// "0 filas" (eso es `[]`). Por eso: null aquí = error de lectura; `[]` = no hay filas del motor.
+async function leerCorteDesdeDatos() {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE) {
+    // Sin credenciales no podemos leer: en dry-run esto es un no-op (se avisa), no un corte falso.
+    return { filaMotor: null, inicioRun: null, errorLectura: true };
+  }
+  const headMotor = {
+    apikey: SUPABASE_SERVICE_ROLE,
+    Authorization: `Bearer ${SUPABASE_SERVICE_ROLE}`,
+    'Accept-Profile': 'app',
+  };
+  const urlMotor = `${SUPABASE_URL}/rest/v1/pool_crudo?select=run_id,medido_en&origen=eq.motor&order=medido_en.asc&limit=1`;
+  const dMotor = await getJson(urlMotor, headMotor);
+  if (!Array.isArray(dMotor)) {
+    // null = GET falló o vino con forma inesperada. NO es "no hay filas".
+    return { filaMotor: null, inicioRun: null, errorLectura: true };
+  }
+  if (dMotor.length === 0) {
+    // Sin filas del motor: primer backfill legítimo. No es error.
+    return { filaMotor: null, inicioRun: null, errorLectura: false };
+  }
+  const filaMotor = { run_id: dMotor[0].run_id ?? null, medido_en: dMotor[0].medido_en ?? null };
+  if (!filaMotor.run_id) {
+    // Fila del motor sin run_id: resolverCorte lo trata como error (pedir --corte).
+    return { filaMotor, inicioRun: null, errorLectura: false };
+  }
+  // Lookup del arranque en public.runs (sin Accept-Profile: schema public por defecto).
+  const urlRun = `${SUPABASE_URL}/rest/v1/runs?select=inicio&id=eq.${encodeURIComponent(filaMotor.run_id)}`;
+  const dRun = await getJson(urlRun, {
+    apikey: SUPABASE_SERVICE_ROLE,
+    Authorization: `Bearer ${SUPABASE_SERVICE_ROLE}`,
+  });
+  if (!Array.isArray(dRun)) {
+    return { filaMotor, inicioRun: null, errorLectura: true };
+  }
+  const inicioRun = dRun.length >= 1 && dRun[0].inicio ? dRun[0].inicio : null;
+  return { filaMotor, inicioRun, errorLectura: false };
 }
 
 // ── PostgREST: resolver la instancia de reels, y hacer el UPSERT idempotente ──
@@ -189,7 +334,33 @@ async function main() {
 
   const runs = await listarRuns();
   const reelRuns = runs.filter(esRunDeReels);
+
+  // Corte por arranque del motor: --corte gana; si no, se lee de los datos (runs.inicio del primer
+  // run del motor). La DECISIÓN (corte / sinCorte / error) la toma resolverCorte, pura y testeable.
+  const { filaMotor, inicioRun, errorLectura } = CORTE_FLAG
+    ? { filaMotor: null, inicioRun: null, errorLectura: false }   // con --corte no hace falta leer
+    : await leerCorteDesdeDatos();
+  const dec = resolverCorte({ flag: CORTE_FLAG, filaMotor, inicioRun, errorLectura });
+
+  // Un corte que no se pudo resolver NO puede degradar a "copiá todo": eso re-inserta la época del
+  // motor (doble conteo M1-bis). Dry-run avisa fuerte; --apply se rehúsa antes de escribir (mismo
+  // mecanismo de guarda que el dataset ilegible).
+  if (dec.error) {
+    console.log(`\n⚠️  No se pudo determinar un corte confiable: ${dec.error}.`);
+    console.log('⚠️  Copiar todo re-insertaría la época del motor (doble conteo M1-bis). Pasá un corte explícito:');
+    console.log('⚠️      node backfill-pool-crudo.mjs --corte <ISO>   (p.ej. --corte 2026-09-15T00:00:00Z)');
+    if (APPLY) {
+      console.error('\n❌ Con --apply no se escribe nada hasta tener un corte confiable (ver arriba).');
+      process.exit(1);
+    }
+    console.log('\nDRY-RUN: no se escribió nada. Resolvé el corte antes de correr con --apply.\n');
+    return;
+  }
+
+  const corte = dec.sinCorte ? null : dec.corte;
+  const { copiar: reelRunsACopiar, saltadas } = runsHastaCorte(reelRuns, corte);
   console.log(`Runs conservados por Apify: ${runs.length} · del actor de reels (${ACTOR_SLUG}), con dataset: ${reelRuns.length}`);
+  console.log(`Corte motor: ${corte || '— (sin corte: copia todo)'}${CORTE_FLAG ? ' [--corte]' : ''} · saltadas por corte motor: ${saltadas}`);
 
   // Recolectar todas las observaciones, deduplicando por la clave de idempotencia en memoria (para
   // no mandar dos veces la misma en un solo backfill).
@@ -201,7 +372,7 @@ async function main() {
   const expiries = [];                 // fechas de borrado estimadas (medido_en + 31 días)
   const sinLeer = [];                  // datasets que Apify no devolvió (429, vencido, red)
 
-  for (const run of reelRuns) {
+  for (const run of reelRunsACopiar) {
     const datasetId = run.defaultDatasetId;
     const medido_en = fechaISO(run.startedAt) || fechaISO(run.finishedAt);
     const items = await itemsDelDataset(datasetId);
@@ -251,6 +422,7 @@ async function main() {
   console.log(`  filas a escribir (obs.):    ${filas.length}`);
   console.log(`  reels únicos:               ${reelsUnicos.size}`);
   console.log(`  cuentas (handles):          ${cuentas.size}`);
+  console.log(`  saltadas por corte motor:   ${saltadas}`);
   console.log(`  rango de fechas:            ${dias[0] || '—'} → ${dias[dias.length - 1] || '—'}`);
   console.log(`  primer dataset que vence:   ${primerVencimiento ? primerVencimiento.toISOString().slice(0, 10) : '—'}`);
   console.log(`  datasets SIN LEER:          ${sinLeer.length}`);

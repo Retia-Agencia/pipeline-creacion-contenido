@@ -10,7 +10,7 @@
 //
 // Estilo: mismo `check` de Workflows/workflow-short-form-content/test-nodos.mjs. Sin deps.
 
-import { normalizarItem, normalizarHandle, esRunDeReels } from './backfill-pool-crudo.mjs';
+import { normalizarItem, normalizarHandle, esRunDeReels, runsHastaCorte, resolverCorte } from './backfill-pool-crudo.mjs';
 
 let fail = 0;
 const check = (nombre, cond, detalle) => {
@@ -138,6 +138,87 @@ seccion('normalizarHandle');
 check('quita @ y baja a minúsculas', normalizarHandle('@Vieira') === 'vieira');
 check('trim de espacios', normalizarHandle('  Foo  ') === 'foo');
 check('vacío → cadena vacía', normalizarHandle(null) === '');
+
+// ════════════════════════════════════════════════════════════════════════════
+// runsHastaCorte — el corte por arranque del motor (evita el doble conteo M1-bis)
+// ════════════════════════════════════════════════════════════════════════════
+seccion('runsHastaCorte — solo runs que empezaron ANTES de que el motor escribiera');
+const CORTE = '2026-09-15T00:00:00.000Z';
+const antes = { id: 'a', startedAt: '2026-09-14T23:59:59.000Z', defaultDatasetId: 'd', actId: ACTOR };
+const igual = { id: 'e', startedAt: '2026-09-15T00:00:00.000Z', defaultDatasetId: 'd', actId: ACTOR };
+const despues = { id: 'p', startedAt: '2026-09-16T10:00:00.000Z', defaultDatasetId: 'd', actId: ACTOR };
+
+const r1 = runsHastaCorte([antes, igual, despues], CORTE);
+check('run ANTES del corte se copia', r1.copiar.some((x) => x.id === 'a'), JSON.stringify(r1.copiar.map((x) => x.id)));
+check('run EN el instante del corte se salta (>= corte = época del motor)',
+  !r1.copiar.some((x) => x.id === 'e'), JSON.stringify(r1.copiar.map((x) => x.id)));
+check('run DESPUÉS del corte se salta', !r1.copiar.some((x) => x.id === 'p'), JSON.stringify(r1.copiar.map((x) => x.id)));
+check('cuenta las saltadas para el resumen (igual + después = 2)', r1.saltadas === 2, `saltadas=${r1.saltadas}`);
+
+// Sin corte → comportamiento anterior: copia todo, cero saltadas (primer backfill).
+const r2 = runsHastaCorte([antes, igual, despues], null);
+check('sin corte copia todo (comportamiento anterior)', r2.copiar.length === 3 && r2.saltadas === 0,
+  `copiar=${r2.copiar.length} saltadas=${r2.saltadas}`);
+
+// Corte ilegible ya NO se ignora en silencio: es un error de programación (quien llama debió
+// resolverlo antes). runsHastaCorte TIRA en vez de copiar todo (que sería doble conteo M1-bis).
+let tiro = false;
+try { runsHastaCorte([antes, despues], 'no-es-fecha'); } catch { tiro = true; }
+check('corte ilegible TIRA (no degrada a copiar todo en silencio)', tiro === true, `tiro=${tiro}`);
+
+// ════════════════════════════════════════════════════════════════════════════
+// resolverCorte — la decisión PURA de qué instante usar (sin red)
+// ════════════════════════════════════════════════════════════════════════════
+seccion('resolverCorte — corte / sinCorte / error, sin tocar la red');
+
+// --corte válido gana sobre cualquier lectura de datos.
+const rc_flag = resolverCorte({ flag: '2026-09-15T00:00:00Z', filaMotor: null, inicioRun: null, errorLectura: false });
+check('--corte válido → { corte }', rc_flag.corte === '2026-09-15T00:00:00Z', JSON.stringify(rc_flag));
+
+// --corte inválido → error (antes esto degradaba a copiar todo: era el bug del defecto 2).
+const rc_flagMal = resolverCorte({ flag: 'no-es-fecha', filaMotor: null, inicioRun: null, errorLectura: false });
+check('--corte ilegible → { error }', !!rc_flagMal.error && !rc_flagMal.corte && !rc_flagMal.sinCorte,
+  JSON.stringify(rc_flagMal));
+
+// Sin filas del motor y sin error de lectura → primer backfill legítimo → sinCorte.
+const rc_sin = resolverCorte({ flag: null, filaMotor: null, inicioRun: null, errorLectura: false });
+check('sin filas del motor → { sinCorte: true }', rc_sin.sinCorte === true && !rc_sin.corte && !rc_sin.error,
+  JSON.stringify(rc_sin));
+
+// Fila del motor con run_id y runs.inicio resuelto → corte = inicio (arranque, no escritura).
+const rc_ok = resolverCorte({
+  flag: null,
+  filaMotor: { run_id: 'run-123', medido_en: '2026-09-07T12:00:00Z' },
+  inicioRun: '2026-09-07T11:05:00Z',
+  errorLectura: false,
+});
+check('motor con run_id + inicio resuelto → { corte } = inicio (no medido_en)',
+  rc_ok.corte === '2026-09-07T11:05:00Z', JSON.stringify(rc_ok));
+
+// Fila del motor pero run_id null (registro caído esa corrida) → error (pedir --corte).
+const rc_nullRun = resolverCorte({
+  flag: null,
+  filaMotor: { run_id: null, medido_en: '2026-09-07T12:00:00Z' },
+  inicioRun: null,
+  errorLectura: false,
+});
+check('motor con run_id null → { error } (no hay arranque confiable)',
+  !!rc_nullRun.error && !rc_nullRun.corte && !rc_nullRun.sinCorte, JSON.stringify(rc_nullRun));
+
+// run_id presente pero el lookup de runs.inicio no devolvió nada → error.
+const rc_sinInicio = resolverCorte({
+  flag: null,
+  filaMotor: { run_id: 'run-123', medido_en: '2026-09-07T12:00:00Z' },
+  inicioRun: null,
+  errorLectura: false,
+});
+check('motor con run_id pero sin runs.inicio → { error }',
+  !!rc_sinInicio.error && !rc_sinInicio.corte, JSON.stringify(rc_sinInicio));
+
+// Error de lectura (GET falló / forma inesperada) → error, NO copiar todo.
+const rc_err = resolverCorte({ flag: null, filaMotor: null, inicioRun: null, errorLectura: true });
+check('error de lectura → { error } (no degrada a copiar todo)',
+  !!rc_err.error && !rc_err.sinCorte && !rc_err.corte, JSON.stringify(rc_err));
 
 // ── Resultado ──
 console.log(`\n${fail === 0 ? '✅ TODO VERDE' : '❌ ' + fail + ' fallo(s)'}\n`);

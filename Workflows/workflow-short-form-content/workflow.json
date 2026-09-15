@@ -298,6 +298,67 @@
     },
     {
       "parameters": {
+        "jsCode": "\n// Preparar pool crudo (origen = 'motor') — ADR-099 + handoff cierre 155 \"Lo que sigue\" #1.\n//\n// Escribe en `app.pool_crudo` UNA fila por OBSERVACION de reel que ESTA corrida le PAGO a Apify,\n// justo despues de la colecta (IG + TT) y ANTES de dedup / min_views / pre-trim: todo lo que corre\n// despues de Apify ya esta pagado (costos, invariante \"elegir umbral es gratis; elegir ventana es\n// lo que se paga\"), asi que el desperdicio del 71,8% que hoy se tira en `min_views` se guarda antes\n// de tirarlo. Sin esto, cada corrida se copia re-corriendo el backfill antes de que Apify borre el\n// dataset a los 31 dias (handoff, \"Deuda que vence sola\").\n//\n// 🔑 SUMIDERO, jamas dependencia (invariante #1 de PLAN §2.5): este nodo NUNCA lanza. Lee los items\n// CRUDOS de Apify por nombre (`Apify — IG Reels` / `Apify — TikTok Perfil`, los dos ancestros), no\n// los normalizados, porque el mapeo tiene que dar la MISMA fila que `backfill-pool-crudo.mjs` para\n// el mismo item (identica cadena de campos, `publicado_en` en ISO completo, y 0 -> null via\n// `numero()`). `Normalizar IG/TT` ya recortan la fecha a dia y ponen 0 en vez de null, asi que\n// tapar esos nodos daria filas DISTINTAS a las del backfill.\n//\n// El mapeo IG es la copia textual de `normalizarItem` del backfill (pinned por test-nodos.mjs). TT\n// no tiene equivalente en el backfill (solo copia el actor de IG), asi que su mapeo espeja los\n// campos que lee `Normalizar TT` pero con la misma coercion (numero -> null, timestamp ISO).\n//\n// ⚠️ `apify_dataset_id`: el nodo Apify \"Run actor and get dataset\" devuelve los items del dataset,\n// NO su id (medido: el id solo sale de \"Get last run\"/\"Run actor\"). Cuando el item no lo trae, se\n// usa uno derivado de NUESTRA corrida (`motor:<run_id>`) para que la PK sea estable e idempotente\n// dentro de la corrida y distinta entre corridas. RIESGO conocido, para el reviewer: si alguien\n// re-corre el backfill sobre el mismo dia, sus filas (dataset real) NO colisionan con estas\n// (dataset sintetico) y el mismo reel-observacion queda dos veces. Ver el reporte.\n\n// ⤵ COPIA TEXTUAL — pinada por Workflows/workflow-short-form-content/test-nodos.mjs contra\n//    core/scripts/backfill-pool-crudo.mjs (normalizarItem / normalizarHandle / numero / fechaISO).\nfunction normalizarHandle(u) {\n  return String(u || '').trim().replace(/^@/, '').toLowerCase();\n}\nfunction numero(v) {\n  const n = typeof v === 'number' ? v : Number(v);\n  return Number.isFinite(n) && n > 0 ? n : null;\n}\nfunction fechaISO(ts) {\n  if (!ts) return null;\n  const d = new Date(ts);\n  return isNaN(d.getTime()) ? null : d.toISOString();\n}\n// IG: la cadena EXACTA de normalizarItem del backfill. `ctx` trae medido_en/dataset/run_id/origen.\nfunction poolFilaIG(item, ctx) {\n  if (!item || typeof item !== 'object') return null;\n  if (item.error) return null;\n  if (item.type && item.type !== 'Video') return null;\n  const external_id = String(item.id || item.shortCode || item.shortcode || '');\n  if (!external_id && !item.url) return null;\n  if (!external_id) return null;\n  const usuario = item.ownerUsername || item.ownerUserName || '';\n  const vistas = numero(item.videoViewCount) ?? numero(item.videoPlayCount) ?? numero(item.igPlayCount);\n  const seguidores =\n    numero(item.followersCount) ??\n    numero(item.ownerFollowersCount) ??\n    numero(item.metaData && item.metaData.followersCount);\n  return {\n    plataforma: 'instagram',\n    external_id,\n    handle: normalizarHandle(usuario),\n    publicado_en: fechaISO(item.timestamp),\n    vistas,\n    likes: numero(item.likesCount),\n    comentarios: numero(item.commentsCount),\n    seguidores,\n    duracion_seg: numero(item.videoDuration),\n    medido_en: ctx.medido_en ?? null,\n    apify_run_id: ctx.apify_run_id ?? null,\n    apify_dataset_id: ctx.apify_dataset_id ?? null,\n    run_id: ctx.run_id ?? null,\n    origen: ctx.origen ?? 'motor',\n  };\n}\n// TT: mismos campos, leidos del item crudo del actor de TikTok (espeja `Normalizar TT`), con la\n// coercion del backfill (numero -> null, ISO completo). El backfill no copia TikTok, asi que aca\n// no hay contraparte con la que ser \"identico\"; se mantiene la MISMA FORMA de fila.\nfunction poolFilaTT(item, ctx) {\n  if (!item || typeof item !== 'object') return null;\n  if (item.error) return null;\n  const external_id = String(item.id || '');\n  if (!external_id && !item.webVideoUrl) return null;\n  if (!external_id) return null;\n  const am = item.authorMeta || {};\n  return {\n    plataforma: 'tiktok',\n    external_id,\n    handle: normalizarHandle(am.name || ''),\n    publicado_en: fechaISO(item.createTimeISO || item.createTime),\n    vistas: numero(item.playCount),\n    likes: numero(item.diggCount),\n    comentarios: numero(item.commentCount),\n    seguidores: numero(am.fans),\n    duracion_seg: numero(item.videoMeta && item.videoMeta.duration),\n    medido_en: ctx.medido_en ?? null,\n    apify_run_id: ctx.apify_run_id ?? null,\n    apify_dataset_id: ctx.apify_dataset_id ?? null,\n    run_id: ctx.run_id ?? null,\n    origen: ctx.origen ?? 'motor',\n  };\n}\n// ⤴ FIN COPIA TEXTUAL\n\nconst cfg = $('Config').first().json;\nconst iid = cfg.instance_id || null;\n\n// run_id de NUESTRA corrida, si `Abrir run en el registro` (sumidero) lo devolvio. Nullable.\nlet runId = null;\ntry { const r = $('Abrir run en el registro').first().json; runId = (r && r.id) || null; } catch (e) { /* registro caido */ }\n\nconst medido_en = new Date().toISOString();\n// El dataset real no viaja en los items del nodo Apify (ver cabecera). Se sintetiza uno estable por\n// corrida para la PK. Si algun dia el item trae `datasetId`/`__datasetId`, se usa ese.\nconst datasetPorCorrida = 'motor:' + (runId || 'sin-run') + ':' + medido_en.slice(0, 10);\n\nconst filas = [];\nconst vistos = new Set();  // (plataforma, external_id, apify_dataset_id) — la PK, dedup en memoria\nlet leidosIG = 0, leidosTT = 0, descartados = 0;\n\nfunction agregar(fila, item) {\n  if (!fila) { descartados++; return; }\n  if (!iid) { descartados++; return; }   // sin instancia no hay tenant valido: no se escribe\n  fila.instance_id = iid;\n  // dataset real si el item lo trae; si no, el sintetico por corrida.\n  fila.apify_dataset_id = fila.apify_dataset_id || item.datasetId || item.__datasetId || datasetPorCorrida;\n  const clave = fila.plataforma + '|' + fila.external_id + '|' + fila.apify_dataset_id;\n  if (vistos.has(clave)) return;          // el fan-out repite el mismo reel; una observacion, una fila\n  vistos.add(clave);\n  filas.push(fila);\n}\n\n// Se leen los items CRUDOS por nombre. Cada uno envuelto en try por si la rama no corrio (un eje\n// apagado por Config no deja items): leer una rama hermana que no corrio lanzaria, y este nodo es\n// sumidero.\ntry {\n  for (const it of $('Apify — IG Reels').all()) {\n    leidosIG++;\n    const item = (it && it.json) || {};\n    agregar(poolFilaIG(item, { medido_en, run_id: runId }), item);\n  }\n} catch (e) { console.log('[pool_crudo] no pude leer Apify IG (rama no corrio): ' + e.message); }\n\ntry {\n  for (const it of $('Apify — TikTok Perfil').all()) {\n    leidosTT++;\n    const item = (it && it.json) || {};\n    agregar(poolFilaTT(item, { medido_en, run_id: runId }), item);\n  }\n} catch (e) { console.log('[pool_crudo] no pude leer Apify TT (rama no corrio): ' + e.message); }\n\n// Chunk para no reventar el body/URL de PostgREST: miles de filas por corrida. Un item por chunk;\n// `POST pool crudo` corre una vez por item (n8n itera), asi que el batch queda acotado.\nconst LOTE = 500;\nconst salida = [];\nfor (let i = 0; i < filas.length; i += LOTE) {\n  salida.push({ json: { filas: filas.slice(i, i + LOTE) } });\n}\n// SIEMPRE al menos un item, para que la rama no se corte en seco si no hubo nada que guardar; el\n// POST con filas: [] es un no-op inofensivo. Mismo criterio que `Preparar procesados`.\nif (!salida.length) salida.push({ json: { filas: [] } });\n\nconsole.log('[pool_crudo] IG=' + leidosIG + ' TT=' + leidosTT + ' respuestas -> ' + filas.length +\n  ' observaciones (' + descartados + ' descartadas), ' + salida.length + ' lote(s) de <=' + LOTE +\n  '. origen=motor, run_id=' + (runId || 'null'));\nreturn salida;\n"
+      },
+      "id": "preparar-pool-crudo",
+      "name": "Preparar pool crudo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3220,
+        620
+      ],
+      "notes": "ADR-099 + handoff cierre 155 #1. Mapea lo que se PAGO a Apify (IG+TT crudo) a app.pool_crudo, origen=motor. Copia textual de normalizarItem, pinada por test-nodos.mjs. SUMIDERO: nunca lanza."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.supabase_url + '/rest/v1/pool_crudo?on_conflict=instance_id,plataforma,external_id,apify_dataset_id' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Content-Profile",
+              "value": "app"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates,return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.filas) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "post-pool-crudo",
+      "name": "POST pool crudo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3360,
+        620
+      ],
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "name": "Supabase account"
+        }
+      },
+      "notes": "ADR-099. Escribe app.pool_crudo (origen=motor). merge-duplicates: re-observar el mismo reel-dataset actualiza sus metricas. SUMIDERO (onError continue): el registro jamas tumba una corrida."
+    },
+    {
+      "parameters": {
         "jsCode": "const plan = $('Armar plan de corrida').first().json;\nconst projects = plan.projects, ig_owner = plan.ig_owner_to_proj || {}, tt_owner = plan.tt_owner_to_proj || {};\nconst activeIds = plan.active_project_ids || [];\nconst DIAS = Number(plan.dias_recencia || 0); // recencia global (ADR-016)\nconst out = [];\nfor (const it of $input.all()) {\n  const d = it.json;\n  if (!d.url) continue;\n  const u = String(d.username || '').toLowerCase().replace(/^@/, '');\n  // Fan-out (ADR-013): un mismo video puede ser reclamado por varios proyectos activos a la vez\n  // (referente compartido entre proyectos). Solo reclama el referente (ADR-019).\n  const claims = {};\n  const ownerList = (d.plataforma || '') === 'instagram' ? (ig_owner[u] || [])\n                  : (d.plataforma || '') === 'tiktok' ? (tt_owner[u] || []) : [];\n  ownerList.forEach(pid => { if (!(pid in claims)) claims[pid] = ''; });\n  // fallback: si nada lo reclamo y hay UN solo proyecto activo, se lo lleva ese.\n  let pids = Object.keys(claims);\n  if (!pids.length && activeIds.length === 1) { claims[activeIds[0]] = ''; pids = [activeIds[0]]; }\n  for (const proyId of pids) {\n    const p = projects[proyId];\n    if (!p) continue;\n    // guardia de recencia (capa 2): descarta lo mas viejo que dias_recencia del proyecto.\n    // 0 = sin limite. Si no hay fecha, se conserva (no se puede juzgar la edad).\n    if (DIAS > 0 && d.fecha_publicacion) {\n      const ts = Date.parse(d.fecha_publicacion);\n      if (Number.isFinite(ts) && (Date.now() - ts) > DIAS * 86400000) continue;\n    }\n    out.push({ json: Object.assign({}, d, {\n      proyecto_id: proyId, proyecto_nombre: p.nombre, voz_id: p.voz_id, voz_nombre: p.voz_nombre\n    }) });\n  }\n}\nreturn out;"
       },
       "id": "asignar-proyecto-voz",
@@ -1486,6 +1547,11 @@
             "node": "Asignar proyecto+voz",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Preparar pool crudo",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -1836,6 +1902,17 @@
         [
           {
             "node": "Leer plan (fachada)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar pool crudo": {
+      "main": [
+        [
+          {
+            "node": "POST pool crudo",
             "type": "main",
             "index": 0
           }
