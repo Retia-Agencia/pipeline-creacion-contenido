@@ -1,6 +1,8 @@
 # ADR-100 — Se compra lo nuevo y se re-mide lo joven
 
-> **Estado:** Aceptada · diseño y texto aprobados por Mani el 2026-09-15. Sin construir.
+> **Estado:** Aceptada y **en producción desde el 2026-09-15** (migración `045`, fachada y 4 nodos
+> del motor). **Falta la primera corrida**, que la hace el equipo de redes; sus mediciones van en el
+> plan, Tarea 6 paso 5.
 > **Toca `core/`**: migración `045` (vistas + clave de ajuste) y contrato
 > [`run-plan.md`](../../core/contracts/run-plan.md) (cambio **aditivo**, `version` sigue en 2).
 > Ejecuta el paso 5 de [plan-refactor-motor §7](../agents/plan-refactor-motor.md) (marca de agua) y

@@ -72,11 +72,9 @@ Si tienen 30 segundos y solo leen esto, ya pueden trabajar. El resto del manual 
 
 ---
 
-> ⛔ **AVISO — 2026-09-12: el botón ▶ «Correr ahora» está DESACTIVADO a propósito.** Dice
-> *«🚧 Bajo construcción por dev»*. No es una falla: se está reconstruyendo la parte que decide qué
-> videos les llegan. Todo lo demás del cockpit funciona igual (calificar, Históricos, Colecciones,
-> Transcribir, Referentes). Mani avisa cuando vuelva. *Mientras tanto, §3.1 y §5 describen un botón
-> que hoy no se puede apretar.*
+> 🆕 **2026-09-15: el botón volvió y ahora se llama «▶ Buscar contenido».** La búsqueda cambió por
+> dentro: **ya no vuelve a comprar los videos que ya trajo**, y le da una segunda mirada a los videos
+> recientes que estaban cerca de pasar el piso. Qué cambia para ustedes, en §3.2.
 
 ## 1. Qué es esto y para qué sirve
 
@@ -116,7 +114,7 @@ al mail (no hay contraseña que recordar).
 |---|---|---|
 | **Curar → Feed** | El tablero de trabajo | Leen los videos y los califican. Es donde viven el 95% del tiempo. |
 | **Curar → Históricos** | Sus guiones de todas las semanas, y **cuáles ya grabaron** | Marcan lo grabado, filtran por `Sin grabar / Grabados`, cargan una lista de links ya grabados, y bajan el Excel `.xlsx` (dos botones: todo, o solo lo grabado). |
-| **Operar** | Disparar una corrida | El botón **▶ Correr ahora** y el estado de lo que está corriendo. |
+| **Operar** | Disparar una corrida | El botón **▶ Buscar contenido** y el estado de lo que está corriendo. |
 
 > ☠️ **Airtable ya no existe en este sistema, y el Google Sheet "Histórico" tampoco.** Si alguien les
 > pasa un link a cualquiera de los dos, está viejo. Todo —el feed, los proyectos, las voces, los
@@ -151,7 +149,7 @@ Lo que califican desaparece de pendientes y queda archivado.
 ### 3.1 Corridas a demanda (nuevo)
 
 Ya no hay que esperar al lunes. Dentro de una **Voz** prendida, prenden los **Proyectos** que
-quieren, le ponen a cada uno **cuántos videos pide** (§5.2), y aprietan **▶ Correr ahora** en
+quieren, le ponen a cada uno **cuántos videos pide** (§5.2), y aprietan **▶ Buscar contenido** en
 `Operar`. En unos ~40-60 minutos los videos aparecen en el Feed.
 
 En esa misma pantalla, arriba del botón, está **qué va a correr** — una línea por proyecto:
@@ -177,6 +175,35 @@ Dos reglas que evitan sorpresas:
 - **Antes de apretar, dejen la selección lista:** Voz prendida, Proyectos que quieren en `activo`,
   su número puesto, y los Referentes de esos proyectos activos. La corrida procesa **todos** los
   proyectos activos.
+
+### 3.2 Qué cambió el 15/09: la búsqueda ya no repite *(nuevo)*
+
+**En una frase:** a cada cuenta se le compra **solo lo que publicó desde la última vez**, y los
+videos recientes que quedaron cerca del piso de vistas **se vuelven a medir** por si ya lo pasaron.
+
+**Cómo correr una búsqueda (igual que antes, en 4 pasos):**
+
+1. **Dejen lista la selección:** Voz prendida, Proyectos activos con su número, Referentes activos.
+2. En `Operar`, aprieten **▶ Buscar contenido**. Van a ver cuánto cuesta y cuánto queda del cupo.
+3. Confirmen con **Sí, correr** y esperen: ~40-60 minutos. No aprieten de nuevo mientras corre.
+4. Al terminar, miren la corrida en `Operar → Corridas` y **califiquen en el Feed como siempre**.
+
+**Lo que van a notar:**
+
+- ⚠️ **El costo que muestra el botón es un TECHO, no lo que se va a pagar.** Todavía calcula como
+  antes (cuentas × videos por cuenta). Con el cambio, la búsqueda paga menos: solo lo nuevo. La frase
+  *"si ya se buscó esta semana, trae casi los mismos videos"* **ya no aplica**.
+- **Pueden llegar videos que no son de esta semana.** Son videos que antes no llegaban al piso de
+  vistas y ahora sí, o que se midieron cuando el piso era más alto. Llegan una sola vez.
+- **En `Corridas` pueden salir avisos nuevos.** Los dos esperables:
+  - *"Se re-miden 200 reels jóvenes, el tope de la corrida"* → normal la primera vez. Lo que quedó
+    afuera entra en la siguiente.
+  - *"@cuenta necesitaba N reels…"* → esa cuenta publica mucho. Avisen a Mani con el nombre.
+- 🚩 **Si sale *"La marca de agua no se aplicó"*, avisen a Mani.** La búsqueda igual funcionó, pero
+  compró como antes (más caro).
+
+**Una sola búsqueda por semana alcanza.** Buscar dos veces el mismo día ya no repite videos, pero
+tampoco trae casi nada nuevo: las cuentas no publican tanto en horas.
 
 ---
 
@@ -216,7 +243,7 @@ A la izquierda hay cuatro zonas. Esto es todo lo que hay y qué se toca en cada 
 
 | Zona | Para qué | Qué editan ahí |
 |---|---|---|
-| **Operar** | Disparar una corrida y ver la que está en curso | el botón **▶ Correr ahora** |
+| **Operar** | Disparar una corrida y ver la que está en curso | el botón **▶ Buscar contenido** |
 | **Curar → Feed** | Su bandeja diaria de videos a calificar | la **calificación** y las **notas del equipo** |
 | **Curar → Descartes** | Los ~10 descartes dudosos de la semana (§6.1) | el **veredicto** |
 | **Curar → Voces y proyectos** | Para quién se selecciona y qué se busca (§5.1, §5.2) | todo: nombre, criterios, cuántos videos pide, prendido/apagado |

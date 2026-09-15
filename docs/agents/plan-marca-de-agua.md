@@ -1,5 +1,11 @@
 # Plan de implementación — Marca de agua + re-medición del reel joven (ADR-100)
 
+> **Estado al 2026-09-15:** ✅ Tareas 1-5 hechas · Tarea 6 pasos 0-3 hechos (`043` y `045`
+> aplicadas, fachada desplegada, motor empujado, `n8n:diff` verde) · ⏳ **paso 4-5: la primera
+> corrida la hace el equipo de redes** (instrucciones en `onboarding-equipo-redes.md` §3.2) y
+> después se mide. `Días de recencia` se deja en **50** para esa corrida: no mover dos variables a
+> la vez.
+
 > **Para agentes:** ejecutar tarea por tarea, en orden. Cada tarea termina con sus tests en verde.
 > **No hagas commit, no apliques migraciones en prod, no corras `n8n:push --apply` ni el webhook del
 > motor.** Esas tres cosas son de la Tarea 6 y tienen gate humano.

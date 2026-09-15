@@ -340,10 +340,16 @@ se cita, y varios gobiernan código vivo.
   [`backfill-pool-crudo.mjs --apply`](core/scripts/backfill-pool-crudo.mjs): **32.243
   observaciones · 10.940 reels · 334 cuentas · 3.723 reels medidos en 2+ fechas**, 0 datasets sin
   leer. 🩸 **Costó +0,0136 USD**: leer datasets no es gratis del todo.
-  ⚠️ **El motor todavía NO escribe en ella**: hasta que lo haga, las corridas nuevas se copian
-  re-corriendo el backfill (idempotente) **antes de que pasen 31 días**, o se pierden.
-  ⏳ **La [`043`](core/schema/043_ajustes_actualizado_en.sql) (ADR-097) está ESCRITA y PENDIENTE de
-  correr** (11/09). Le pone a `app.ajustes` el trigger `before update` que sella `actualizado_en`, y
+  ✅ **El motor la escribe desde el push del 15/09** (`Preparar pool crudo`), **sin corrida todavía
+  que lo pruebe**: al cierre del 15/09 hay 0 filas `origen = motor`. Hasta verlas, el backfill
+  (idempotente) sigue siendo la red antes de los 31 días.
+  ✅ **La [`045`](core/schema/045_marca_de_agua.sql) (ADR-100) está APLICADA** (Mani, 15/09 15:45) —
+  `app.v_ritmo_referentes`, `app.v_remedir_candidatos` (`security_invoker`) y el interruptor
+  `Usar marca de agua`. Verificada por efecto: las dos vistas y el check contestan, la fila del
+  interruptor existe, y la fachada en producción sirve `marca_de_agua: true` con 59 cuentas con
+  `desde` y 200 reels a re-medir (el tope). Motor empujado el mismo día, `n8n:diff` verde en los 5.
+  ✅ **La [`043`](core/schema/043_ajustes_actualizado_en.sql) (ADR-097) está APLICADA** (verificado el
+  15/09 en el catálogo: trigger `ajustes_sella_actualizado_en` sobre `app.ajustes`; escrita el 11/09). Le pone a `app.ajustes` el trigger `before update` que sella `actualizado_en`, y
   re-sella las dos filas que quedaron mintiendo. 🩸 **Existe por una columna que miente en verde:**
   `actualizado_en` es `default now()`, que **sólo dispara en INSERT**, y no hay ningún trigger
   (medido: `pg_trigger` da **cero** no-internos sobre la tabla). El único que la escribía era el

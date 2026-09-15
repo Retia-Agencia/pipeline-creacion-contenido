@@ -695,7 +695,7 @@ Salieron del repaso del 12/09. **No bloquean, pero cualquier diseño que las ign
 | 2 | ✅ Crear `app.pool_crudo` y empezar a llenarla — **aplicada el 15/09** ([ADR-099](../adr/ADR-099-el-pool-crudo-recuerda-lo-que-se-pago.md)). ⚠️ El motor todavía no escribe en ella | T1, T2 | 0 | sí |
 | 3 | ✅ Copiar los datasets de Apify — **hecho el 15/09**: 32.243 observaciones, 10.940 reels. *El plazo no era el 11/10: los más viejos vencían el 17/09.* Hasta que el motor escriba el pool, re-correr el backfill antes de 31 días | paso 2 | **0,0136 USD** | ⛔ **no: lo que no se copie se pierde** |
 | 4 | Correr M1 y construir `avance(edad)` | Q1, método de M1 | 0,35 USD | sí |
-| 5 | Marca de agua + cadencia semanal | paso 2 | 0 | sí |
+| 5 | ✅ Marca de agua + re-medición del reel joven — **en producción el 15/09** ([ADR-100](../adr/ADR-100-se-compra-lo-nuevo-y-se-remide-lo-joven.md)), sin corrida todavía. La cadencia semanal sigue siendo del equipo | paso 2 | 0 | sí: `Usar marca de agua = 0` |
 | 6 | Cambiar la vara: `min_views` a piso de basura, `viralidad` como orden | Q1, Q2, Q6, paso 4 | 0 | sí |
 | 7 | Ledger de cuentas completo (2 contadores nuevos) + pantalla | Q3, Q5 | 0 | sí |
 | 8 | Podar las 5 cuentas de 0 útiles | paso 7 | 0 | sí |
