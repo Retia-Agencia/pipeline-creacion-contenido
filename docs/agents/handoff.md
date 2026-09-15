@@ -29,10 +29,10 @@ tercio del medio eran cierres viejos anidados uno dentro de otro bajo un encabez
 
 | buscás | está en |
 |---|---|
-| **el estado de hoy** | el §ARRANCÁ POR ACÁ de acá abajo (cierre 155) |
+| **el estado de hoy** | el §ARRANCÁ POR ACÁ de acá abajo (cierre 156) |
 | **el refactor del motor** | 🧭 [plan-refactor-motor.md](./plan-refactor-motor.md) — el punto de partida único |
 | **los mensajes al equipo de redes** | [plan-refactor-motor §9](./plan-refactor-motor.md) — **1 y 2 enviados el 12/09**, el 3 escrito y pendiente |
-| **los cierres 145 a 155** | acá abajo, completos |
+| **los cierres 145 a 156** | acá abajo, completos |
 | **los cierres 70 a 144** | [handoff-archivo-2026-06_09.md](./handoff-archivo-2026-06_09.md) |
 | **el refactor Voces→Proyectos** | 🗄️ terminado y archivado el 2026-09-12: [docs/archivo/refactor-voces-proyectos.md](../archivo/refactor-voces-proyectos.md) |
 
@@ -40,7 +40,71 @@ tercio del medio eran cierres viejos anidados uno dentro de otro bajo un encabez
 N`), **nunca anidado dentro del anterior**. Así fue como nacieron las 5.736 líneas de blockquotes
 dentro de blockquotes que se acaban de archivar.
 
-## 🚦 ARRANCÁ POR ACÁ — CIERRE 155 (2026-09-14/15): piso en 400k, el botón vuelve diciendo cuánto cuesta, y el pool crudo existe
+## 🚦 ARRANCÁ POR ACÁ — CIERRE 156 (2026-09-15): el descubrimiento llevaba 5 corridas tirando lo que encontraba, y el motor ya escribe el pool crudo
+
+> Sesión de verificación de lo del cierre 155 contra prod, más dos arreglos en el live. Toda la
+> implementación la hizo Kiro; cada entrega se revisó antes de aplicar y dos volvieron con fallas.
+
+### ✅ Verificado en producción (por efecto, no por el doc)
+
+| qué | cómo se midió |
+|---|---|
+| `Mínimo de vistas` = 400.000 con su fila en `app.eventos` | lectura de `app.ajustes` y `app.eventos` |
+| ▶ desbloqueado + confirmación con costo | `bloqueo.ts` en `false`; deploys de `48a85d1`, `0cbe021` y `a2c6b1f` en Vercel `success`. ⚠️ La pantalla sigue sin verse (login) |
+| Los 5 workflows | `n8n:diff` verde antes y después de los dos push |
+| Voces | solo **Rosario** activa: 2 proyectos (Storytelling, Comunicación para líderes), N total 30 |
+| Última corrida del motor | **10/09**. Nadie corrió desde el desbloqueo: la primera con piso 400k está por venir |
+
+"150" no es un ajuste del sistema: es lo que pide el equipo, y sigue sin preguntarse si son 150
+para revisar o 150 aprobados. **No hay freno de corridas por semana**: los frenos que existen son 25
+por cuenta, 50 días y 350 transcripciones.
+
+### 🩸 El descubrimiento guardaba cero desde el 01/08 (`67c87cf`, en el live)
+
+- `IF — hay propuestas` leía `$json.records` (forma de Airtable). Desde `de8717f` (01/08, D7)
+  `Armar propuestas` devuelve `filas`, así que el IF daba siempre 0 y cerraba el run **en verde**
+  sin llegar a `POST Propuestos`.
+- **5 corridas** (25/08, 10/09 ×2, 15/09 ×2) propusieron **14 cuentas**; se pagaron Apify + Haiku
+  y ninguna llegó a `app.referentes_propuestos` (0 filas después del 20/07). El `propuestos: N` de
+  `public.runs.metricas` vive en memoria, no en la tabla: por eso nadie lo vio.
+- **Rescatadas 6 de 14** desde las ejecuciones 179/180/188/189 de n8n (las otras ya salieron de la
+  retención). Mani corrió el insert en el SQL Editor; verificado por efecto: 6 `propuesto`, 12
+  vínculos, 1 evento `propuestos.recuperar`. **Rosario:** `@ted`, `@themelrobbinspodcast`,
+  `@codiesanchez`. **Vieira:** `@aristotle_investments` (vende "stock picks", candidata a descarte),
+  `@vince.quant`, `@cuebanks`.
+- Ningún check lo podía ver: `auditar-workflows.mjs` valida que `$('X')` apunte a un ancestro,
+  pero no que la clave `$json.<k>` exista en lo que devuelve el Code node de arriba. Es la
+  mejora barata para esta clase de bug (sin hacer).
+- El workflow **no tiene cron** (el `workflow.yaml` todavía dice `0 9 * * 1`, dato viejo) y cada
+  corrida trae de 1 a 7 cuentas: **arreglado y todo, no llega a las ~77 cuentas** que faltan para
+  ~136. Subir topes y cadencia es decisión de Mani (plata).
+
+### ✅ El motor escribe `app.pool_crudo` en vivo (`c23ede8`, en el live)
+
+- `Preparar pool crudo` + `POST pool crudo` (`origen = 'motor'`) colgando de `Merge scrapes`: después
+  de pagar Apify, antes de dedup y `min_views`. Sumidero (`onError: continue`), lotes de 500,
+  `instance_id` del Config. **Se murió la deuda del cierre 155** (re-correr el backfill cada 31 días).
+- El nodo Apify de n8n no expone el dataset real ⇒ el motor usa `motor:<run_id>:<día>`. Para no
+  contar doble, `backfill-pool-crudo.mjs` salta las corridas de Apify que empezaron desde
+  **`runs.inicio` del primer run del motor**. La revisión tumbó la primera versión por dos cosas:
+  cortaba por `medido_en` (llega tarde: habría duplicado la primera corrida) y, si no podía leer
+  el corte, **copiaba todo en silencio**. Ahora `resolverCorte()` es pura y testeada, y ante error
+  el `--apply` se niega.
+- ⚠️ **Sin medir todavía:** que la primera corrida real deje filas `origen = 'motor'` con `run_id`.
+
+### Lo que sigue, en orden
+
+1. **Después de la primera corrida del motor:** `select count(*), count(run_id) from app.pool_crudo
+   where origen = 'motor'` (las dos > 0) y mirar la confirmación de costo en pantalla.
+2. **Preguntarle al equipo qué es "150"** (borrador en el cierre 155, sin enviar).
+3. **Decidir cadencia y topes del descubrimiento** para llegar a ~136 cuentas, y el freno de
+   "ya se buscó esta semana" en el ▶.
+4. Check en `auditar-workflows.mjs` de claves `$json.<k>` contra el return del Code node de arriba.
+5. M1-bis sobre `pool_crudo` y marca de agua (siguen del cierre 155).
+
+---
+
+## 🔒 CIERRE 155 (2026-09-14/15): piso en 400k, el botón vuelve diciendo cuánto cuesta, y el pool crudo existe
 
 > Sesión de decisión con números para el equipo de redes, más dos cambios chicos en el cockpit y el
 > primer paso del refactor del motor (delegado a Kiro y revisado antes de aplicar).
