@@ -10,7 +10,11 @@
 //
 // El tipo va anotado a propósito: con `= true` a secas TypeScript infiere el literal `true`,
 // da por inalcanzable todo lo que sigue al `return` y deja de estrechar tipos ahí abajo.
-export const MOTOR_BLOQUEADO: boolean = true;
+//
+// 2026-09-14: DESBLOQUEADO sin que el refactor esté en el live. Daniel bajó el piso a 400.000 y
+// el equipo necesita guiones para esta semana (Rosario, cliente nuevo). El flag se deja en vez
+// de borrarlo porque volver a bloquear sigue siendo una línea.
+export const MOTOR_BLOQUEADO: boolean = false;
 
 export const MOTOR_BLOQUEADO_MENSAJE =
   "🚧 El motor está bajo construcción: un dev lo está arreglando y las corridas quedaron pausadas. Te avisamos cuando vuelva.";
