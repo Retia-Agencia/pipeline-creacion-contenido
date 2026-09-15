@@ -21,6 +21,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import YAML from 'yaml';
+import { conservarBindings, esBinding } from './n8n-bindings.mjs';
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
 const RAIZ = path.resolve(AQUI, '../..');
@@ -356,7 +357,7 @@ const esDefaultDeN8n = (campo, enRepo) =>
   DEFAULTS_N8N.some(([k, v]) => k === campo && JSON.stringify(v) === JSON.stringify(enRepo));
 
 function clasificar(campo, enRepo, enLive) {
-  if (enLive && typeof enLive === 'object' && enLive.__rl === true) return 'binding';
+  if (esBinding(enLive)) return 'binding';
   // live no guarda un campo que el repo sí tiene: benigno SOLO si el valor del repo es uno de los
   // que n8n poda. Si no, el live está corriendo sin eso y nadie lo empujó.
   if (enLive === undefined) return esDefaultDeN8n(campo, enRepo) ? 'default' : 'sin-empujar';
@@ -573,7 +574,9 @@ async function cmdPush(alias, opts) {
       .map((ln) => {
         if (!objetivo.includes(ln.name)) return ln;
         const rn = enRepo.get(ln.name);
-        const nuevo = { ...ln, parameters: sustituir(rn.parameters ?? {}, mapa, pendientes) };
+        // El `__rl` del live es identidad de la instancia: el push lo conserva, igual que el diff
+        // lo clasifica como `binding` (ADR-053 §Enmienda 3).
+        const nuevo = { ...ln, parameters: conservarBindings(sustituir(rn.parameters ?? {}, mapa, pendientes), ln.parameters) };
         for (const campo of ['typeVersion', 'onError', 'retryOnFail', 'executeOnce', 'alwaysOutputData', 'disabled']) {
           if (rn[campo] !== undefined) nuevo[campo] = rn[campo];
         }

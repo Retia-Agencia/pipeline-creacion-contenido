@@ -319,3 +319,48 @@ que es precisamente la pregunta que contesta `DEFAULTS_N8N`.
   paginación) y el `sendHeaders` entero, y se verifica que los dos salen `[sin-empujar]`, que
   **`method: GET` sigue sin reportarse**, y que devolviéndolos al live desaparecen.
 - `npm run validate`: 2533 checks OK, 0 errores.
+
+## Enmienda 3 — 2026-09-15: el `push` no conservaba lo que el `diff` promete no empujar
+
+*Toca `core/scripts/n8n-sync.mjs` (comando `push`) y agrega `core/scripts/n8n-bindings.mjs` con su
+test. Sin cambios en los `workflow.json`.*
+
+### 🩸 Dos comandos, dos reglas para el mismo campo
+
+El `diff` clasifica un resourceLocator `__rl` del live contra un slug del repo como **`binding` —
+*"identidad de la instancia, nunca se empuja"***. Pero el `push` armaba cada nodo con
+`parameters: sustituir(rn.parameters)`, **los del repo enteros**, así que el primer push de un nodo
+de Apify le habría cambiado el `actorId` de `{__rl: true, value: 'shu8hvrXbJbY3Eb9W', …}` a
+`'apify~instagram-scraper'`.
+
+📏 **Nunca había pasado porque ningún nodo de Apify se había empujado.** En los 12 snapshots del
+motor, `Apify — IG Reels` conserva su `__rl` y el mismo `customBody` de 335 bytes desde el re-import;
+el repo le cambió el body por última vez en ADR-019, antes de que existiera el push. Lo destapó el
+dry-run de ADR-100: `actorId: {"__rl":true,…} → "apify~instagram-scraper"`. No se sabe si n8n corre
+un `actorId` en slug, y averiguarlo costaba una corrida pagada.
+
+### Decisión
+
+Una sola definición para los dos comandos, en `n8n-bindings.mjs`: `esBinding(v)` y
+`conservarBindings(repo, live)`. El push conserva el `__rl` del live en todo campo de primer nivel
+donde el repo trae otra cosa. **Si el repo declara su propio `__rl`, manda el repo**: alguien lo puso
+a propósito. Los nodos **nuevos** no pasan por acá: no hay live del que conservar nada.
+
+La verificación post-PUT no cambia: compara contra los `parameters` ya armados, que incluyen el
+`__rl` conservado.
+
+### Alternativas descartadas
+
+- **Poner el `__rl` en el `workflow.json`:** mete el id interno de una instancia en el repo, que es
+  justo lo que el `diff` separa como identidad.
+- **Empujar y restaurar si fallaba:** el fallo se habría visto en una corrida que cuesta plata.
+
+### Verificación
+
+- `npm run n8n:test:bindings`: 9 ok (slug contra `__rl`, drift de verdad sin `__rl`, `__rl` propio
+  del repo, campo no declarado, sin mutar la entrada). Node pelado, no toca n8n.
+- Dry-run real sobre el motor: `Apify — IG Reels` pasó de `campos: actorId, customBody,
+  authentication, resource` a `campos: customBody, authentication, resource`. Los dos últimos son
+  pares de `DEFAULTS_N8N`.
+- `npm run n8n:diff`: idéntico a antes del cambio.
+- `npm run n8n:test`: 42 ok · 0 fallidos.

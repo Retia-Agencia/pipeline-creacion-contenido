@@ -14,6 +14,7 @@
     "n8n:push": "node n8n-sync.mjs push",
     "n8n:restore": "node n8n-sync.mjs restore",
     "n8n:test": "node test-n8n-sync.mjs",
+    "n8n:test:bindings": "node test-n8n-bindings.mjs",
     "n8n:orden": "node n8n-sync.mjs orden"
   },
   "dependencies": {
