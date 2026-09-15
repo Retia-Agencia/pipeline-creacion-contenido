@@ -41,6 +41,7 @@ export const CATALOGO: Record<string, Knob> = {
   "Resultados por cuenta de referente": { consume: "motor", tipo: "entero_positivo" },
   "Buscar por referentes en Instagram": { consume: "motor", tipo: "toggle" },
   "Buscar por referentes en TikTok": { consume: "motor", tipo: "toggle" },
+  "Usar marca de agua": { consume: "motor", tipo: "toggle" },
   "Propuestas por corrida": { consume: "descubrimiento", tipo: "entero_positivo" },
   "Afinidad mínima de propuesta": { consume: "descubrimiento", tipo: "proporcion" },
   "Descubrir en Instagram": { consume: "descubrimiento", tipo: "toggle" },

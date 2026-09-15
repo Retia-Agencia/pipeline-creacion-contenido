@@ -76,6 +76,11 @@ const TABLAS = {
 
   // Grano instancia
   "app.ajustes": { esquema: "app", grano: "instancia" },
+  // Las tres vistas de la marca de agua (ADR-100, migración `045`), sobre `app.pool_crudo` (grano
+  // instancia): la fachada las lee en `?ambito=motor` para calcular `desde`/`limite`/`remedir`.
+  "app.v_watermark_referentes": { esquema: "app", grano: "instancia" },
+  "app.v_ritmo_referentes": { esquema: "app", grano: "instancia" },
+  "app.v_remedir_candidatos": { esquema: "app", grano: "instancia" },
   "app.candidatos": { esquema: "app", grano: "instancia" },
   "app.descartes": { esquema: "app", grano: "instancia" },
   "app.referentes_propuestos": { esquema: "app", grano: "instancia" },

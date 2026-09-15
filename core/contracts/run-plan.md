@@ -99,6 +99,24 @@ reemplaza (`Leer Voces` / `Leer Proyectos` / `Leer Referentes` / `Leer Ajustes`)
 - **El scoring, el gate, el corte por proyecto y el spillover NO viven acá** — siguen en el motor
   (`Armar plan de corrida` no se vacía y `test-nodos.mjs` conserva su valor de red de regresión).
 
+## La marca de agua (ADR-100) — aditivo, `version` sigue en 2
+
+Solo en `?ambito=motor`. Cada referente trae además:
+
+- `fields.desde` — ISO. Desde cuándo comprarle: `max(marca de agua, ahora − Días de recencia)`.
+  `null` en TikTok, con el interruptor apagado o si la marca no se pudo leer.
+- `fields.limite` — `max(Resultados por cuenta, ceil(ritmo × días ÷ 7 × 1,3))`. `null` en los mismos casos.
+- `fields.ritmo_semanal` — reels/semana en los últimos 28 días, o `null` si no hay historia.
+
+Y el plan trae:
+
+- `remedir: [{ external_id, handle, url }]` — reels jóvenes cerca del piso para re-medir por URL.
+  Siempre presente; `[]` si no hay o si la marca está apagada.
+- `marca_de_agua: boolean` y, cuando es `false`, `marca_de_agua_motivo`.
+
+🔑 **Un fallo leyendo la marca NO devuelve ≠200.** El fail-closed de arriba gobierna lo que rompe
+una corrida; la marca de agua es un ahorro, y sin ella el motor compra como antes y lo avisa.
+
 ## Versionado
 
 `version` gobierna la compatibilidad (ADR-028 §5): mientras no cambie, la app puede cambiar de dónde

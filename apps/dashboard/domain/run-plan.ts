@@ -168,3 +168,64 @@ export function armarRunPlanLinkedin(
     ...entrada,
   };
 }
+
+import {
+  desdeDe, elegirRemedir, limiteDe, normalizarHandlePool, valorAjuste,
+  type Observacion, type ReelARemedir,
+} from "./marca-de-agua.ts";
+
+export type DatosMarcaDeAgua =
+  | {
+      ok: true;
+      marcas: { handle: string; watermark: string | null }[];
+      ritmos: { handle: string; ritmo_semanal: number }[];
+      observaciones: Observacion[];
+    }
+  | { ok: false; error: string };
+
+export type RunPlanConMarca = RunPlan & {
+  remedir: ReelARemedir[];
+  marca_de_agua: boolean;
+  marca_de_agua_motivo?: string;
+};
+
+/**
+ * ADR-100 D4/D6. Aditivo sobre el plan de `ambito=motor`: `version` sigue en 2. Si algo falla, el
+ * plan sale igual sin marca y con motivo — perder un ahorro no justifica no entregar.
+ */
+export function conMarcaDeAgua(plan: RunPlan, datos: DatosMarcaDeAgua, ahora: Date): RunPlanConMarca {
+  const sinMarca = (motivo: string): RunPlanConMarca => ({
+    ...plan,
+    referentes: plan.referentes.map((r) => ({ id: r.id, fields: { ...r.fields, desde: null, limite: null, ritmo_semanal: null } })),
+    remedir: [],
+    marca_de_agua: false,
+    marca_de_agua_motivo: motivo,
+  });
+
+  if (valorAjuste(plan.ajustes, "Usar marca de agua", 1) <= 0) return sinMarca("apagada en ajustes");
+  if (!datos.ok) return sinMarca(`no se pudo leer la marca de agua (${datos.error})`);
+
+  const dias = valorAjuste(plan.ajustes, "Días de recencia", 7);
+  const porCuenta = valorAjuste(plan.ajustes, "Resultados por cuenta de referente", 20);
+  const piso = valorAjuste(plan.ajustes, "Mínimo de vistas", 0);
+  const marca = new Map(datos.marcas.map((m) => [normalizarHandlePool(m.handle), m.watermark]));
+  const ritmo = new Map(datos.ritmos.map((m) => [normalizarHandlePool(m.handle), Number(m.ritmo_semanal)]));
+  const esIG = (f: Record<string, unknown>) => String(f.plataforma ?? "").toLowerCase().includes("insta");
+
+  const referentes = plan.referentes.map((r) => {
+    if (!esIG(r.fields)) return { id: r.id, fields: { ...r.fields, desde: null, limite: null, ritmo_semanal: null } };
+    const h = normalizarHandlePool(String(r.fields.handle ?? ""));
+    const desde = desdeDe(marca.get(h) ?? null, dias, ahora);
+    const rs = ritmo.has(h) ? (ritmo.get(h) as number) : null;
+    return { id: r.id, fields: { ...r.fields, desde, limite: limiteDe(rs, desde, porCuenta, ahora), ritmo_semanal: rs } };
+  });
+
+  const activos = new Set(
+    plan.referentes.filter((r) => esIG(r.fields)).map((r) => normalizarHandlePool(String(r.fields.handle ?? ""))),
+  );
+  const remedir = piso > 0
+    ? elegirRemedir(datos.observaciones, { piso, diasRecencia: dias, handlesActivos: activos, ahora }).lista
+    : [];
+
+  return { ...plan, referentes, remedir, marca_de_agua: true };
+}

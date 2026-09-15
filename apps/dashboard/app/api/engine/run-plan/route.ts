@@ -1,7 +1,9 @@
 import { autenticar, rechazar } from "@/app/api/engine/auth";
 import { PIPELINE_LINKEDIN, PIPELINE_REELS } from "@/domain/pipelines";
-import { armarRunPlan, armarRunPlanCompleto, armarRunPlanLinkedin } from "@/domain/run-plan";
+import { valorAjuste } from "@/domain/marca-de-agua";
+import { armarRunPlan, armarRunPlanCompleto, armarRunPlanLinkedin, conMarcaDeAgua } from "@/domain/run-plan";
 import { leerRunPlanCrudo, leerRunPlanCrudoLinkedin } from "@/lib/config";
+import { leerDatosMarcaDeAgua } from "@/lib/marca-de-agua";
 import { contextoDeFachada } from "@/lib/tenant";
 
 // La fachada de ADR-028: el motor pregunta qué correr ANTES de gastar créditos.
@@ -71,9 +73,13 @@ export async function GET(request: Request) {
     }
 
     const crudo = await leerRunPlanCrudo(tenant.ctx, ambito);
-    const plan =
-      ambito === "motor" ? armarRunPlan(crudo, new Date()) : armarRunPlanCompleto(crudo, new Date());
-    return Response.json(plan);
+    const ahora = new Date();
+    if (ambito !== "motor") return Response.json(armarRunPlanCompleto(crudo, ahora));
+    const base = armarRunPlan(crudo, ahora);
+    // ADR-100: la marca de agua es un ahorro. Si falla, el plan sale igual sin marca (D6).
+    const datos = await leerDatosMarcaDeAgua(tenant.ctx, valorAjuste(base.ajustes, "Días de recencia", 7), ahora);
+    if (!datos.ok) console.error(`[run-plan] marca de agua no disponible: ${datos.error}`);
+    return Response.json(conMarcaDeAgua(base, datos, ahora));
   } catch (e) {
     console.error(`[run-plan] fallo leyendo config: ${e instanceof Error ? e.message : e}`);
     return Response.json({ error: "config no disponible" }, { status: 503 });

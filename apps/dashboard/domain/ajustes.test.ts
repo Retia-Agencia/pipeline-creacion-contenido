@@ -3,8 +3,8 @@ import { describe, it } from "node:test";
 import { CATALOGO, ajustesVisibles, validarAjuste } from "./ajustes.ts";
 
 describe("CATALOGO", () => {
-  it("tiene los 18 knobs del check de la migración 009", () => {
-    assert.equal(Object.keys(CATALOGO).length, 18);
+  it("tiene los 19 knobs del check (18 de la migración 009 + 'Usar marca de agua' de la 045)", () => {
+    assert.equal(Object.keys(CATALOGO).length, 19);
   });
 
   it("los 4 del descubrimiento están separados de los del motor", () => {

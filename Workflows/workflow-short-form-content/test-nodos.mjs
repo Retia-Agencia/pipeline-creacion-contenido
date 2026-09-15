@@ -51,8 +51,8 @@ const CFG_PLAN = { top_n: 100, dias_recencia: 7, resultados_referente: 20, cap_r
 // OJO: las voces vienen filtradas por {activo} — antes lo hacía Airtable server-side, ahora la
 // fachada con ?ambito=motor (D4). Igual que en n8n: una voz apagada = una voz que no está en la
 // lista. El mock devuelve la respuesta del run-plan (ADR-028), no las 4 lecturas de Airtable.
-const runPlan = ({ proyectos = [], vocesActivas = [], referentes = [], ajustes = [], cfg = {} } = {}) => {
-  const fachada = { version: 1, voces: vocesActivas, proyectos, referentes, ajustes };
+const runPlan = ({ proyectos = [], vocesActivas = [], referentes = [], ajustes = [], cfg = {}, fachadaExtra = {} } = {}) => {
+  const fachada = Object.assign({ version: 1, voces: vocesActivas, proyectos, referentes, ajustes }, fachadaExtra);
   const $ = (n) => {
     if (n === 'Config') return { first: () => ({ json: Object.assign({}, CFG_PLAN, cfg) }) };
     if (n === 'Leer plan (fachada)') return { first: () => ({ json: fachada }) };
@@ -2502,6 +2502,58 @@ seccion('Preparar pool crudo — la copia textual está marcada (no se puede des
   const src = jsCode('Preparar pool crudo');
   check('el nodo tiene los marcadores de COPIA TEXTUAL',
     src.includes('⤵ COPIA TEXTUAL') && src.includes('⤴ FIN COPIA TEXTUAL'), 'faltan los marcadores');
+}
+
+seccion('ADR-100 — marca de agua y re-medición en Armar plan / Split / Apify');
+{
+  const R = (handle, extra = {}) => ({ id: 'r-' + handle, fields: Object.assign({ handle: '@' + handle, plataforma: 'instagram', proyecto: ['p1'], activo: true }, extra) });
+  const base = { proyectos: [P('p1', 'Uno', ['v1'])], vocesActivas: [V('v1', 'Voz')] };
+  const REM = [{ external_id: '3839722324954216054', handle: 'cuentaa', url: 'https://www.instagram.com/reel/DVJbxxfCHZ2/' }];
+
+  const conMarca = runPlan({ ...base, referentes: [R('CuentaA', { desde: '2026-09-07T00:00:00.000Z', limite: 40 }), R('cuentab', { desde: '2026-09-01T00:00:00.000Z', limite: 5 })], fachadaExtra: { marca_de_agua: true, remedir: REM } }).plan;
+  const pa = conMarca.ig_pedidos.find((x) => /cuentaa/i.test(x.url));
+  const pb = conMarca.ig_pedidos.find((x) => /cuentab/i.test(x.url));
+  check('con marca: el pedido lleva su desde', pa && pa.desde === '2026-09-07T00:00:00.000Z', JSON.stringify(conMarca.ig_pedidos));
+  check('con marca: el limite de la fachada se respeta', pa && pa.limite === 40, JSON.stringify(pa));
+  check('con marca: el limite nunca baja de resultados_referente (20)', pb && pb.limite === 20, JSON.stringify(pb));
+  check('con marca: remedir pasa', conMarca.remedir.length === 1 && conMarca.marca_de_agua === true, JSON.stringify(conMarca.remedir));
+
+  const topado = runPlan({ ...base, referentes: [R('grande', { desde: '2026-08-20T00:00:00.000Z', limite: 80 })], fachadaExtra: { marca_de_agua: true, remedir: [] } }).plan;
+  check('limite sobre cap_resultados_referente (50): se recorta', topado.ig_pedidos[0].limite === 50, JSON.stringify(topado.ig_pedidos));
+  check('y avisa nombrando la cuenta', topado.avisos.some((a) => /@grande/.test(a)), JSON.stringify(topado.avisos));
+
+  const sinMarca = runPlan({ ...base, referentes: [R('cuentaa')], fachadaExtra: { marca_de_agua: false, marca_de_agua_motivo: 'no se pudo leer la marca de agua (timeout)', remedir: REM } }).plan;
+  check('fachada sin marca: compra como antes', sinMarca.ig_pedidos[0].desde === null && sinMarca.ig_pedidos[0].limite === 20, JSON.stringify(sinMarca.ig_pedidos));
+  check('fachada sin marca: no re-mide', sinMarca.remedir.length === 0, JSON.stringify(sinMarca.remedir));
+  check('fachada sin marca: avisa con el motivo', sinMarca.avisos.some((a) => /timeout/.test(a)), JSON.stringify(sinMarca.avisos));
+
+  const planViejo = runPlan({ ...base, referentes: [R('cuentaa')] }).plan;
+  check('plan viejo (sin campos nuevos): compra como antes, sin romper', planViejo.ig_pedidos[0].desde === null && planViejo.remedir.length === 0, JSON.stringify(planViejo));
+
+  const apagado = runPlan({ ...base, referentes: [R('cuentaa', { desde: '2026-09-07T00:00:00.000Z', limite: 40 })], ajustes: [{ id: 'x', fields: { clave: 'Usar marca de agua', valor: 0 } }], fachadaExtra: { marca_de_agua: true, remedir: REM } }).plan;
+  check('interruptor apagado en el motor: compra como antes y no re-mide', apagado.ig_pedidos[0].desde === null && apagado.remedir.length === 0, JSON.stringify(apagado));
+
+  // Split IG referentes
+  const split = (plan) => new Function('$', jsCode('Split IG referentes'))((n) => {
+    if (n === 'Armar plan de corrida') return { first: () => ({ json: plan }) };
+    throw new Error('nodo no mockeado: ' + n);
+  });
+  const items = split(conMarca);
+  check('Split: un item por cuenta + uno de re-medición', items.length === conMarca.ig_pedidos.length + 1, JSON.stringify(items));
+  const ultimo = items[items.length - 1].json;
+  check('Split: el item de re-medición es posts, limite 1, sin fecha', ultimo.tipo === 'posts' && ultimo.limite === 1 && ultimo.desde === null && ultimo.urls[0] === REM[0].url, JSON.stringify(ultimo));
+  check('Split: sin remedir no agrega item', split(sinMarca).length === sinMarca.ig_pedidos.length, JSON.stringify(split(sinMarca)));
+
+  // Apify — IG Reels: el customBody es una expresión ={{ ... }}
+  const exprBody = w.nodes.find((x) => x.name === 'Apify — IG Reels').parameters.customBody;
+  const cuerpo = (plan, item) => new Function('$', '$json', 'return ' + exprBody.replace(/^=\{\{\s*/, '').replace(/\s*\}\}\s*$/, ''))(
+    (n) => ({ first: () => ({ json: plan }) }), item);
+  const bReels = cuerpo(conMarca, items[0].json);
+  check('Body reels con marca: onlyPostsNewerThan = desde, resultsLimit = limite', bReels.resultsType === 'reels' && bReels.onlyPostsNewerThan === items[0].json.desde && bReels.resultsLimit === items[0].json.limite, JSON.stringify(bReels));
+  const bViejo = cuerpo(Object.assign({}, sinMarca, { dias_recencia: 30 }), split(sinMarca)[0].json);
+  check('Body reels sin marca: onlyPostsNewerThan relativo', bViejo.onlyPostsNewerThan === '30 days', JSON.stringify(bViejo));
+  const bPosts = cuerpo(conMarca, ultimo);
+  check('Body re-medición: posts, limite 1, sin fecha ni searchType', bPosts.resultsType === 'posts' && bPosts.resultsLimit === 1 && !('onlyPostsNewerThan' in bPosts) && !('searchType' in bPosts), JSON.stringify(bPosts));
 }
 
 console.log(fail ? `\n${fail} test(s) en rojo` : '\nTodo en verde');
