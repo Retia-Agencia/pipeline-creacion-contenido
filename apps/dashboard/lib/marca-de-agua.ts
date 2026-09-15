@@ -1,6 +1,5 @@
 import type { DatosMarcaDeAgua } from "@/domain/run-plan";
 import type { TenantContext } from "@/domain/tenant";
-import { DIAS_JOVEN } from "@/domain/marca-de-agua";
 import { scoped } from "@/lib/supabase/scoped";
 
 // IO de ADR-100: las tres vistas sobre pool_crudo. Nunca tira: si falla, devuelve `ok: false` y la
@@ -15,8 +14,9 @@ export async function leerDatosMarcaDeAgua(ctx: TenantContext, diasRecencia: num
       acceso
         .select("app.v_remedir_candidatos", "external_id, handle, publicado_en, medido_en, vistas, edad_al_medir_dias")
         .eq("plataforma", "instagram")
+        // Sin filtro de edad: el rescate por cambio de piso necesita también los maduros. La regla
+        // completa la aplica `elegirRemedir`; esto solo acota a la recencia (~2.500 reels el 15/09).
         .gte("publicado_en", desdeRecencia)
-        .lt("edad_al_medir_dias", DIAS_JOVEN)
         .limit(5000),
     ]);
     const error = marcas.error ?? ritmos.error ?? obs.error;

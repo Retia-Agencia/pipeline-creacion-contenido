@@ -84,6 +84,32 @@ de referente activo).
 🩸 **Lo que se acepta perder:** reels viejos que reviven (`askvinh`, 18k a los 34 días → 609k).
 Ninguna regla barata los atrapa.
 
+#### D3.1 · Rescate por cambio de piso (agregado en la revisión del 15/09)
+
+**El hueco:** antes, un reel que pasaba el piso y no se entregaba volvía en la próxima corrida porque
+se re-compraba (ADR-087). Con la marca de agua no vuelve. Medido el 15/09 (cuentas activas, 30 días):
+**102** así. **53** ya habían pasado 500k en 2 o más días y el motor los botó cada vez (28 se
+transcribieron el 08/09 y ninguno quedó de candidato): volver no los salva. **29** están entre 400k y
+500k y nunca tuvieron su oportunidad, porque el piso bajó a 400k ese día. **20** pasaron 500k un solo
+día.
+
+**Decisión de Mani: rescate único.** También entra a `remedir`, **una sola vez**, un reel que:
+
+| condición | por qué |
+|---|---|
+| hoy tiene vistas **≥ piso** | pasaría el piso actual |
+| su última medición es **anterior a `actualizado_en` de `Mínimo de vistas`** | nunca se evaluó con este piso |
+| cumple recencia, ≥ 1 día desde la medición, referente IG activo | lo mismo que D3 |
+
+Se apaga solo: re-medido, su medición queda después del cambio. Sirve igual la próxima vez que se
+mueva el piso, sin tocar código. La primera corrida rescata **102** (~0,23 USD). Separar los 53 ya
+rechazados pedía guardar el piso anterior, y el ahorro eran 0,12 USD una sola vez.
+
+⚠️ **Depende de que `actualizado_en` diga la verdad.** Un cambio de piso hecho por SQL no la mueve
+mientras la [`043`](../../core/schema/043_ajustes_actualizado_en.sql) (ADR-097) no esté aplicada. En
+ese caso no hay rescate, que es el lado seguro: no se paga de más. Por eso la `043` va antes en la
+salida a producción, y `fields.actualizado_en` de `ajustes` viaja en el plan (aditivo).
+
 ### D4 · Quién calcula: la fachada `run-plan` (ADR-035)
 
 La fachada calcula `desde`, `limite`, `ritmo_semanal` y la lista; el motor solo ejecuta. Forma

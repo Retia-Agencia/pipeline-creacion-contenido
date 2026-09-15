@@ -56,15 +56,30 @@ export type ReelARemedir = { external_id: string; handle: string; url: string };
 /** D3: lo joven y cerca del piso. Se vacía solo: re-medido, ya no es joven al medirse. */
 export function elegirRemedir(
   obs: Observacion[],
-  o: { piso: number; diasRecencia: number; handlesActivos: Set<string>; ahora: Date; tope?: number },
+  o: {
+    piso: number;
+    diasRecencia: number;
+    handlesActivos: Set<string>;
+    ahora: Date;
+    tope?: number;
+    /** Cuándo se movió `Mínimo de vistas` por última vez. `null` = sin rescate. */
+    pisoCambioEn?: string | null;
+  },
 ): { lista: ReelARemedir[]; cortados: number } {
   const t = o.ahora.getTime();
+  const cambio = o.pisoCambioEn ? Date.parse(o.pisoCambioEn) : Number.NaN;
+  // Joven y cerca del piso: puede cruzarlo (§1.4).
+  const esJoven = (x: Observacion) =>
+    x.edad_al_medir_dias < DIAS_JOVEN && x.vistas >= o.piso * FRACCION_PISO_REMEDIR && x.vistas < o.piso;
+  // Rescate por cambio de piso: hoy lo pasa y su última medición es anterior al cambio, así que nunca
+  // tuvo su oportunidad con este piso. Una sola vez: re-medido, su medición ya es posterior al cambio.
+  // Sin esto la marca de agua lo dejaría afuera para siempre (ADR-100 §D3, rescate).
+  const esRescate = (x: Observacion) =>
+    Number.isFinite(cambio) && x.vistas >= o.piso && Date.parse(x.medido_en) < cambio;
   const elegibles = obs
     .filter(
       (x) =>
-        x.edad_al_medir_dias < DIAS_JOVEN &&
-        x.vistas >= o.piso * FRACCION_PISO_REMEDIR &&
-        x.vistas < o.piso &&
+        (esJoven(x) || esRescate(x)) &&
         t - Date.parse(x.medido_en) >= DIA_MS &&
         t - Date.parse(x.publicado_en) <= o.diasRecencia * DIA_MS &&
         o.handlesActivos.has(normalizarHandlePool(x.handle)) &&
@@ -78,6 +93,16 @@ export function elegirRemedir(
     url: `https://www.instagram.com/reel/${shortcodeDe(x.external_id)}/`,
   }));
   return { lista, cortados: Math.max(0, elegibles.length - tope) };
+}
+
+/**
+ * Cuándo se tocó un ajuste por última vez, o `null`. ⚠️ Mientras la `043` (ADR-097) no esté
+ * aplicada, un cambio hecho por SQL no mueve esta fecha: el rescate simplemente no se dispara, que es
+ * el lado seguro (no paga de más).
+ */
+export function fechaAjuste(ajustes: { fields: Record<string, unknown> }[], clave: string): string | null {
+  const v = ajustes.find((a) => a.fields.clave === clave)?.fields.actualizado_en;
+  return typeof v === "string" && Number.isFinite(Date.parse(v)) ? v : null;
 }
 
 /** Lee un ajuste del plan por clave. Un 0 es un valor, no un faltante. */

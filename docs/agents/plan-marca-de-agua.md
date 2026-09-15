@@ -833,6 +833,9 @@ marca_de_agua: !!p.marca_de_agua, remedir: (p.remedir || []).length, pedido_ig: 
 
 ### Tarea 6: Llevarlo a producción (gates humanos, en este orden)
 
+0. **Mani aplica la `043`** (ADR-097, escrita desde el 11/09): sin su trigger, un cambio de piso
+   por SQL no mueve `actualizado_en` y el rescate de ADR-100 §D3.1 no se dispara. Verificar con
+   `select tgname from pg_trigger where tgrelid = 'app.ajustes'::regclass and not tgisinternal`.
 1. **Mani aplica la `045`** en el SQL Editor. Claude la verifica por efecto con las consultas a-e.
 2. **Deploy del dashboard** (según `apps/dashboard/README.md`). Verificar: `GET
    /api/engine/run-plan?ambito=motor&instancia=<uuid>` con el header trae `marca_de_agua: true`,
@@ -847,6 +850,12 @@ marca_de_agua: !!p.marca_de_agua, remedir: (p.remedir || []).length, pedido_ig: 
    - Reels comprados (por `chargedEventCounts`, no `usageTotalUsd`) contra ~600 esperados.
    - `select count(*) from app.pool_crudo where origen = 'motor'` > 0.
    - De los re-medidos, cuántos cruzaron el piso ese día.
+   - Rescate (§D3.1): cuántos de los ~102 entraron a `remedir`, cuántos llegaron a candidato, y que
+     en la corrida siguiente **no** vuelvan a aparecer (la regla se apaga sola).
+
+> **Agregado en la revisión (15/09):** el rescate por cambio de piso (ADR-100 §D3.1) lo implementó
+> Claude después de la Tarea 5: `elegirRemedir` recibe `pisoCambioEn`, `fechaAjuste` lo lee del
+> plan, `lib/ajustes.ts` pasa `actualizado_en` y `lib/marca-de-agua.ts` ya no filtra por edad.
    - `runs.metricas.avisos`: ningún aviso de "no se aplicó".
 
 **Rollback:** `Usar marca de agua = 0` desde el cockpit (instantáneo, sin deploy). Si el motor

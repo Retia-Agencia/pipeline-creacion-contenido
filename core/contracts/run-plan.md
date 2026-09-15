@@ -110,9 +110,12 @@ Solo en `?ambito=motor`. Cada referente trae además:
 
 Y el plan trae:
 
-- `remedir: [{ external_id, handle, url }]` — reels jóvenes cerca del piso para re-medir por URL.
-  Siempre presente; `[]` si no hay o si la marca está apagada.
+- `remedir: [{ external_id, handle, url }]` — reels a re-medir por URL: los jóvenes cerca del piso,
+  y el rescate único de los que hoy pasan el piso y se midieron antes de que se moviera (ADR-100
+  §D3.1). Siempre presente; `[]` si no hay o si la marca está apagada.
 - `marca_de_agua: boolean` y, cuando es `false`, `marca_de_agua_motivo`.
+- `ajustes[].fields.actualizado_en` — cuándo se tocó cada ajuste. De ahí sale la fecha del cambio de
+  piso para el rescate. Los `AJUSTE_MAP` de los workflows la ignoran.
 
 🔑 **Un fallo leyendo la marca NO devuelve ≠200.** El fail-closed de arriba gobierna lo que rompe
 una corrida; la marca de agua es un ahorro, y sin ella el motor compra como antes y lo avisa.

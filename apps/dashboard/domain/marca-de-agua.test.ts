@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import {
-  desdeDe, elegirRemedir, limiteDe, normalizarHandlePool, shortcodeDe, valorAjuste,
+  desdeDe, elegirRemedir, fechaAjuste, limiteDe, normalizarHandlePool, shortcodeDe, valorAjuste,
   type Observacion,
 } from "./marca-de-agua.ts";
 
@@ -95,6 +95,31 @@ describe("elegirRemedir", () => {
     assert.equal(r.cortados, 1);
     assert.equal(r.lista[0].external_id, obs[1].external_id);
   });
+
+  describe("rescate por cambio de piso", () => {
+    // El piso se movió hace 3 días. Un reel maduro que hoy lo pasa y se midió antes de eso nunca tuvo
+    // su oportunidad con el piso nuevo: se re-mide UNA vez. Después su última medición ya es posterior.
+    const CAMBIO = hace(3);
+    const maduro: Observacion = { ...base, publicado_en: hace(20), medido_en: hace(6), vistas: 450_000, edad_al_medir_dias: 14 };
+    const r = (cambio: Partial<Observacion>, pisoCambioEn: string | null = CAMBIO) =>
+      elegirRemedir([{ ...maduro, ...cambio }], { ...opts, pisoCambioEn }).lista.length;
+
+    it("sobre el piso y medido antes del cambio: entra aunque sea maduro", () => assert.equal(r({}), 1));
+    it("medido después del cambio: ya tuvo su oportunidad", () => assert.equal(r({ medido_en: hace(2) }), 0));
+    it("sin fecha de cambio de piso: no hay rescate", () => assert.equal(r({}, null), 0));
+    it("maduro bajo el piso: no", () => assert.equal(r({ vistas: 300_000 }), 0));
+    it("fuera de la recencia: no", () => assert.equal(r({ publicado_en: hace(31) }), 0));
+    it("handle no activo: no", () => assert.equal(r({ handle: "otra" }), 0));
+  });
+});
+
+describe("fechaAjuste", () => {
+  const ajustes = [{ fields: { clave: "Mínimo de vistas", valor: 400_000, actualizado_en: "2026-09-15T04:58:42.590Z" } }, { fields: { clave: "Días de recencia", valor: 30, actualizado_en: "no-es-fecha" } }];
+  it("lee actualizado_en por clave", () => assert.equal(fechaAjuste(ajustes, "Mínimo de vistas"), "2026-09-15T04:58:42.590Z"));
+  it("null si es ilegible o falta", () => {
+    assert.equal(fechaAjuste(ajustes, "Días de recencia"), null);
+    assert.equal(fechaAjuste(ajustes, "Usar marca de agua"), null);
+  });
 });
 
 describe("valorAjuste", () => {
@@ -162,6 +187,19 @@ describe("conMarcaDeAgua", () => {
     assert.equal(r.marca_de_agua, false);
     assert.deepEqual(r.remedir, []);
     assert.match(r.marca_de_agua_motivo ?? "", /timeout/);
+  });
+  it("rescate: usa la fecha en que se movió Mínimo de vistas", () => {
+    const aj = AJ.map((a) => (a.clave === "Mínimo de vistas" ? { ...a, actualizado_en: hace(3) } : a));
+    const conMaduro: DatosMarcaDeAgua = {
+      ok: true, marcas: [], ritmos: [],
+      observaciones: [
+        { external_id: "3839722324954216054", handle: "askvinh", publicado_en: hace(5), medido_en: hace(3), vistas: 200_000, edad_al_medir_dias: 2 },
+        { external_id: "3839722324954216055", handle: "askvinh", publicado_en: hace(20), medido_en: hace(6), vistas: 450_000, edad_al_medir_dias: 14 },
+      ],
+    };
+    assert.equal(conMarcaDeAgua(plan(aj), conMaduro, AHORA).remedir.length, 2);
+    // Sin fecha del cambio (ajuste sin actualizado_en): solo el joven.
+    assert.equal(conMarcaDeAgua(plan(AJ), conMaduro, AHORA).remedir.length, 1);
   });
   it("sin Mínimo de vistas: marca sí, re-medición no", () => {
     const r = conMarcaDeAgua(plan(AJ.filter((a) => a.clave !== "Mínimo de vistas")), datos, AHORA);

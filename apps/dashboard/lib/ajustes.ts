@@ -41,7 +41,9 @@ export async function leerAjustesComoRegistros(ctx: TenantContext): Promise<Regi
   const filas = await leerAjustes(ctx);
   return filas.map((f) => ({
     id: f.clave,
-    fields: { clave: f.clave, valor: f.valor, descripcion: f.descripcion },
+    // `actualizado_en` viaja desde ADR-100: el rescate por cambio de piso necesita saber cuándo se
+    // movió `Mínimo de vistas`. Aditivo: los AJUSTE_MAP de los workflows lo ignoran.
+    fields: { clave: f.clave, valor: f.valor, descripcion: f.descripcion, actualizado_en: f.actualizado_en },
   }));
 }
 
