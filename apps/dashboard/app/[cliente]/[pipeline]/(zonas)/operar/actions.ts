@@ -4,13 +4,17 @@ import { comoRuta, rutaDe, type CockpitEnRuta } from "@/domain/rutas";
 import { revalidatePath } from "next/cache";
 import {
   armarVistaOperar,
-  costoDeCorrida,
+  costoDeCorridaConMarca,
+  handlesEnAlcance,
   hayCorridaViva,
   proyectosDelPlan,
-  type CostoCorrida,
+  type CostoCorridaEstimado,
 } from "@/domain/corrida";
+import { valorAjuste } from "@/domain/marca-de-agua";
 import { saldoApify, type SaldoApify } from "@/lib/apify";
+import { leerAjustesComoRegistros } from "@/lib/ajustes";
 import { leerConfigOperar } from "@/lib/config";
+import { leerDatosMarcaDeAgua } from "@/lib/marca-de-agua";
 import { leerBanco } from "@/lib/referentes";
 import { exigirTenant } from "@/lib/auth";
 import { queHariaArchivar } from "@/lib/candidatos";
@@ -161,15 +165,39 @@ export async function correrAhora(enRuta: CockpitEnRuta): Promise<ResultadoDispa
  * y la confirmación decía solo "¿Seguro?" (docs/costos.md §4.3.5). Mismo patrón que
  * `queHariaElArchivado`: se cuenta al apretar, y fail-open — perder el número no puede impedir
  * correr (invariante #1 de PLAN §2.5).
+ *
+ * 📏 **Desde ADR-100 el número que importa no es el techo, es lo que la marca de agua deja pagar**
+ * (`costoDeCorridaConMarca`): lee las mismas tres vistas de `pool_crudo` que lee la fachada
+ * (`leerDatosMarcaDeAgua`), sobre el mismo alcance que ya usaba el techo. Si la marca está apagada
+ * o esas vistas no se pueden leer, cae sola al techo de siempre — la UI no tiene que saberlo,
+ * `costo.conMarca` lo dice.
  */
 export async function queCostariaCorrer(
   enRuta: CockpitEnRuta,
-): Promise<{ costo: CostoCorrida; saldo: SaldoApify | null } | null> {
+): Promise<{ costo: CostoCorridaEstimado; saldo: SaldoApify | null; ultimaBusqueda: string | null } | null> {
   const { ctx } = await exigirTenant("operar", enRuta.cliente, enRuta.pipeline);
   try {
-    const [config, banco, saldo] = await Promise.all([leerConfigOperar(ctx), leerBanco(ctx), saldoApify()]);
+    const [config, banco, ajustes, saldo, corridas] = await Promise.all([
+      leerConfigOperar(ctx),
+      leerBanco(ctx),
+      leerAjustesComoRegistros(ctx),
+      saldoApify(),
+      ultimasCorridasMotor(ctx, 1),
+    ]);
     const vista = armarVistaOperar(config.voces, config.proyectos, config.resultadosPorCuenta);
-    return { costo: costoDeCorrida(banco, proyectosDelPlan(vista), config.resultadosPorCuenta), saldo };
+    const proyectosQueCorren = proyectosDelPlan(vista);
+    const ahora = new Date();
+    const datos = await leerDatosMarcaDeAgua(
+      ctx,
+      {
+        diasRecencia: valorAjuste(ajustes, "Días de recencia", 7),
+        piso: valorAjuste(ajustes, "Mínimo de vistas", 0),
+        handles: [...handlesEnAlcance(banco, proyectosQueCorren)],
+      },
+      ahora,
+    );
+    const costo = costoDeCorridaConMarca(banco, proyectosQueCorren, config.resultadosPorCuenta, ajustes, datos, ahora);
+    return { costo, saldo, ultimaBusqueda: corridas[0]?.inicio ?? null };
   } catch (e) {
     console.error("[operar] no se pudo estimar el costo de la corrida:", e);
     return null;

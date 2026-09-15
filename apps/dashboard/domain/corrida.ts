@@ -4,7 +4,8 @@
 
 // Relativo y con extensión, no `@/domain/...`: `npm test` corre estos `.ts` directo en Node, que
 // no resuelve el alias de tsconfig. Es el primer módulo de dominio que importa a otro.
-import { N_SI_EL_PROYECTO_NO_LO_DICE } from "./run-plan.ts";
+import { N_SI_EL_PROYECTO_NO_LO_DICE, type DatosMarcaDeAgua, type Registro } from "./run-plan.ts";
+import { desdeDe, elegirRemedir, fechaAjuste, limiteDe, normalizarHandlePool, valorAjuste } from "./marca-de-agua.ts";
 
 export type Voz = { id: string; nombre: string };
 
@@ -87,12 +88,16 @@ export type CostoCorrida = { cuentas: number; proyectos: number; resultadosPorCu
  * Es cota superior, no pronóstico: una cuenta que publicó menos que el knob devuelve menos. Se elige
  * sobreestimar porque este número existe para frenar, no para tranquilizar.
  */
-export function costoDeCorrida(
+/**
+ * Los handles de Instagram activos que van a correr para estos proyectos, normalizados igual que
+ * `pool_crudo` (sin `@`, minúsculas). Compartido por el techo (`costoDeCorrida`) y el estimado con
+ * marca de agua (`costoDeCorridaConMarca`): las dos miden el mismo alcance y no pueden discreparlo.
+ */
+export function handlesEnAlcance(
   referentes: { handle: string; plataforma: string; activo: boolean; proyectoIds: string[] }[],
   proyectosQueCorren: Set<string>,
-  resultadosPorCuenta: number,
-): CostoCorrida {
-  const handles = new Set(
+): Set<string> {
+  return new Set(
     referentes
       .filter(
         (r) =>
@@ -100,9 +105,16 @@ export function costoDeCorrida(
           r.plataforma.toLowerCase().includes("insta") &&
           r.proyectoIds.some((id) => proyectosQueCorren.has(id)),
       )
-      .map((r) => r.handle.trim().replace(/^@/, "").toLowerCase()),
+      .map((r) => normalizarHandlePool(r.handle)),
   );
-  const cuentas = handles.size;
+}
+
+export function costoDeCorrida(
+  referentes: { handle: string; plataforma: string; activo: boolean; proyectoIds: string[] }[],
+  proyectosQueCorren: Set<string>,
+  resultadosPorCuenta: number,
+): CostoCorrida {
+  const cuentas = handlesEnAlcance(referentes, proyectosQueCorren).size;
   const porCuenta = Math.max(0, resultadosPorCuenta);
   return {
     cuentas,
@@ -110,6 +122,79 @@ export function costoDeCorrida(
     resultadosPorCuenta: porCuenta,
     usd: cuentas * porCuenta * USD_POR_REEL_APIFY,
   };
+}
+
+export type CostoCorridaEstimado = CostoCorrida & {
+  /** El techo de siempre (cuentas × resultadosPorCuenta × precio): cota superior, verdadera por
+   *  construcción. Con la marca de agua puesta, `usd` baja de acá; sin ella, son el mismo número. */
+  techoUsd: number;
+  /** `true` si `usd` es el estimado real con marca de agua; `false` si cayó al techo (apagada en
+   *  ajustes, o no se pudieron leer las vistas de `pool_crudo`). */
+  conMarca: boolean;
+};
+
+/**
+ * Lo que ADR-100 de verdad va a cobrar, no el techo de siempre.
+ *
+ * Por cuenta: lo mínimo entre el cupo que se le va a pedir a Apify (`limite`, D2 — ya trae la
+ * holgura del 30%) y lo que se espera que haya publicado en la ventana desde `desde` (D1) según su
+ * `ritmo_semanal` medido, **sin** esa holgura — la holgura es margen para no pedir de menos, no una
+ * expectativa de gasto. Apify cobra por lo que devuelve, así que el mínimo de los dos es la cota
+ * real. Se suma lo que cuesta re-medir por URL (D3, `remedir.length`, mismo precio por reel).
+ *
+ * Sin ritmo medido para una cuenta (sin historia todavía en `pool_crudo`), se usa su `limite`
+ * entero: es exactamente lo que el techo viejo ya contaba para esa cuenta, y es la cota segura
+ * mientras no hay con qué estimar mejor — nunca un motivo para subestimar.
+ *
+ * Fail-open al techo si la marca de agua está apagada o `datos.ok` es `false`: perder el ahorro en
+ * la pantalla no puede impedir ver un número (mismo invariante que ya sigue `conMarcaDeAgua`).
+ */
+export function costoDeCorridaConMarca(
+  referentes: { handle: string; plataforma: string; activo: boolean; proyectoIds: string[] }[],
+  proyectosQueCorren: Set<string>,
+  resultadosPorCuenta: number,
+  ajustes: Registro[],
+  datos: DatosMarcaDeAgua,
+  ahora: Date,
+): CostoCorridaEstimado {
+  const techo = costoDeCorrida(referentes, proyectosQueCorren, resultadosPorCuenta);
+
+  if (valorAjuste(ajustes, "Usar marca de agua", 1) <= 0 || !datos.ok) {
+    return { ...techo, techoUsd: techo.usd, conMarca: false };
+  }
+
+  const dias = valorAjuste(ajustes, "Días de recencia", 7);
+  const piso = valorAjuste(ajustes, "Mínimo de vistas", 0);
+  const porCuenta = Math.max(0, resultadosPorCuenta);
+  const marca = new Map(datos.marcas.map((m) => [normalizarHandlePool(m.handle), m.watermark]));
+  const ritmo = new Map(datos.ritmos.map((m) => [normalizarHandlePool(m.handle), m.ritmo_semanal]));
+  const handles = handlesEnAlcance(referentes, proyectosQueCorren);
+
+  let reels = 0;
+  for (const h of handles) {
+    const desde = desdeDe(marca.get(h) ?? null, dias, ahora);
+    const rs = ritmo.has(h) ? (ritmo.get(h) as number) : null;
+    const limite = limiteDe(rs, desde, porCuenta, ahora);
+    if (rs === null) {
+      reels += limite; // sin ritmo: la misma cota que el techo para esta cuenta.
+      continue;
+    }
+    const diasDesde = Math.max(0, (ahora.getTime() - Date.parse(desde)) / 86_400_000);
+    reels += Math.min(limite, (rs * diasDesde) / 7);
+  }
+
+  const remedirN =
+    piso > 0
+      ? elegirRemedir(datos.observaciones, {
+          piso,
+          diasRecencia: dias,
+          handlesActivos: handles,
+          ahora,
+          pisoCambioEn: fechaAjuste(ajustes, "Mínimo de vistas"),
+        }).lista.length
+      : 0;
+
+  return { ...techo, usd: (reels + remedirN) * USD_POR_REEL_APIFY, techoUsd: techo.usd, conMarca: true };
 }
 
 /** Cuántas corridas enteras entran en lo que queda del cupo. Una corrida que no cobra no agota nada. */

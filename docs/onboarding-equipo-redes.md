@@ -190,9 +190,13 @@ videos recientes que quedaron cerca del piso de vistas **se vuelven a medir** po
 
 **Lo que van a notar:**
 
-- ⚠️ **El costo que muestra el botón es un TECHO, no lo que se va a pagar.** Todavía calcula como
-  antes (cuentas × videos por cuenta). Con el cambio, la búsqueda paga menos: solo lo nuevo. La frase
-  *"si ya se buscó esta semana, trae casi los mismos videos"* **ya no aplica**.
+- **El costo que muestra el botón ya cuenta lo nuevo, no el techo de siempre.** Dice algo como
+  *"cuesta ~1,20 USD (hasta 3,39)"*: el número chico es lo que de verdad se espera pagar con la
+  marca de agua puesta, y el de "hasta" sigue siendo la cota de siempre, por si algo falla. La frase
+  *"si ya se buscó esta semana, trae casi los mismos videos"* **ya no está** — en su lugar dice
+  cuándo fue la última búsqueda, que es un dato real y no una advertencia que dejó de ser cierta.
+  Si en cambio dice *"cuesta hasta X USD"* sin el "~", es que la marca de agua está apagada o no se
+  pudo leer: ahí sí es el techo de siempre.
 - **Pueden llegar videos que no son de esta semana.** Son videos que antes no llegaban al piso de
   vistas y ahora sí, o que se midieron cuando el piso era más alto. Llegan una sola vez.
 - **En `Corridas` pueden salir avisos nuevos.** Los dos esperables:

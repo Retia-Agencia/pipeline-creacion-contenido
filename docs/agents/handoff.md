@@ -29,10 +29,10 @@ tercio del medio eran cierres viejos anidados uno dentro de otro bajo un encabez
 
 | buscás | está en |
 |---|---|
-| **el estado de hoy** | el §ARRANCÁ POR ACÁ de acá abajo (cierre 157) |
+| **el estado de hoy** | el §ARRANCÁ POR ACÁ de acá abajo (cierre 158) |
 | **el refactor del motor** | 🧭 [plan-refactor-motor.md](./plan-refactor-motor.md) — el punto de partida único |
 | **los mensajes al equipo de redes** | [plan-refactor-motor §9](./plan-refactor-motor.md) — **1 y 2 enviados el 12/09**, el 3 escrito y pendiente |
-| **los cierres 145 a 157** | acá abajo, completos |
+| **los cierres 145 a 158** | acá abajo, completos |
 | **los cierres 70 a 144** | [handoff-archivo-2026-06_09.md](./handoff-archivo-2026-06_09.md) |
 | **el refactor Voces→Proyectos** | 🗄️ terminado y archivado el 2026-09-12: [docs/archivo/refactor-voces-proyectos.md](../archivo/refactor-voces-proyectos.md) |
 
@@ -40,7 +40,38 @@ tercio del medio eran cierres viejos anidados uno dentro de otro bajo un encabez
 N`), **nunca anidado dentro del anterior**. Así fue como nacieron las 5.736 líneas de blockquotes
 dentro de blockquotes que se acaban de archivar.
 
-## 🚦 ARRANCÁ POR ACÁ — CIERRE 157 (2026-09-15, tarde): marca de agua y re-medición del reel joven en producción, sin corrida todavía
+## 🚦 ARRANCÁ POR ACÁ — CIERRE 158 (2026-09-15, noche): el botón ▶ ya no estima el techo viejo ni dice "trae casi los mismos videos"
+
+> Cierra el pendiente #2 del cierre 157 (acá abajo): `queCostariaCorrer` seguía calculando
+> cuentas × resultados por cuenta aunque ADR-100 ya comprara menos, y la confirmación decía una
+> frase que dejó de ser cierta el mismo 15/09. Sesión de implementación, sin diseño nuevo.
+
+### ✅ Hecho
+
+| qué | dónde |
+|---|---|
+| `costoDeCorridaConMarca` (dominio puro) | [`apps/dashboard/domain/corrida.ts`](../../apps/dashboard/domain/corrida.ts) — por cuenta, `min(limite, ritmo_semanal × días desde \`desde\` ÷ 7)` + `remedir.length`, todo × 0,0023 USD. Lee las mismas tres vistas de `pool_crudo` que ya lee la fachada (`leerDatosMarcaDeAgua`); cae sola al techo (`costoDeCorrida`) si "Usar marca de agua" está apagada o esas vistas fallan — `conMarca` en el resultado dice cuál de los dos es |
+| Botón ▶ | [`boton-correr.tsx`](../../apps/dashboard/app/[cliente]/[pipeline]/(zonas)/operar/boton-correr.tsx) dice *"cuesta ~X USD (hasta Y)"* con marca puesta, *"cuesta hasta X USD"* sin ella. La frase falsa se reemplazó por *"la última búsqueda fue hace N"* |
+| [onboarding §3.2](../onboarding-equipo-redes.md) | corregido: ya no le dice al equipo que el número es un techo fijo |
+| Tests | 6 nuevos en `domain/corrida.test.ts`, con los mismos números que ya verifica `conMarcaDeAgua` en `marca-de-agua.test.ts` (misma cuenta, mismo `desde`, mismo `limite`) para que las dos cuentas no puedan discrepar en silencio |
+| `npm test` (601/601) · `npm run typecheck` · `npm run build` | verdes en `apps/dashboard` |
+
+### ⚠️ No verificado en pantalla
+
+El texto nunca se vio en el navegador: el cockpit pide login (mail + contraseña) y no hay manera de
+pasar eso sin credenciales reales — el mismo límite que ya había dejado anotado el cierre 155 para
+esta misma pantalla (`queCostariaCorrer`). Falta que alguien con acceso lo mire una vez en Operar y
+confirme que el texto se lee bien con marca puesta, con marca apagada, y con el saldo de Apify
+agotado.
+
+### Lo que sigue, en orden
+
+1. **Verificar visualmente el botón** (el punto de arriba) — es lo único que falta de esta tarea.
+2. La primera corrida con marca de agua (pendiente 1 del cierre 157) sigue sin correr.
+3. Pestaña de Referentes nueva (pendiente 3 del cierre 157) y los pendientes 2-4 del cierre 156
+   siguen vivos.
+
+## 🔒 CIERRE 157 (2026-09-15, tarde): marca de agua y re-medición del reel joven en producción, sin corrida todavía
 
 > Sesión de diseño → medición → implementación → producción. Decisión:
 > [ADR-100](../adr/ADR-100-se-compra-lo-nuevo-y-se-remide-lo-joven.md). Plan y estado por tarea:
@@ -85,9 +116,9 @@ dentro de blockquotes que se acaban de archivar.
 - **`Días de recencia` se queda en 50** para la primera corrida. Con marca de agua pasa de ventana a
   techo: solo actúa en las 4 cuentas sin historia y en el alcance del rescate. Bajarlo a 30 no lo
   exige ninguna decisión; se revisa después de medir.
-- **El botón ▶ sigue estimando el costo viejo** (cuentas × 25) y dice *"trae casi los mismos
+- ✅ **El botón ▶ sigue estimando el costo viejo** (cuentas × 25) y dice *"trae casi los mismos
   videos"*, que ya es falso. Se le avisó al equipo en [onboarding §3.2](../onboarding-equipo-redes.md);
-  el arreglo quedó propuesto como tarea aparte.
+  el arreglo quedó propuesto como tarea aparte. **Resuelto en el cierre 158** (arriba).
 - `.in("handle", …)` viaja en la URL: aguanta unos cientos de referentes (`ponytail:` en
   `lib/marca-de-agua.ts`).
 - Posts fijados siguen colándose con fecha (T7): con marca de agua pesan más.
@@ -100,7 +131,7 @@ dentro de blockquotes que se acaban de archivar.
    reels comprados por `chargedEventCounts`, re-medidos que cruzaron el piso, filas `origen = motor`
    en `pool_crudo` (esto también cierra el pendiente 1 del cierre 156), avisos, y que el rescate **no**
    se repita en la corrida siguiente.
-2. Arreglar el estimado del botón ▶ (tarea propuesta).
+2. ✅ Arreglar el estimado del botón ▶ (tarea propuesta) — hecho en el cierre 158.
 3. Pestaña de Referentes nueva (volumen y costo, rendimiento, embudo, historia): diseño en la
    conversación del 15/09, falta mockup con casos de falla y su ADR. Sale de `v_ritmo_referentes` + una
    vista de ledger.

@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { busquedasQueAlcanzan } from "@/domain/corrida";
+import { busquedasQueAlcanzan, haceCuanto } from "@/domain/corrida";
 import { correrAhora, queCostariaCorrer, type ResultadoDisparo } from "./actions";
 import { usarCockpit } from "../usar-cockpit";
 import { MOTOR_BLOQUEADO } from "./bloqueo";
@@ -24,6 +24,13 @@ const fecha = (iso: string) =>
 // 📏 Desde el 2026-09-15 la confirmación dice el COSTO y lo que QUEDA del cupo, contados al apretar.
 // "¿Seguro?" no frenó las búsquedas repetidas del 10/09; "cuesta 3,40 y alcanza para 6" es la misma
 // información, y es la única de las dos que se lee.
+//
+// 🩸 Y ese mismo día (ADR-100) las dos frases quedaron falsas: el número seguía siendo el TECHO
+// (cuentas × videos por cuenta) cuando la marca de agua ya compra solo lo nuevo, y "si ya se buscó
+// esta semana, trae casi los mismos videos" dejó de pasar — la búsqueda no repite. `queCostariaCorrer`
+// ahora estima con la marca de agua puesta (`costoDeCorridaConMarca`) y cae al techo si está apagada
+// o no se pudo leer (`estimado.costo.conMarca` lo distingue); la frase la reemplaza cuándo fue la
+// última búsqueda, que es verdad se use o no la marca.
 export function BotonCorrer({ deshabilitado }: { deshabilitado: boolean }) {
   const cockpit = usarCockpit();
   const [confirmando, setConfirmando] = useState(false);
@@ -71,8 +78,17 @@ export function BotonCorrer({ deshabilitado }: { deshabilitado: boolean }) {
               "Correr gasta créditos aunque no haya videos nuevos. ¿Seguro?"
             ) : (
               <>
-                Esta búsqueda cuesta hasta <strong>{usd(estimado.costo.usd)} USD</strong> (
-                {estimado.costo.cuentas} cuentas × {estimado.costo.resultadosPorCuenta} videos).{" "}
+                Esta búsqueda cuesta{" "}
+                {estimado.costo.conMarca ? (
+                  <>
+                    ~<strong>{usd(estimado.costo.usd)} USD</strong> (hasta {usd(estimado.costo.techoUsd)})
+                  </>
+                ) : (
+                  <>
+                    hasta <strong>{usd(estimado.costo.usd)} USD</strong>
+                  </>
+                )}{" "}
+                ({estimado.costo.cuentas} cuentas × {estimado.costo.resultadosPorCuenta} videos).{" "}
                 {estimado.costo.proyectos > 1 &&
                   `Son las cuentas distintas de los ${estimado.costo.proyectos} proyectos: una cuenta que alimenta a varios se paga una sola vez. `}
                 {estimado.saldo && libre !== null && alcanza !== null && (
@@ -84,7 +100,10 @@ export function BotonCorrer({ deshabilitado }: { deshabilitado: boolean }) {
                     .{" "}
                   </>
                 )}
-                Si ya se buscó esta semana, trae casi los mismos videos. ¿Seguro?
+                {estimado.ultimaBusqueda
+                  ? `La última búsqueda fue ${haceCuanto(estimado.ultimaBusqueda, new Date())}. `
+                  : "Todavía no hay ninguna búsqueda registrada. "}
+                ¿Seguro?
               </>
             )}
           </span>

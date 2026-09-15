@@ -25,8 +25,11 @@ import {
   VENTANA_CORRIDA_MIN,
   busquedasQueAlcanzan,
   costoDeCorrida,
+  costoDeCorridaConMarca,
+  handlesEnAlcance,
   type Corrida,
 } from "./corrida.ts";
+import type { DatosMarcaDeAgua, Registro } from "./run-plan.ts";
 
 describe("costoDeCorrida", () => {
   const ref = (handle: string, proyectoIds: string[], extra: Partial<{ plataforma: string; activo: boolean }> = {}) => ({
@@ -65,6 +68,69 @@ describe("costoDeCorrida", () => {
   it("el roster de hoy (59 cuentas × 25) da los 3,39 USD medidos en docs/costos.md", () => {
     const referentes = Array.from({ length: 59 }, (_, i) => ref(`cuenta${i}`, ["p1"]));
     assert.equal(costoDeCorrida(referentes, new Set(["p1"]), 25).usd.toFixed(2), "3.39");
+  });
+});
+
+describe("handlesEnAlcance", () => {
+  it("normaliza igual que pool_crudo (sin @, minúsculas)", () => {
+    const referentes = [{ handle: "@AskVinh", plataforma: "instagram", activo: true, proyectoIds: ["p1"] }];
+    assert.deepEqual(handlesEnAlcance(referentes, new Set(["p1"])), new Set(["askvinh"]));
+  });
+});
+
+describe("costoDeCorridaConMarca", () => {
+  const AHORA = new Date("2026-09-15T12:00:00.000Z");
+  const hace = (dias: number) => new Date(AHORA.getTime() - dias * 86_400_000).toISOString();
+  const ref = (handle: string, proyectoIds: string[]) => ({ handle, plataforma: "instagram", activo: true, proyectoIds });
+  const referentes = [ref("@askvinh", ["p1"])];
+  const proyectos = new Set(["p1"]);
+  const ajustes = (usarMarca: number): Registro[] => [
+    { id: "1", fields: { clave: "Días de recencia", valor: 30 } },
+    { id: "2", fields: { clave: "Resultados por cuenta de referente", valor: 25 } },
+    { id: "3", fields: { clave: "Mínimo de vistas", valor: 400_000 } },
+    { id: "4", fields: { clave: "Usar marca de agua", valor: usarMarca } },
+  ];
+  // Mismos números que `conMarcaDeAgua` en marca-de-agua.test.ts: desde = hace(8) (más nueva que el
+  // techo de 30 días), limite = 30, y el reel de la observación entra a remedir (1).
+  const datos: DatosMarcaDeAgua = {
+    ok: true,
+    marcas: [{ handle: "askvinh", watermark: hace(8) }],
+    ritmos: [{ handle: "askvinh", ritmo_semanal: 20 }],
+    observaciones: [{ external_id: "3839722324954216054", handle: "askvinh", publicado_en: hace(5), medido_en: hace(3), vistas: 200_000, edad_al_medir_dias: 2 }],
+  };
+
+  it("con marca: min(limite, ritmo × días desde ÷ 7) por cuenta, más lo que se re-mide", () => {
+    const costo = costoDeCorridaConMarca(referentes, proyectos, 25, ajustes(1), datos, AHORA);
+    // 1 cuenta: min(limite=30, 20×8÷7=22,857…) = 22,857…; + 1 de remedir = 23,857… × 0,0023.
+    assert.equal(costo.usd.toFixed(4), (((20 * 8) / 7 + 1) * 0.0023).toFixed(4));
+    assert.equal(costo.techoUsd.toFixed(4), (1 * 25 * 0.0023).toFixed(4));
+    assert.equal(costo.conMarca, true);
+    assert.ok(costo.usd < costo.techoUsd, "el estimado con marca es menor que el techo viejo");
+  });
+
+  it("sin ritmo medido para una cuenta: cae a su limite, la misma cota que el techo", () => {
+    const sinRitmo: DatosMarcaDeAgua = { ok: true, marcas: [], ritmos: [], observaciones: [] };
+    const costo = costoDeCorridaConMarca(referentes, proyectos, 25, ajustes(1), sinRitmo, AHORA);
+    assert.equal(costo.usd.toFixed(4), costo.techoUsd.toFixed(4));
+    assert.equal(costo.conMarca, true);
+  });
+
+  it("apagada en ajustes: cae al techo", () => {
+    const costo = costoDeCorridaConMarca(referentes, proyectos, 25, ajustes(0), datos, AHORA);
+    assert.equal(costo.usd, costo.techoUsd);
+    assert.equal(costo.conMarca, false);
+  });
+
+  it("no se pudieron leer las vistas: cae al techo sin abortar", () => {
+    const costo = costoDeCorridaConMarca(referentes, proyectos, 25, ajustes(1), { ok: false, error: "timeout" }, AHORA);
+    assert.equal(costo.usd, costo.techoUsd);
+    assert.equal(costo.conMarca, false);
+  });
+
+  it("Mínimo de vistas en 0: no re-mide, aunque haya observaciones", () => {
+    const ajustesSinPiso = ajustes(1).map((a) => (a.fields.clave === "Mínimo de vistas" ? { ...a, fields: { ...a.fields, valor: 0 } } : a));
+    const costo = costoDeCorridaConMarca(referentes, proyectos, 25, ajustesSinPiso, datos, AHORA);
+    assert.equal(costo.usd.toFixed(4), (((20 * 8) / 7) * 0.0023).toFixed(4));
   });
 });
 
