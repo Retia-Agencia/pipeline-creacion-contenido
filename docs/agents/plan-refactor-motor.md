@@ -227,7 +227,7 @@ crecimiento es grande (2,29 % en 52 min para los de menos de 24 h).
 **Se saca de los MISMOS datos, sin pagar:** los items de Apify traen `timestamp` de publicación, así
 que basta filtrar los pares por *edad en la primera medición* y quedarse con los que eran nuevos.
 Es una pasada más sobre lo ya descargado. **Tiene fecha de vencimiento: lo más viejo se cae un día
-por día, y el 11/10 no queda nada.**
+por día, y el 11/10 no queda nada.** ✅ *Medida el 15/09: §1.4.*
 
 📏 *Nota de método: el conteo de "reels distintos por día" es una muestra (se leyeron hasta 14
 datasets por día), no un censo. Los porcentajes de crecimiento sí son exactos: se calculan reel por
@@ -262,6 +262,51 @@ fórmula a priori**; es una tabla empírica que sale de §1.3, con la forma que 
 
 🔑 **Y `D` no es un parámetro técnico: es la pregunta *"¿cuánto tiempo le damos a un video para
 demostrar que sirve?"*, que la contesta el equipo de medios.** Ver §5.1 Q1.
+
+### §1.4 · ✅ La curva del reel JOVEN, medida el 15/09 (M1-bis cerrada)
+
+**Fuente:** `app.pool_crudo` (backfill del 15/09), cero USD. Por reel, primera y última observación;
+la edad es la de la **primera compra**. 2.980 reels con dos o más mediciones separadas por ≥1 día.
+Consultas y resultados: [`docs/experimentos/2026-09-15-curva-reel-joven.sql`](../experimentos/2026-09-15-curva-reel-joven.sql).
+
+| edad al comprarlo | n | crecimiento después (mediana) | %/día | p90 |
+|---|---|---|---|---|
+| 0-1 d | 92 | **+110 %** | 12,0 | +1.510 % |
+| 1-3 d | 194 | +20 a 27 % | 2,2-2,9 | +190-210 % |
+| 3-7 d | 312 | +7,5 a 15 % | 1,1-1,4 | +32-52 % |
+| 7-14 d | 308 | +4,4 % | 0,74 | +65 % |
+| 14-30 d | 466 | +1,0 % | 0,19 | +143 % |
+| 30 d+ | 1.608 | +0,1 % | 0,02 | +2 % |
+
+**Cuántos que estaban bajo 400k cruzaron después:**
+
+| edad | banda al comprarlo | cruzaron |
+|---|---|---|
+| 0-3 d | 200-400k | **7 de 13** |
+| 0-3 d | 100-200k | 3 de 19 |
+| 0-3 d | <50k | 4 de 206 |
+| 3-7 d | 100-400k | 4 de 43 |
+| 7 d+ | 100-400k | 23 de 537 |
+
+**Lecturas:**
+
+1. **Un reel deja de ser joven entre los 7 y los 14 días.** Antes, la foto del día de compra miente;
+   después, casi siempre dice la verdad (coherente con §1.3).
+2. **Regla de re-medición dirigida que sale del dato:** reels de **<7 días con 100k-400k** al
+   comprarlos. En toda la historia son **75, y 14 cruzaron (19 %)**. Re-medirlos por URL cuesta
+   centavos (ver [costos §4.3.5](../costos.md)).
+3. 🩸 **Hay reels viejos que reviven**, y ninguna regla barata los atrapa: `askvinh`
+   `3940928519745102729` tenía 18.805 a los 34 días y 609.730 tres semanas después. Se concentran en
+   dos cuentas (`askvinh`, `jefferson_fisher`). Se aceptan como pérdida.
+
+🔬 **Segunda señal, en vivo (Apify run `JrdYsvf52nlFdhrNt`, 6 × 0,0023 = 0,0138 USD):** 6 reels re-medidos por
+URL. El revivido de `askvinh` hoy tiene 626.269 y `jen_gottlieb` `3970801575865573889` pasó de
+1.301.672 a 1.354.142: **los cruces son reales, no un cambio de campo entre actores.** Los dos
+controles maduros casi no se movieron (880.654 → 881.157; 294.568 → 294.428).
+
+⚠️ **Sesgos:** solo hay pares de cuentas que se re-compraron, y el intervalo entre mediciones varía
+por tramo (mediana 5 a 22 días), así que la columna %/día es una normalización lineal y cruda. Sirve
+para decidir el corte de "joven", no para construir `avance(edad)` con decimales.
 
 ---
 
@@ -579,7 +624,7 @@ ponga en el motor lo puso un dev por su cuenta, que es exactamente lo que pasó 
 | id | Pregunta | Cómo se contesta | Costo | Estado |
 |---|---|---|---|---|
 | ~~M1~~ | ~~¿Qué forma tiene `avance(edad)`? Re-medir la cohorte congelada~~ | ✅ **SUPERADA el 12/09 por un método mejor y gratis.** No hace falta comprar nada: la re-compra dejó el mismo reel medido en varias fechas dentro de datasets ya pagados (§1.3). 26 días de historia, miles de reels, **0 USD** |
-| **M1-bis** | 🔴 **La curva del reel JOVEN (día 0 → día 7)**, que es la que falta | Misma fuente de §1.3, una pasada más: filtrar los pares por `timestamp` de publicación y quedarse con los que eran **nuevos en la primera medición** | **0 USD** | ⬜ **el número que desbloquea todo, y vence el 11/10** |
+| **M1-bis** | 🔴 **La curva del reel JOVEN (día 0 → día 7)**, que es la que falta | Misma fuente de §1.3, una pasada más: filtrar los pares por `timestamp` de publicación y quedarse con los que eran **nuevos en la primera medición** | **0 USD** | ✅ **medida el 15/09, ver §1.4** |
 | **M2** | ¿Cuál es el `ritmo_publicacion` real de cada referente? | Del pool crudo (§3.5). 🆕 **O ya: una corrida con `resultsLimit = 100` y ventana de 14 d sobre el roster** — el rango actual es 59-218 reels/semana (4× de ancho) porque **14 de 26 cuentas topearon en `resultsLimit = 25`** y su historia está truncada | ~1,50 USD | ⬜ **es el número que cierra el cálculo de supply de §0** |
 | **M5** | 🆕 ¿Cuántos reels trae una página de `user/medias/chunk` de HikerAPI? Cobra por PÁGINA: con 12+ sale **más barato que Apify**; con 1, 8,7× peor | Su trial de 100 requests | **0 USD** | ⬜ *el único número que podría dar vuelta un veredicto de proveedor* |
 | **M3** | ¿La duración colisiona entre videos distintos del mismo creador? (ADR-086) | Las 3 consultas ya escritas en el handoff, después de la primera corrida de redes | 0 | ⛔ bloqueado por el ⛔ del botón |
@@ -645,7 +690,7 @@ Salieron del repaso del 12/09. **No bloquean, pero cualquier diseño que las ign
 
 | # | Paso | Depende de | Costo | Reversible |
 |---|---|---|---|---|
-| 0 | 🔴 **Sacar la curva del reel joven de los datasets ya pagados** (M1-bis) | — | **0 USD** | sí, y **vence el 11/10** |
+| 0 | ✅ **Sacar la curva del reel joven** (M1-bis) — **hecho el 15/09 desde `pool_crudo`, §1.4** | — | **0 USD** | sí |
 | 1 | **Preguntarle al equipo de medios** (§5.1, los dos mensajes de §9) y con eso escribir el **protocolo de éxito P1-P3** | — | 0 | sí |
 | 2 | ✅ Crear `app.pool_crudo` y empezar a llenarla — **aplicada el 15/09** ([ADR-099](../adr/ADR-099-el-pool-crudo-recuerda-lo-que-se-pago.md)). ⚠️ El motor todavía no escribe en ella | T1, T2 | 0 | sí |
 | 3 | ✅ Copiar los datasets de Apify — **hecho el 15/09**: 32.243 observaciones, 10.940 reels. *El plazo no era el 11/10: los más viejos vencían el 17/09.* Hasta que el motor escriba el pool, re-correr el backfill antes de 31 días | paso 2 | **0,0136 USD** | ⛔ **no: lo que no se copie se pierde** |
@@ -1028,7 +1073,7 @@ queda igual · D7 el ▶ bloqueado · **D8 (12/09): el motor no mata, asigna · 
 | 1 | ✅ **CERRADO en parte (12/09): los mensajes 1 y 2 se enviaron.** El párrafo del reality check quedó **sin nombrar el 500.000** (§9). ⚠️ *Sacarlo del mensaje no cierra el tema: lo aplaza al abierto #3.* Falta enviar el mensaje **3** | Mani, tras la prueba de M5 |
 | 2 | **P1 · P2 · P3**, el protocolo de medición de éxito | equipo de redes (§5.1) |
 | 3 | **La conversación con Daniel sobre qué significa accuracy.** Hay dos definiciones en conflicto y el 500k es instrucción suya (§0) | Mani, sin fecha |
-| 4 | **M1-bis**, la curva del reel joven. Gratis, y **vence el 2026-10-11** | un dev, 0 USD |
+| 4 | ✅ **M1-bis**, la curva del reel joven — medida el 15/09, §1.4 | un dev, 0 USD |
 | 5 | **Todo §3bis**: esquema estructurado de criterios, prompt comparativo, y si asignar funciona mejor. **Es un reencuadre, no un diseño** | sesión aparte |
 | 6 | **C1-C8** (§5bis): explicable en 5 pasos · sospecha de over-engineering · arranque en frío · `seguidores` como denominador flojo · **TikTok muerto** · revisión del protocolo · qué significa "aprobado" · no hay con qué validar el cambio | varios |
 | 7 | **T1 · T2 · T3 · T5 · T6 · T7 · T8** (§5.3), incluida la discrepancia **26 vs 59 referentes** | un dev |

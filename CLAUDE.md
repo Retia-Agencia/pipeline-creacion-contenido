@@ -55,7 +55,8 @@ en §Agent skills; acá solo se ubican.
   **gratis** (§1.3): 26 días de historia sacados de los datasets que la re-compra ya había pagado,
   y en cada ventana de semanas creció **el 100 %** de los reels (122/122, 120/120), ~1-3 %/mes.
   *Lo que se contaba como desperdicio era el estudio longitudinal que hacía falta.* Falta el tramo
-  del reel **joven**, sale de los mismos datos, cuesta 0, y **vence el 11/10**.
+  del reel **joven**: ✅ medido el 15/09 desde `pool_crudo` (§1.4) — un reel es joven hasta los 7-14
+  días, y los de <7 días con 100k-400k se re-miden por URL a 0,0023 USD cada uno.
   🩸 **Y el dato que cambia la naturaleza del cambio: el `min_views = 500.000` NO es un default de
   dev, es una instrucción explícita del jefe** — *"para él eso es accuracy"* (Mani, 12/09). O sea que
   el refactor no es un arreglo técnico sino una **renegociación de qué significa accuracy**: hoy hay

@@ -670,6 +670,12 @@ Las dos salidas que quedan:
 - **(b) Guardar el pool y re-medir selectivo.** Un reel puntual se re-mide por URL a 0,0023
   (`resultsType: posts`, `resultsLimit: 1`) — el motor **ya hace exactamente eso** para
   `videos_meta`. Re-medir 100 borderline sale 0,23 USD contra 1,04 de re-comprar la ventana entera.
+  📏 **Confirmado en vivo el 15/09: 0,0023 por reel, exacto.** 6 reels por URL en una corrida
+  (`JrdYsvf52nlFdhrNt`): `chargedEventCounts.result = 6`, `usageTotalUsd = 0,0138`. 🩸 *Leído justo
+  al terminar la corrida daba 0,0046 y se anotó como "0,0008 por reel": **`usageTotalUsd` recién
+  terminada es parcial, el cobro se asienta después.** El número bueno es `chargedEventCounts` ×
+  `eventPriceUsd`.* Qué reels vale la pena re-medir sale de
+  [plan-refactor-motor §1.4](agents/plan-refactor-motor.md).
 
 ⚠️ **`dias_recencia = 50` hoy no hace casi nada, además.** 14 de las 24 cuentas topean en 25 antes
 de llegar al día 50, así que para ellas la ventana es un no-op. Y **29 reels (6,5 %) volvieron
@@ -707,7 +713,8 @@ producto y la ventana larga se justifica.
    pagados, y Apify los conserva 31 días. Resultado en
    [plan-refactor-motor §1.3](./agents/plan-refactor-motor.md). **Lo que falta es el tramo del reel
    JOVEN** (día 0→7), que sale de los mismos datos filtrando por `timestamp` de publicación, cuesta
-   0, y **vence el 2026-10-11**.
+   0, y **vence el 2026-10-11**. ✅ **Medido el 15/09 desde `pool_crudo`:**
+   [plan-refactor-motor §1.4](./agents/plan-refactor-motor.md).
 
 **Reproducir todo esto:** los ids de corrida salen de `GET /v2/actor-runs?limit=500&desc=1`, los
 items de `GET /v2/datasets/<id>/items?fields=id,ownerUsername,videoPlayCount,timestamp`, y ninguna
