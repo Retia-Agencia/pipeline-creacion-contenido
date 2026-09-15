@@ -170,7 +170,7 @@ export function armarRunPlanLinkedin(
 }
 
 import {
-  desdeDe, elegirRemedir, fechaAjuste, limiteDe, normalizarHandlePool, valorAjuste,
+  desdeDe, elegirRemedir, fechaAjuste, handlesInstagram, limiteDe, normalizarHandlePool, valorAjuste,
   type Observacion, type ReelARemedir,
 } from "./marca-de-agua.ts";
 
@@ -220,9 +220,7 @@ export function conMarcaDeAgua(plan: RunPlan, datos: DatosMarcaDeAgua, ahora: Da
     return { id: r.id, fields: { ...r.fields, desde, limite: limiteDe(rs, desde, porCuenta, ahora), ritmo_semanal: rs } };
   });
 
-  const activos = new Set(
-    plan.referentes.filter((r) => esIG(r.fields)).map((r) => normalizarHandlePool(String(r.fields.handle ?? ""))),
-  );
+  const activos = new Set(handlesInstagram(plan.referentes));
   const remedir = piso > 0
     ? elegirRemedir(datos.observaciones, {
         piso, diasRecencia: dias, handlesActivos: activos, ahora,

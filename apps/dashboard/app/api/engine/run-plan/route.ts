@@ -1,6 +1,6 @@
 import { autenticar, rechazar } from "@/app/api/engine/auth";
 import { PIPELINE_LINKEDIN, PIPELINE_REELS } from "@/domain/pipelines";
-import { valorAjuste } from "@/domain/marca-de-agua";
+import { handlesInstagram, valorAjuste } from "@/domain/marca-de-agua";
 import { armarRunPlan, armarRunPlanCompleto, armarRunPlanLinkedin, conMarcaDeAgua } from "@/domain/run-plan";
 import { leerRunPlanCrudo, leerRunPlanCrudoLinkedin } from "@/lib/config";
 import { leerDatosMarcaDeAgua } from "@/lib/marca-de-agua";
@@ -77,7 +77,15 @@ export async function GET(request: Request) {
     if (ambito !== "motor") return Response.json(armarRunPlanCompleto(crudo, ahora));
     const base = armarRunPlan(crudo, ahora);
     // ADR-100: la marca de agua es un ahorro. Si falla, el plan sale igual sin marca (D6).
-    const datos = await leerDatosMarcaDeAgua(tenant.ctx, valorAjuste(base.ajustes, "Días de recencia", 7), ahora);
+    const datos = await leerDatosMarcaDeAgua(
+      tenant.ctx,
+      {
+        diasRecencia: valorAjuste(base.ajustes, "Días de recencia", 7),
+        piso: valorAjuste(base.ajustes, "Mínimo de vistas", 0),
+        handles: handlesInstagram(base.referentes),
+      },
+      ahora,
+    );
     if (!datos.ok) console.error(`[run-plan] marca de agua no disponible: ${datos.error}`);
     return Response.json(conMarcaDeAgua(base, datos, ahora));
   } catch (e) {

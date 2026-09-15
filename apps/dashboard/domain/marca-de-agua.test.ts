@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import {
-  desdeDe, elegirRemedir, fechaAjuste, limiteDe, normalizarHandlePool, shortcodeDe, valorAjuste,
+  desdeDe, elegirRemedir, fechaAjuste, handlesInstagram, limiteDe, normalizarHandlePool, shortcodeDe, valorAjuste,
   type Observacion,
 } from "./marca-de-agua.ts";
 
@@ -110,6 +110,18 @@ describe("elegirRemedir", () => {
     it("maduro bajo el piso: no", () => assert.equal(r({ vistas: 300_000 }), 0));
     it("fuera de la recencia: no", () => assert.equal(r({ publicado_en: hace(31) }), 0));
     it("handle no activo: no", () => assert.equal(r({ handle: "otra" }), 0));
+  });
+});
+
+describe("handlesInstagram", () => {
+  it("solo Instagram, normalizados y sin repetir", () => {
+    const refs = [
+      { fields: { handle: "@AskVinh", plataforma: "instagram" } },
+      { fields: { handle: "askvinh", plataforma: "Instagram" } },
+      { fields: { handle: "@tt", plataforma: "tiktok" } },
+      { fields: { handle: "", plataforma: "instagram" } },
+    ];
+    assert.deepEqual(handlesInstagram(refs), ["askvinh"]);
   });
 });
 

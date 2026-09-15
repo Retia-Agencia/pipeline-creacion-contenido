@@ -12,6 +12,15 @@ export function normalizarHandlePool(h: string): string {
   return String(h ?? "").trim().replace(/^@/, "").toLowerCase();
 }
 
+/** Los handles de Instagram del plan, normalizados como `pool_crudo` y sin repetir. */
+export function handlesInstagram(referentes: { fields: Record<string, unknown> }[]): string[] {
+  const hs = referentes
+    .filter((r) => String(r.fields.plataforma ?? "").toLowerCase().includes("insta"))
+    .map((r) => normalizarHandlePool(String(r.fields.handle ?? "")))
+    .filter(Boolean);
+  return [...new Set(hs)];
+}
+
 /** D1: `max(marca, ahora − días)`. Sin marca o ilegible, el techo. */
 export function desdeDe(watermark: string | null, diasRecencia: number, ahora: Date): string {
   const techo = ahora.getTime() - diasRecencia * DIA_MS;
