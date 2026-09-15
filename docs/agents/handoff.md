@@ -29,10 +29,10 @@ tercio del medio eran cierres viejos anidados uno dentro de otro bajo un encabez
 
 | buscás | está en |
 |---|---|
-| **el estado de hoy** | el §ARRANCÁ POR ACÁ de acá abajo (cierre 156) |
+| **el estado de hoy** | el §ARRANCÁ POR ACÁ de acá abajo (cierre 157) |
 | **el refactor del motor** | 🧭 [plan-refactor-motor.md](./plan-refactor-motor.md) — el punto de partida único |
 | **los mensajes al equipo de redes** | [plan-refactor-motor §9](./plan-refactor-motor.md) — **1 y 2 enviados el 12/09**, el 3 escrito y pendiente |
-| **los cierres 145 a 156** | acá abajo, completos |
+| **los cierres 145 a 157** | acá abajo, completos |
 | **los cierres 70 a 144** | [handoff-archivo-2026-06_09.md](./handoff-archivo-2026-06_09.md) |
 | **el refactor Voces→Proyectos** | 🗄️ terminado y archivado el 2026-09-12: [docs/archivo/refactor-voces-proyectos.md](../archivo/refactor-voces-proyectos.md) |
 
@@ -40,7 +40,78 @@ tercio del medio eran cierres viejos anidados uno dentro de otro bajo un encabez
 N`), **nunca anidado dentro del anterior**. Así fue como nacieron las 5.736 líneas de blockquotes
 dentro de blockquotes que se acaban de archivar.
 
-## 🚦 ARRANCÁ POR ACÁ — CIERRE 156 (2026-09-15): el descubrimiento llevaba 5 corridas tirando lo que encontraba, y el motor ya escribe el pool crudo
+## 🚦 ARRANCÁ POR ACÁ — CIERRE 157 (2026-09-15, tarde): marca de agua y re-medición del reel joven en producción, sin corrida todavía
+
+> Sesión de diseño → medición → implementación → producción. Decisión:
+> [ADR-100](../adr/ADR-100-se-compra-lo-nuevo-y-se-remide-lo-joven.md). Plan y estado por tarea:
+> [plan-marca-de-agua.md](./plan-marca-de-agua.md). Tareas 1-4 las hizo Kiro; revisión, rescate,
+> arreglos y salida a producción, Claude. Mani aplicó `043` + `045` e hizo push de parte.
+
+### ✅ En producción (verificado por efecto)
+
+| qué | cómo se midió |
+|---|---|
+| `043` y `045` aplicadas | catálogo: trigger `ajustes_sella_actualizado_en`, vistas `v_ritmo_referentes` / `v_remedir_candidatos` (`security_invoker`), fila `Usar marca de agua` = 1 (`dev`) |
+| Fachada `run-plan` | `GET ?ambito=motor` en prod: `marca_de_agua: true`, 59 cuentas IG con `desde`, `remedir` = **200** (el tope; hay 237 candidatos: 63 jóvenes + 174 de rescate) |
+| Motor (4 nodos) | `n8n:push` aplicado, `n8n:diff` verde en los 5; leído del live: `actorId` sigue `__rl` |
+| Rollback | `Usar marca de agua = 0` en ajustes; motor: `.n8n-snapshots/motor-2026-09-15T21-09-58-612Z.json` |
+
+### 📏 Lo que se midió (y dónde quedó)
+
+- **Curva del reel joven** (M1-bis cerrada): comprado a 0-1 d crece +110 % mediano, a 30 d+ +0,1 %;
+  <7 d con 100k-400k cruzaron 400k 14 de 75. [plan-refactor-motor §1.4](./plan-refactor-motor.md) +
+  [`docs/experimentos/2026-09-15-curva-reel-joven.sql`](../experimentos/2026-09-15-curva-reel-joven.sql).
+- **Re-medir por URL cuesta 0,0023/reel** (run `JrdYsvf52nlFdhrNt`). 🩸 Se anotó primero 0,0008 por
+  leer `usageTotalUsd` apenas terminó la corrida: el cobro se asienta después. Usar
+  `chargedEventCounts`.
+- **API de Meta:** `view_count` de reels ajenos existe solo por Business Discovery, cuentas
+  business/creator (25-50 % del roster), pide token que no hay. Sin probar.
+
+### 🩸 Tres cosas que la revisión encontró y ya están arregladas
+
+1. **Hueco de diseño → ADR-100 §D3.1.** Sin re-compra, lo que pasa el piso y no se entregó no vuelve
+   nunca. 102 así en 30 días (53 ya rebotados varias veces; 29 entre 400k-500k que nunca tuvieron
+   chance). Decisión de Mani: **rescate único** = re-medir lo que hoy pasa el piso y se midió antes
+   del `actualizado_en` de `Mínimo de vistas`. Se apaga solo (`e25e228`).
+2. **`n8n:push` pisaba el `__rl` de Apify con el slug** aunque `diff` dijera "nunca se empuja".
+   Nunca había pasado porque ningún nodo de Apify se había empujado. ADR-053 §Enmienda 3,
+   `n8n-bindings.mjs` + `npm run n8n:test:bindings` (`f798e4d`).
+3. **La fachada filtraba en memoria y PostgREST corta en 1.000:** pedía 3.302 filas y servía 68 a
+   re-medir en vez de 237. Filtro grueso en SQL + handles del plan + log si llega al tope
+   (`bff0182`). Verificado con la consulta exacta contra prod: 237 filas sin corte.
+
+### ⚠️ Decisiones abiertas y datos a no olvidar
+
+- **`Días de recencia` se queda en 50** para la primera corrida. Con marca de agua pasa de ventana a
+  techo: solo actúa en las 4 cuentas sin historia y en el alcance del rescate. Bajarlo a 30 no lo
+  exige ninguna decisión; se revisa después de medir.
+- **El botón ▶ sigue estimando el costo viejo** (cuentas × 25) y dice *"trae casi los mismos
+  videos"*, que ya es falso. Se le avisó al equipo en [onboarding §3.2](../onboarding-equipo-redes.md);
+  el arreglo quedó propuesto como tarea aparte.
+- `.in("handle", …)` viaja en la URL: aguanta unos cientos de referentes (`ponytail:` en
+  `lib/marca-de-agua.ts`).
+- Posts fijados siguen colándose con fecha (T7): con marca de agua pesan más.
+- La cadencia (una búsqueda por semana) sigue siendo del equipo. El cron del motor es el lunes 8 am.
+
+### Lo que sigue, en orden
+
+1. **La primera corrida la hace el equipo de redes** con [onboarding §3.2](../onboarding-equipo-redes.md).
+   Después medir lo del [plan, Tarea 6 paso 5](./plan-marca-de-agua.md): `runs.params.marca_de_agua`,
+   reels comprados por `chargedEventCounts`, re-medidos que cruzaron el piso, filas `origen = motor`
+   en `pool_crudo` (esto también cierra el pendiente 1 del cierre 156), avisos, y que el rescate **no**
+   se repita en la corrida siguiente.
+2. Arreglar el estimado del botón ▶ (tarea propuesta).
+3. Pestaña de Referentes nueva (volumen y costo, rendimiento, embudo, historia): diseño en la
+   conversación del 15/09, falta mockup con casos de falla y su ADR. Sale de `v_ritmo_referentes` + una
+   vista de ledger.
+4. Pendientes 2-4 del cierre 156 siguen vivos.
+
+**Skills sugeridas para la próxima sesión:** `/diagnose` si la corrida sale rara · `/impeccable` +
+`/grill-with-docs` para la pestaña de Referentes.
+
+---
+
+## 🔒 CIERRE 156 (2026-09-15): el descubrimiento llevaba 5 corridas tirando lo que encontraba, y el motor ya escribe el pool crudo
 
 > Sesión de verificación de lo del cierre 155 contra prod, más dos arreglos en el live. Toda la
 > implementación la hizo Kiro; cada entrega se revisó antes de aplicar y dos volvieron con fallas.
