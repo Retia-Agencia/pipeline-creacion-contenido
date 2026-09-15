@@ -72,7 +72,9 @@ export function pideMasQueElTecho(pide: number, techo: number): boolean {
  */
 export const USD_POR_REEL_APIFY = 0.0023;
 
-export type CostoCorrida = { cuentas: number; resultadosPorCuenta: number; usd: number };
+// `proyectos` viaja para que la confirmación diga "entre 2 proyectos": sin eso, 14 cuentas al lado de
+// una card que muestra 14 y 11 se lee como que se olvidó un proyecto (visto el 15/09).
+export type CostoCorrida = { cuentas: number; proyectos: number; resultadosPorCuenta: number; usd: number };
 
 /**
  * **El techo de lo que cobra Apify** por una corrida: cuentas de Instagram **distintas** que la
@@ -102,7 +104,12 @@ export function costoDeCorrida(
   );
   const cuentas = handles.size;
   const porCuenta = Math.max(0, resultadosPorCuenta);
-  return { cuentas, resultadosPorCuenta: porCuenta, usd: cuentas * porCuenta * USD_POR_REEL_APIFY };
+  return {
+    cuentas,
+    proyectos: proyectosQueCorren.size,
+    resultadosPorCuenta: porCuenta,
+    usd: cuentas * porCuenta * USD_POR_REEL_APIFY,
+  };
 }
 
 /** Cuántas corridas enteras entran en lo que queda del cupo. Una corrida que no cobra no agota nada. */

@@ -8,7 +8,10 @@ import { correrAhora, queCostariaCorrer, type ResultadoDisparo } from "./actions
 import { usarCockpit } from "../usar-cockpit";
 import { MOTOR_BLOQUEADO } from "./bloqueo";
 
-type Estimado = Awaited<ReturnType<typeof queCostariaCorrer>>;
+// `undefined` = calculando · `null` = no se pudo calcular (fail-open) · objeto = el número.
+// Antes "calculando" y "falló" eran el mismo `null`, así que durante los segundos que tarda Apify en
+// dar el saldo se pintaba la frase vieja sin números y el "Sí, correr" ya se podía apretar.
+type Estimado = Awaited<ReturnType<typeof queCostariaCorrer>> | undefined;
 
 const usd = (n: number) => n.toLocaleString("es-CO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -24,13 +27,13 @@ const fecha = (iso: string) =>
 export function BotonCorrer({ deshabilitado }: { deshabilitado: boolean }) {
   const cockpit = usarCockpit();
   const [confirmando, setConfirmando] = useState(false);
-  const [estimado, setEstimado] = useState<Estimado>(null);
+  const [estimado, setEstimado] = useState<Estimado>(undefined);
   const [resultado, setResultado] = useState<ResultadoDisparo | null>(null);
   const [enviando, startTransition] = useTransition();
 
   const preguntar = () => {
     setConfirmando(true);
-    setEstimado(null);
+    setEstimado(undefined);
     startTransition(async () => setEstimado(await queCostariaCorrer(cockpit)));
   };
 
@@ -62,12 +65,16 @@ export function BotonCorrer({ deshabilitado }: { deshabilitado: boolean }) {
       {confirmando ? (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm text-muted-foreground">
-            {estimado === null ? (
+            {estimado === undefined ? (
+              "Calculando cuánto cuesta…"
+            ) : estimado === null ? (
               "Correr gasta créditos aunque no haya videos nuevos. ¿Seguro?"
             ) : (
               <>
                 Esta búsqueda cuesta hasta <strong>{usd(estimado.costo.usd)} USD</strong> (
                 {estimado.costo.cuentas} cuentas × {estimado.costo.resultadosPorCuenta} videos).{" "}
+                {estimado.costo.proyectos > 1 &&
+                  `Son las cuentas distintas de los ${estimado.costo.proyectos} proyectos: una cuenta que alimenta a varios se paga una sola vez. `}
                 {estimado.saldo && libre !== null && alcanza !== null && (
                   <>
                     Quedan {usd(libre)} USD hasta el {fecha(estimado.saldo.finCiclo)}:{" "}
@@ -81,7 +88,7 @@ export function BotonCorrer({ deshabilitado }: { deshabilitado: boolean }) {
               </>
             )}
           </span>
-          <Button onClick={disparar} disabled={enviando}>
+          <Button onClick={disparar} disabled={enviando || estimado === undefined}>
             Sí, correr
           </Button>
           <Button variant="ghost" onClick={() => setConfirmando(false)} disabled={enviando}>

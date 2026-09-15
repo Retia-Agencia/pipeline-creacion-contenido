@@ -44,6 +44,7 @@ describe("costoDeCorrida", () => {
       25,
     );
     assert.equal(costo.cuentas, 2);
+    assert.equal(costo.proyectos, 3);
     assert.equal(costo.usd.toFixed(4), (2 * 25 * 0.0023).toFixed(4));
   });
 
