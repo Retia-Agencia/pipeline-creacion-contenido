@@ -421,7 +421,7 @@
           "conditions": [
             {
               "id": "c1",
-              "leftValue": "={{ ($json.records || []).length }}",
+              "leftValue": "={{ ($json.filas || []).length }}",
               "rightValue": 0,
               "operator": {
                 "type": "number",
