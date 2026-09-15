@@ -57,6 +57,12 @@ Y de esa vara salen los dos síntomas que se veían como problemas separados:
 **Mani, 12/09, al cierre de la sesión:** *"mi jefe le pide a los de redes mínimo videos de 500k
 explícitamente. Para él eso es accuracy."*
 
+> 🟢 **Actualización 14/09, y la conversación con Daniel se dio:** en el grupo del cockpit escribió
+> que el piso *"no es negociable"* y, a renglón seguido, *"podemos bajar a mínimo 400k"*. **El piso
+> quedó en 400.000** (aplicado en `app.ajustes`). O sea que **el piso absoluto se queda como FILTRO**,
+> y la `viralidad` de §3.2 entra solo como **orden dentro de lo que pasa**, no como reemplazo. Todo lo
+> de abajo que dice "bajar el piso a basura" (§3.6) queda **superado por esa decisión**.
+
 **Todo este documento venía tratando el `min_views = 500.000` como una mala configuración técnica.
 No lo es: es una directiva de negocio.** Y eso cambia tres cosas:
 
@@ -590,9 +596,9 @@ ponga en el motor lo puso un dev por su cuenta, que es exactamente lo que pasó 
 
 | id | Pregunta | Estado |
 |---|---|---|
-| **T1** | ¿La marca de agua se guarda por `(referente)` o por `(referente, proyecto)`? Un referente puede alimentar varios proyectos (ADR-032, n-a-n) | ⬜ |
-| **T2** | ¿`app.pool_crudo` es tabla nueva o una columna `entregado` en `processed_items`? | ⬜ |
-| **T3** | ¿La `base_cuenta` de §3.2 se recalcula en cada corrida o se materializa? | ⬜ |
+| **T1** | ¿La marca de agua se guarda por `(referente)` o por `(referente, proyecto)`? Un referente puede alimentar varios proyectos (ADR-032, n-a-n) | ✅ **por referente, y derivada** (`app.v_watermark_referentes`), [ADR-099](../adr/ADR-099-el-pool-crudo-recuerda-lo-que-se-pago.md) |
+| **T2** | ¿`app.pool_crudo` es tabla nueva o una columna `entregado` en `processed_items`? | ✅ **tabla nueva**, una fila por observación, PK `(instance_id, plataforma, external_id, apify_dataset_id)` — ADR-099. Aplicada y llena el 15/09 |
+| **T3** | ¿La `base_cuenta` de §3.2 se recalcula en cada corrida o se materializa? | ✅ **se recalcula al leer** hasta que exista `avance()` — ADR-099 |
 | ~~T4~~ | ~~¿Vale la pena el add-on `includeTranscript`?~~ | ✅ **CONTESTADA el 12/09 (cierre 151): NO.** Cuesta 0,041 USD/minuto por reel, **26× Supadata**. *El precio SÍ estaba en la API (`pricingInfos`); el handoff decía que no y era falso* |
 | **T7** | 🆕 `skipPinnedPosts` (solo en `instagram-reel-scraper`): la fuga de posts fijados es 5,8 % hoy, pero pasa a **31 % de la factura** cuando la marca de agua baje el denominador | ⬜ **crece justo cuando se arregla la cadencia** |
 | **T8** | 🆕 ¿Cuántos referentes activos hay realmente? `app.referentes` dice **59 activos**; el cierre 151 midió sobre **26 cuentas**. El cálculo de supply de §0 escala con ese número | ⬜ **sin resolver — no se eligió uno para no inventar** |
@@ -641,8 +647,8 @@ Salieron del repaso del 12/09. **No bloquean, pero cualquier diseño que las ign
 |---|---|---|---|---|
 | 0 | 🔴 **Sacar la curva del reel joven de los datasets ya pagados** (M1-bis) | — | **0 USD** | sí, y **vence el 11/10** |
 | 1 | **Preguntarle al equipo de medios** (§5.1, los dos mensajes de §9) y con eso escribir el **protocolo de éxito P1-P3** | — | 0 | sí |
-| 2 | Crear `app.pool_crudo` y empezar a llenarla | T1, T2 | 0 | sí |
-| 3 | Copiar los datasets de Apify **antes del 2026-10-11** | paso 2 | 0 | ⛔ **no: lo que no se copie se pierde** |
+| 2 | ✅ Crear `app.pool_crudo` y empezar a llenarla — **aplicada el 15/09** ([ADR-099](../adr/ADR-099-el-pool-crudo-recuerda-lo-que-se-pago.md)). ⚠️ El motor todavía no escribe en ella | T1, T2 | 0 | sí |
+| 3 | ✅ Copiar los datasets de Apify — **hecho el 15/09**: 32.243 observaciones, 10.940 reels. *El plazo no era el 11/10: los más viejos vencían el 17/09.* Hasta que el motor escriba el pool, re-correr el backfill antes de 31 días | paso 2 | **0,0136 USD** | ⛔ **no: lo que no se copie se pierde** |
 | 4 | Correr M1 y construir `avance(edad)` | Q1, método de M1 | 0,35 USD | sí |
 | 5 | Marca de agua + cadencia semanal | paso 2 | 0 | sí |
 | 6 | Cambiar la vara: `min_views` a piso de basura, `viralidad` como orden | Q1, Q2, Q6, paso 4 | 0 | sí |

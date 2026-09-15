@@ -29,10 +29,10 @@ tercio del medio eran cierres viejos anidados uno dentro de otro bajo un encabez
 
 | buscás | está en |
 |---|---|
-| **el estado de hoy** | el §ARRANCÁ POR ACÁ de acá abajo (cierre 154) |
+| **el estado de hoy** | el §ARRANCÁ POR ACÁ de acá abajo (cierre 155) |
 | **el refactor del motor** | 🧭 [plan-refactor-motor.md](./plan-refactor-motor.md) — el punto de partida único |
 | **los mensajes al equipo de redes** | [plan-refactor-motor §9](./plan-refactor-motor.md) — **1 y 2 enviados el 12/09**, el 3 escrito y pendiente |
-| **los cierres 145 a 154** | acá abajo, completos |
+| **los cierres 145 a 155** | acá abajo, completos |
 | **los cierres 70 a 144** | [handoff-archivo-2026-06_09.md](./handoff-archivo-2026-06_09.md) |
 | **el refactor Voces→Proyectos** | 🗄️ terminado y archivado el 2026-09-12: [docs/archivo/refactor-voces-proyectos.md](../archivo/refactor-voces-proyectos.md) |
 
@@ -40,7 +40,62 @@ tercio del medio eran cierres viejos anidados uno dentro de otro bajo un encabez
 N`), **nunca anidado dentro del anterior**. Así fue como nacieron las 5.736 líneas de blockquotes
 dentro de blockquotes que se acaban de archivar.
 
-## 🚦 ARRANCÁ POR ACÁ — CIERRE 154 (2026-09-12): los mensajes al equipo SE ENVIARON, y el modelo mental de Mani resultó ser la simplificación que el plan pedía
+## 🚦 ARRANCÁ POR ACÁ — CIERRE 155 (2026-09-14/15): piso en 400k, el botón vuelve diciendo cuánto cuesta, y el pool crudo existe
+
+> Sesión de decisión con números para el equipo de redes, más dos cambios chicos en el cockpit y el
+> primer paso del refactor del motor (delegado a Kiro y revisado antes de aplicar).
+
+### 🟢 Lo que quedó en producción
+
+| qué | dónde | verificado |
+|---|---|---|
+| **`Mínimo de vistas` = 400.000** (era 500.000). Daniel, grupo del cockpit, 14/09: *"no es negociable"* el piso, *"podemos bajar a mínimo 400k"* | `app.ajustes` por SQL, **con su fila en `app.eventos`** (`via: sql`) | lectura de la fila |
+| **El ▶ "Buscar contenido" desbloqueado** (`MOTOR_BLOQUEADO = false`, se deja el flag para re-bloquear en una línea) | commit `48a85d1` | typecheck + tests, deploy Vercel `success` |
+| **La confirmación dice el costo y lo que queda del cupo** (`queCostariaCorrer` + `saldoApify` + `costoDeCorrida`) | commit `0cbe021` | 558 tests (5 nuevos), deploy `success`. ⚠️ **No visto en pantalla**: el cockpit pide login |
+| **`app.pool_crudo` aplicada y llena** (ADR-099, migración `044`) | 32.243 observaciones · 10.940 reels · 334 cuentas | por efecto, ver ADR-099 §Verificación |
+
+`Días de recencia` y `Resultados por cuenta` **ya eran `dev`** y la pantalla ya los escondía: no
+hubo que tocar nada.
+
+### 🩸 Lo que la sesión encontró y cambia decisiones
+
+1. **Hoy solo corre la voz de Rosario.** Vieira, María José, Milena y Nicolás están apagadas: una
+   búsqueda mira **14 cuentas (~0,81 USD)**, no 59. Para Milena (la semana que viene) hay que
+   prender su voz o no trae nada.
+2. **Con piso 400k el cuello son las cuentas, no la plata** (números en
+   [costos.md](../costos.md), aviso del 14/09). 59 cuentas ⇒ ~65 videos de 400k/semana; 150 que
+   pasen el piso ⇒ ~136 cuentas (~34 USD/mes, cabe); 150 **aprobados** ⇒ ~430 cuentas (~107
+   USD/mes, no cabe). **Qué significa "150" no está preguntado al equipo.**
+3. **Ligar la ventana al N pedido NO sirve** (lo propuso Mani): con 25 por cuenta el que corta es el
+   límite, no la fecha; ensanchar la ventana no trae más ni gasta más. El control es por
+   frecuencia y plata.
+4. **La revisión del trabajo de Kiro tumbó tres cosas antes de aplicar**: PK por `medido_en` que
+   chocaba con el upsert por dataset · fallback a "la primera instancia" (hay 3 de LinkedIn) · el
+   filtro que salteaba corridas MCP y abortadas (se pagaron igual; subió de 7.169 a 10.940 reels).
+   Y un dataset ilegible contaba como vacío: ahora frena el `--apply`.
+5. **El plazo de Apify no era el 11/10: es un día por día.** Los más viejos vencían el **17/09**.
+6. **Leer datasets cuesta**: +0,0136 USD por 32 mil items. Casi nada, pero no cero.
+
+### ⚠️ Deuda que vence sola
+
+**El motor todavía no escribe en `pool_crudo`.** Hasta que lo haga, cada corrida nueva se copia
+re-corriendo `npm --prefix core/scripts run backfill:pool:apply` (idempotente) **antes de 31 días**.
+
+### Lo que sigue, en orden
+
+1. 🔴 **Que el motor escriba `pool_crudo` en vivo** (`origen = 'motor'`), para matar la deuda de arriba.
+2. **M1-bis, la curva del reel joven**, ahora sobre `pool_crudo` (3.723 reels con 2+ mediciones) y sin plazo.
+3. **Marca de agua en el motor** (`onlyPostsNewerThan` desde `v_watermark_referentes`) + re-medir a los 30 días.
+4. **Mensaje al grupo de redes con la propuesta** (borrador hecho en la sesión, **no enviado**) y la
+   pregunta *"¿150 para revisar o aprobados?"*.
+5. Guardrail de "ya se buscó esta semana" en el ▶ — **propuesto, Mani no lo eligió todavía**.
+
+*Subagentes: Antigravity no arrancó (el clasificador bloqueó `agy`), Codex sin cupo hasta el 12/10;
+Kiro hizo el análisis de factores de costo y el `pool_crudo`.*
+
+---
+
+## 🔒 CIERRE 154 (2026-09-12): los mensajes al equipo SE ENVIARON, y el modelo mental de Mani resultó ser la simplificación que el plan pedía
 
 > 🧠 **Sesión de alineación y comunicación. Cero código, cero motor, cero migraciones, cero n8n.**
 > Lo único que salió al mundo fueron **dos mensajes de WhatsApp**. El resto es diagnóstico escrito

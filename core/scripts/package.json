@@ -6,6 +6,9 @@
   "scripts": {
     "validate": "node validate.mjs && node check-links.mjs",
     "links": "node check-links.mjs",
+    "test:pool": "node test-backfill-pool-crudo.mjs",
+    "backfill:pool": "node backfill-pool-crudo.mjs",
+    "backfill:pool:apply": "node backfill-pool-crudo.mjs --apply",
     "n8n:diff": "node n8n-sync.mjs diff",
     "n8n:pull": "node n8n-sync.mjs pull",
     "n8n:push": "node n8n-sync.mjs push",

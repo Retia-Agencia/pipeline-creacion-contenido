@@ -130,7 +130,7 @@ por qué. **No los leas para saber qué existe hoy.**
 se cita, y varios gobiernan código vivo.
 
 **Decisiones**
-- [docs/adr/](docs/adr/) — ADRs 001–098 (98 archivos), una decisión por archivo con su porqué ([índice](docs/adr/README.md)).
+- [docs/adr/](docs/adr/) — ADRs 001–099 (99 archivos), una decisión por archivo con su porqué ([índice](docs/adr/README.md)).
   💸 **Si la pregunta es *"¿nos cambiamos de proveedor de scraping?"*, la contesta
   [ADR-098](docs/adr/ADR-098-el-proveedor-no-es-el-problema-la-cadencia-si.md): no.** El costo no es
   una propiedad del proveedor sino del régimen de uso — el mismo actor cuesta 23,83 USD o 4,45
@@ -330,6 +330,17 @@ se cita, y varios gobiernan código vivo.
   🔑 **Es la segunda de la serie que NO se puede verificar por su efecto desde afuera** (como la
   `041`): PostgREST responde idéntico antes y después. Se verifica en el catálogo con
   `col_description`, y tiene que nombrar los tres valores.
+  ✅ **La [`044`](core/schema/044_pool_crudo.sql) (ADR-099) está APLICADA y LLENA** (Mani, 15/09) —
+  crea `app.pool_crudo`, **lo que se PAGÓ a Apify, una fila por observación** (reel × dataset), y la
+  vista derivada `app.v_watermark_referentes` (marca de agua por cuenta). Existe porque **Apify no
+  recuerda qué nos vendió** y `processed_items` guarda lo entregado, no lo pagado. Verificada por
+  efecto: 16 columnas, PK `(instance_id, plataforma, external_id, apify_dataset_id)`, policy
+  `tenant`, check de `origen` → `23514`. Llenada con
+  [`backfill-pool-crudo.mjs --apply`](core/scripts/backfill-pool-crudo.mjs): **32.243
+  observaciones · 10.940 reels · 334 cuentas · 3.723 reels medidos en 2+ fechas**, 0 datasets sin
+  leer. 🩸 **Costó +0,0136 USD**: leer datasets no es gratis del todo.
+  ⚠️ **El motor todavía NO escribe en ella**: hasta que lo haga, las corridas nuevas se copian
+  re-corriendo el backfill (idempotente) **antes de que pasen 31 días**, o se pierden.
   ⏳ **La [`043`](core/schema/043_ajustes_actualizado_en.sql) (ADR-097) está ESCRITA y PENDIENTE de
   correr** (11/09). Le pone a `app.ajustes` el trigger `before update` que sella `actualizado_en`, y
   re-sella las dos filas que quedaron mintiendo. 🩸 **Existe por una columna que miente en verde:**

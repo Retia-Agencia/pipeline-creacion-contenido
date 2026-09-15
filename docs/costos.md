@@ -13,6 +13,26 @@
 >    knob, es una conversación.
 >
 > El estado vivo es [agents/plan-refactor-motor.md](./agents/plan-refactor-motor.md).
+>
+> 🧭 **ACTUALIZACIÓN 2026-09-14/15 — cuatro hechos nuevos:**
+>
+> 1. **El piso es 400.000, no 500.000, y no es negociable** (Daniel, grupo del cockpit, 14/09).
+>    Aplicado en `app.ajustes` con su fila en `app.eventos`. Bajarlo de 500k a 400k **no mueve un
+>    centavo** (filtra después de pagar) y sube el supply ~30 %.
+> 2. **El roster medido con piso 400k** (6.615 reels ya pagados de las 59 cuentas, 17/08-10/09, 0 USD):
+>    una cuenta publica **~7,8 reels/semana**; cruza 400k el **5,8 %** a los 0-7 días, **9,6 %** a
+>    los 7-14, **14,1 %** a los 14-30 y **18,7 %** a los 30-60. Trading, ~10× peor (0,8 → 1,8 %).
+>    Las 59 cuentas dan **~65 videos de 400k/semana** con ventana de 30 días; trading aporta ~3.
+>    Para **150/semana que pasen el piso** hacen falta ~136 cuentas (~34 USD/mes); para **150
+>    aprobados** (aprobación 31 %, 56 de 179) ~430 cuentas (~107 USD/mes). *Cota sobre 4 semanas y
+>    suponiendo que las cuentas nuevas rinden como el promedio; ese promedio lo cargan
+>    `melrobbins` y `jefferson_fisher` (16 de 52 hits/semana).*
+> 3. **El ▶ del motor dice cuánto cuesta antes de confirmar** (`queCostariaCorrer`): cuentas IG
+>    distintas de proyectos que corren × resultados por cuenta × 0,0023, y el saldo real de Apify.
+>    🩸 **Al 15/09 solo corre la voz de Rosario: 14 cuentas, ~0,81 USD por búsqueda**, no las 59.
+> 4. **`app.pool_crudo` existe y está llena** (ADR-099): 32.243 observaciones, 10.940 reels, 334
+>    cuentas. 🩸 **Leer datasets NO es gratis del todo:** copiar 32 mil items movió el saldo de
+>    Apify **+0,0136 USD**. Barato, pero §8.5 decía "gratis" y un cero redondeado no es un cero.
 > **Lo que NO caducó de este doc: el mapa de dónde se paga, el invariante de que todos los filtros
 > corren DESPUÉS de que Apify cobró, y el histórico por servicio.**
 
