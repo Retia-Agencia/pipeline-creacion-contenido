@@ -1,4 +1,5 @@
 import { comoRuta, rutaDe } from "@/domain/rutas";
+import { SlidersHorizontal } from "lucide-react";
 import Link from "next/link";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -69,7 +70,10 @@ export default async function AjustesPage({
         <Link href={rutaDe(base, "ajustes")} className="text-sm text-muted-foreground hover:underline">
           ← Ajustes
         </Link>
-        <h1 className="mt-1 text-2xl font-semibold">Motor</h1>
+        <h1 className="mt-1 flex items-center gap-2.5 text-2xl font-semibold">
+          <SlidersHorizontal className="size-6 shrink-0 text-muted-foreground" aria-hidden />
+          Motor
+        </h1>
         <p className="text-muted-foreground">
           Las perillas del sistema. Un cambio acá aplica en la próxima corrida, no en la que
           esté en curso.

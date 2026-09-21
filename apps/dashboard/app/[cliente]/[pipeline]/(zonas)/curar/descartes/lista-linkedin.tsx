@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { Hourglass, Filter } from "lucide-react";
+import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { VEREDICTOS } from "@/domain/feed";
@@ -32,7 +34,10 @@ export function ListaDescartesLinkedin({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Descartes de LinkedIn</h1>
+        <h1 className="flex items-center gap-2.5 text-2xl font-semibold">
+          <Filter className="size-6 shrink-0 text-muted-foreground" aria-hidden />
+          Descartes de LinkedIn
+        </h1>
         <p className="text-muted-foreground">
           Las piezas que el filtro mató. Marcar cuáles <em>eran buenas</em> es lo que corrige los
           criterios; lo que no marques sigue esperando.
@@ -53,13 +58,13 @@ export function ListaDescartesLinkedin({
       </div>
 
       {descartes.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-8 text-center">
-          <p className="text-sm font-medium">Todavía no hay descartes, y no es un error de carga.</p>
-          <p className="mx-auto mt-1 max-w-lg text-sm text-muted-foreground">
-            No hay descartes porque no hubo corridas: el motor de LinkedIn todavía no existe. Esta
-            lista se llena sola cuando el filtro empiece a rechazar piezas.
-          </p>
-        </div>
+        <EstadoVacio
+          icono={Hourglass}
+          titulo="Todavía no hay descartes, y no es un error de carga."
+        >
+          No hay descartes porque no hubo corridas: el motor de LinkedIn todavía no existe. Esta
+          lista se llena sola cuando el filtro empiece a rechazar piezas.
+        </EstadoVacio>
       ) : (
         <div className="divide-y rounded-lg border">
           {descartes.map((d) => (

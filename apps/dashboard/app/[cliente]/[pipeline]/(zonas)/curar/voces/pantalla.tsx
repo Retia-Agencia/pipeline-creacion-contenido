@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { Mic } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -66,7 +67,10 @@ export function Pantalla({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Voces y proyectos</h1>
+          <h1 className="flex items-center gap-2.5 text-2xl font-semibold">
+            <Mic className="size-6 shrink-0 text-muted-foreground" aria-hidden />
+            Voces y proyectos
+          </h1>
           <p className="text-muted-foreground">
             Cada voz es un cliente y cada proyecto un tema suyo. Apagar una voz apaga todos sus
             proyectos. Un cambio acá aplica en la próxima corrida.

@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { Library } from "lucide-react";
+import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { useState, useTransition } from "react";
 import { BotonBorrar } from "@/components/borrar";
 import { Button } from "@/components/ui/button";
@@ -70,9 +72,9 @@ export function Indice({ colecciones }: { colecciones: Coleccion[] }) {
       </div>
 
       {colecciones.length === 0 ? (
-        <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-          Todavía no hay colecciones. Creá una arriba y después metele videos pegando sus links.
-        </p>
+        <EstadoVacio icono={Library} titulo="Todavía no hay colecciones.">
+          Creá una arriba y después metele videos pegando sus links.
+        </EstadoVacio>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {colecciones.map((c) => (

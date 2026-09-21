@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { Mic } from "lucide-react";
+import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -69,7 +71,10 @@ export function PantallaVocesLinkedin({ voces }: { voces: VozConPerfil[] }) {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Voces de LinkedIn</h1>
+        <h1 className="flex items-center gap-2.5 text-2xl font-semibold">
+          <Mic className="size-6 shrink-0 text-muted-foreground" aria-hidden />
+          Voces de LinkedIn
+        </h1>
         <p className="text-muted-foreground">
           Cómo habla cada cuenta y cuándo publica. Es la unidad de configuración de la máquina: dos
           personas de la misma empresa escriben distinto. Una voz entra a LinkedIn cuando tiene
@@ -99,15 +104,18 @@ export function PantallaVocesLinkedin({ voces }: { voces: VozConPerfil[] }) {
       )}
 
       {voces.length === 0 && !altaAbierta && (
-        <div className="rounded-lg border border-dashed p-8 text-center">
-          <p className="text-sm font-medium">Todavía no hay ninguna voz, y eso es lo esperado.</p>
-          <p className="mx-auto mt-1 max-w-lg text-sm text-muted-foreground">
-            Esta empresa no tiene voces cargadas todavía. Empezá por una: su nombre, su{" "}
-            <strong>firma</strong> (nombre · cargo · frase de propósito, va al cierre de todo post) y
-            cómo habla. El perfil de voz no sale de leerle el LinkedIn — sale de su archivo:
-            podcasts, blogs, transcripciones.
-          </p>
-        </div>
+        <EstadoVacio
+          icono={Mic}
+          titulo="Todavía no hay ninguna voz, y eso es lo esperado."
+          accion={
+            <Button onClick={() => setAltaAbierta(true)}>Cargar la primera voz</Button>
+          }
+        >
+          Esta empresa no tiene voces cargadas todavía. Empezá por una: su nombre, su{" "}
+          <strong>firma</strong> (nombre · cargo · frase de propósito, va al cierre de todo post) y
+          cómo habla. El perfil de voz no sale de leerle el LinkedIn — sale de su archivo:
+          podcasts, blogs, transcripciones.
+        </EstadoVacio>
       )}
 
       {configuradas.length > 0 && (

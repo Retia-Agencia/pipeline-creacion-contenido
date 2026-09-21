@@ -1,4 +1,5 @@
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Captions } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -79,7 +80,10 @@ export default async function TranscribirPage({
     <div className="space-y-6">
       <Procesador pendientes={pendientes} />
       <div>
-        <h1 className="text-2xl font-semibold">Transcribir</h1>
+        <h1 className="flex items-center gap-2.5 text-2xl font-semibold">
+          <Captions className="size-6 shrink-0 text-muted-foreground" aria-hidden />
+          Transcribir
+        </h1>
         <p className="text-muted-foreground">
           Pegá links de videos y recibí el script en español. Lo que pases acá deja de
           aparecer en las búsquedas del motor.

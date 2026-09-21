@@ -158,7 +158,7 @@ function CampoN({
         className="w-24 tabular-nums"
       />
       {cuentas === 0 ? (
-        <p className="text-xs text-amber-700 dark:text-amber-500">
+        <p className="text-xs text-atencion-fuerte">
           ⚠️ Este proyecto no tiene ninguna cuenta asignada: pida lo que pida, no va a traer nada.{" "}
           <Link href={rutaDe(cockpit, "curar/referentes")} className="underline">
             Asignale referentes
@@ -166,7 +166,7 @@ function CampoN({
           .
         </p>
       ) : noAlcanza ? (
-        <p className="text-xs text-amber-700 dark:text-amber-500">
+        <p className="text-xs text-atencion-fuerte">
           ⚠️ Con {cuentas === 1 ? "1 cuenta" : `${cuentas} cuentas`} la corrida mira{" "}
           <strong>{techo}</strong> videos crudos, y de ahí sale todo lo que pasa el filtro. Pedir{" "}
           {pide} es pedir que pase más de la mitad: no suele pasar.{" "}
@@ -343,7 +343,7 @@ export function FormularioProyecto({
   return (
     <>
       {proyecto.advertencia_criterios && (
-        <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+        <div className="rounded-md border border-atencion/30 bg-atencion-suave p-3 text-sm">
           <p className="font-medium">Revisión de los criterios</p>
           <p className="text-muted-foreground">{proyecto.advertencia_criterios}</p>
         </div>

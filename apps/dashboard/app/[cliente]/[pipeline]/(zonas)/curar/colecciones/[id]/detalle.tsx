@@ -1,6 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { Library } from "lucide-react";
+import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { plural } from "@/domain/plural";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { BotonBorrar } from "@/components/borrar";
@@ -587,9 +589,9 @@ export function Detalle({
       )}
 
       {videos.length === 0 ? (
-        <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-          La colección está vacía. Pegá links arriba para llenarla.
-        </p>
+        <EstadoVacio icono={Library} titulo="La colección está vacía.">
+          Pegá links arriba para llenarla.
+        </EstadoVacio>
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-2">

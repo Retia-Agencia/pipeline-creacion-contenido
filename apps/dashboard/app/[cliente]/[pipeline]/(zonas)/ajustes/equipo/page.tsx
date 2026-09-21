@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Users } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { rolesQuePuedeOtorgar } from "@/domain/permisos";
 import { comoRuta, rutaDe } from "@/domain/rutas";
@@ -43,7 +44,10 @@ export default async function EquipoPage({
         <Link href={rutaDe(base, "ajustes")} className="text-sm text-muted-foreground hover:underline">
           ← Ajustes
         </Link>
-        <h1 className="mt-1 text-2xl font-semibold">Equipo</h1>
+        <h1 className="mt-1 flex items-center gap-2.5 text-2xl font-semibold">
+          <Users className="size-6 shrink-0 text-muted-foreground" aria-hidden />
+          Equipo
+        </h1>
         <p className="text-muted-foreground">
           Quiénes entran a esta empresa y con qué permisos. Invitar manda un mail con el acceso;
           quitarlo corta la entrada en el próximo click de esa persona.

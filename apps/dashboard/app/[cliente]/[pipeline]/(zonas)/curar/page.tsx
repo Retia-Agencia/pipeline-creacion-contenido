@@ -1,4 +1,6 @@
 import { comoRuta, rutaDe } from "@/domain/rutas";
+import { EstadoVacio } from "@/components/ui/estado-vacio";
+import { ListChecks } from "lucide-react";
 import Link from "next/link";
 import {
   Card,
@@ -121,7 +123,10 @@ export default async function CurarPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Curar</h1>
+        <h1 className="flex items-center gap-2.5 text-2xl font-semibold">
+          <ListChecks className="size-6 shrink-0 text-muted-foreground" aria-hidden />
+          Curar
+        </h1>
         <p className="text-muted-foreground">
           {cockpit.workflowId === "linkedin"
             ? "Acá se configura la máquina de LinkedIn: las voces que van a hablar y de dónde sale el material."
@@ -130,9 +135,9 @@ export default async function CurarPage({
       </div>
 
       {tarjetas.length === 0 ? (
-        <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-          Este pipeline todavía no tiene pantallas de curación.
-        </p>
+        <EstadoVacio icono={ListChecks} titulo="Este pipeline todavía no tiene pantallas de curación.">
+          No es un error: las pantallas se declaran por pipeline, y este todavía no declaró ninguna.
+        </EstadoVacio>
       ) : (
         tarjetas.map((pantalla) => {
           const copy =

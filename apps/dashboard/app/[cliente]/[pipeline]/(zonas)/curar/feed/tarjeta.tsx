@@ -1,8 +1,26 @@
 "use client";
 
 import { miles, TarjetaVideo } from "@/components/video/tarjeta";
-import { CALIFICACIONES, type Calificacion, type CandidatoFeed } from "@/domain/feed";
+import {
+  AYUDA_HEAT,
+  CALIFICACIONES,
+  ETIQUETA_HEAT,
+  nivelDeHeat,
+  type Calificacion,
+  type CandidatoFeed,
+  type NivelHeat,
+} from "@/domain/feed";
 import { cn } from "@/lib/utils";
+
+// El color refuerza la palabra, no la reemplaza: quien no distingue bien los colores lee la misma
+// información en el texto. Por eso "Frío" es gris y no rojo — frío no es un error, es el último
+// del orden.
+const COLOR_HEAT: Record<NivelHeat, string> = {
+  alto: "text-destacado-fuerte",
+  medio: "text-muted-foreground",
+  bajo: "text-muted-foreground/70",
+  "sin-dato": "text-muted-foreground/70",
+};
 
 // La tarjeta del Feed: `TarjetaVideo` (compartida, ADR-072) más lo que es de esta pantalla y solo
 // de esta — calificar.
@@ -100,7 +118,7 @@ export function Tarjeta({
       aviso={
         repetidoDe && puesta === null ? (
           <span
-            className="inline-flex items-center gap-1 rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[11px] leading-tight text-amber-700 dark:text-amber-400"
+            className="inline-flex items-center gap-1 rounded border border-atencion/30 bg-atencion-suave px-1.5 py-0.5 text-[11px] leading-tight text-atencion-fuerte"
             title={
               "Este video parece ser el mismo que uno que ya calificaste como " +
               repetidoDe.calificacion +
@@ -134,11 +152,22 @@ export function Tarjeta({
       }
       pie={
         <>
+          {/* El puntaje del motor, en palabras. Antes acá había un `0.87` suelto con la
+              explicación escondida en un `title`, o sea que la única cifra de la tarjeta solo
+              se entendía si alguien descubría que tenía tooltip — y en el celular no hay
+              tooltip que descubrir. El número exacto sigue ordenando el mazo.
+              `shrink-0` + `whitespace-nowrap`: el pie comparte fila con los tres emoji, que
+              son el gesto principal del cockpit. La etiqueta cede, los botones no. */}
           <span
-            className="text-xs text-muted-foreground"
-            title="Qué tan caliente lo considera el motor, de 0 a 1."
+            className={cn(
+              "shrink-0 text-xs font-medium whitespace-nowrap",
+              COLOR_HEAT[nivelDeHeat(candidato.heat)],
+            )}
+            title={`${AYUDA_HEAT[nivelDeHeat(candidato.heat)]}${
+              candidato.heat !== null ? ` (puntaje ${candidato.heat.toFixed(2)} de 1)` : ""
+            }`}
           >
-            {candidato.heat !== null ? candidato.heat.toFixed(2) : "—"}
+            {ETIQUETA_HEAT[nivelDeHeat(candidato.heat)]}
           </span>
           <BotonesCalificar actual={puesta} onCalificar={onCalificar} enviando={enviando} />
         </>

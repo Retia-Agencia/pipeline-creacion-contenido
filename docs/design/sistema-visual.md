@@ -151,6 +151,8 @@ le contesta a la gente: un aviso que pasa desapercibido no contesta nada.
 | | | | Sugeridos | `Inbox` |
 | | | | Motor | `SlidersHorizontal` |
 | | | | Equipo | `Users` |
+| | | | Colecciones | `Library` |
+| | | | Corridas | `History` |
 
 Tamaños: `size-4` en nav y botones, `size-5` en el círculo de un `EstadoVacio`, `size-6` en el
 `Encabezado`. Siempre con `aria-hidden` cuando al lado hay texto que dice lo mismo.

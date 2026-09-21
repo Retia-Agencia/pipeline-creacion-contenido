@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { Radio } from "lucide-react";
+import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -66,7 +68,10 @@ export function PantallaLinkedin({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Referentes de LinkedIn</h1>
+        <h1 className="flex items-center gap-2.5 text-2xl font-semibold">
+          <Radio className="size-6 shrink-0 text-muted-foreground" aria-hidden />
+          Referentes de LinkedIn
+        </h1>
         <p className="text-muted-foreground">
           De dónde sale el material: filtros de Pinterest, cuentas de LinkedIn, páginas sueltas y
           el archivo propio de cada voz. Solo los <strong>prendidos</strong> entran en la próxima
@@ -96,14 +101,11 @@ export function PantallaLinkedin({
       )}
 
       {banco.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-8 text-center">
-          <p className="text-sm font-medium">Todavía no hay referentes, y eso es lo esperado.</p>
-          <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-            Este banco no se migró de ningún lado porque no existía en ninguna marca: se construye
-            acá. Empezá por dos o tres filtros de Pinterest en inglés — un formato agotado en
-            inglés suele estar fresco en español.
-          </p>
-        </div>
+        <EstadoVacio icono={Radio} titulo="Todavía no hay referentes, y eso es lo esperado.">
+          Este banco no se migró de ningún lado porque no existía en ninguna marca: se construye
+          acá. Empezá por dos o tres filtros de Pinterest en inglés — un formato agotado en
+          inglés suele estar fresco en español.
+        </EstadoVacio>
       ) : (
         <div className="divide-y rounded-lg border">
           {banco.map((r) =>

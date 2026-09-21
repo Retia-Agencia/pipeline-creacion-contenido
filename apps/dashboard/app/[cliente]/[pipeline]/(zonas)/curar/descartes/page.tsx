@@ -1,5 +1,8 @@
 import { comoRuta, rutaDe } from "@/domain/rutas";
 import Link from "next/link";
+import { Inbox, Filter } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { exigirPantallaDeCurar } from "@/lib/auth";
 import { leerDescartes } from "@/lib/descartes";
@@ -45,7 +48,10 @@ export default async function DescartesPage({
         <Link href={rutaDe(base, "curar")} className="text-sm text-muted-foreground hover:underline">
           ← Curar
         </Link>
-        <h1 className="mt-1 text-2xl font-semibold">Descartes</h1>
+        <h1 className="mt-1 flex items-center gap-2.5 text-2xl font-semibold">
+          <Filter className="size-6 shrink-0 text-muted-foreground" aria-hidden />
+          Descartes
+        </h1>
         <p className="text-muted-foreground">
           Los videos que el filtro mató <strong className="font-medium">por poco</strong> — los que
           más cerca estuvieron de pasar. Decir cuáles en realidad eran buenos es lo que corrige los
@@ -62,10 +68,17 @@ export default async function DescartesPage({
       </Alert>
 
       {descartes.length === 0 ? (
-        <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-          No hay descartes para auditar. El motor deja acá los rechazos más cerca de pasar en cada
-          corrida.
-        </p>
+        <EstadoVacio
+          icono={Inbox}
+          titulo="No hay descartes para auditar."
+          accion={
+            <Button variant="outline" asChild>
+              <Link href={rutaDe(base, "curar/feed")}>Ir al feed</Link>
+            </Button>
+          }
+        >
+          El motor deja acá los rechazos que estuvieron más cerca de pasar, en cada corrida.
+        </EstadoVacio>
       ) : (
         <Lista descartes={descartes} />
       )}

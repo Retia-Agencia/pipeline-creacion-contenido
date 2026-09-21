@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { History } from "lucide-react";
+import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { usarCockpit } from "../../usar-cockpit";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -42,16 +44,20 @@ import { contarVivos, explicarConIA, traerCorridas } from "./actions";
 // número. Una plantilla común las habría obligado a hablar de "items", que es exactamente el
 // idioma de dev que esta pantalla existe para no usar. Lo que unifica es `pasosDe`, en el dominio.
 
-const BADGE_POR_ESTADO: Record<EstadoCorrida, "default" | "secondary" | "destructive" | "outline"> = {
-  en_curso: "default",
-  ok: "secondary",
+// ⚠️ Duplicado con `operar/page.tsx`: si se agrega un estado, van los dos.
+const BADGE_POR_ESTADO: Record<
+  EstadoCorrida,
+  "exito" | "en-curso" | "atencion" | "destructive"
+> = {
+  en_curso: "en-curso",
+  ok: "exito",
   fallo: "destructive",
-  parcial: "outline",
+  parcial: "atencion",
 };
 
 const TONO_TEXTO = {
-  bien: "text-emerald-700 dark:text-emerald-500",
-  aviso: "text-amber-700 dark:text-amber-500",
+  bien: "text-exito-fuerte",
+  aviso: "text-atencion-fuerte",
   malo: "text-destructive",
 } as const;
 
@@ -84,7 +90,7 @@ function Recorrido({ workflow, corrida }: { workflow: Workflow; corrida: Corrida
               <span className={p.tono === "normal" ? "" : TONO_TEXTO[p.tono === "malo" ? "malo" : "aviso"]}>
                 {conUnidad(p.valor, p.unidad)}
               </span>
-              {p.nota && <span className="text-amber-700 dark:text-amber-500"> · {p.nota}</span>}
+              {p.nota && <span className="text-atencion-fuerte"> · {p.nota}</span>}
             </span>
           </li>
         ))}
@@ -226,7 +232,7 @@ function Detalle({
       {avisos.length > 0 && (
         <ul className="space-y-1">
           {avisos.map((a) => (
-            <li key={a} className="text-sm text-amber-700 dark:text-amber-500">
+            <li key={a} className="text-sm text-atencion-fuerte">
               ⚠️ {a}
             </li>
           ))}
@@ -246,7 +252,7 @@ function Detalle({
         {texto && (
           <p className="border-l-2 border-primary/40 pl-3 text-sm text-muted-foreground">{texto}</p>
         )}
-        {aviso && <p className="text-xs text-amber-700 dark:text-amber-500">{aviso}</p>}
+        {aviso && <p className="text-xs text-atencion-fuerte">{aviso}</p>}
 
         <div className="flex flex-wrap items-center gap-3 pt-1">
           {!texto && admiteVeredictoIA(corrida) && (
@@ -365,9 +371,10 @@ export function Pantalla({
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       {corridas.length === 0 ? (
-        <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-          {cargando ? "Buscando…" : "Esta máquina todavía no corrió nunca en este cockpit."}
-        </p>
+        <EstadoVacio
+          icono={History}
+          titulo={cargando ? "Buscando…" : "Esta máquina todavía no corrió nunca en este cockpit."}
+        />
       ) : (
         <ul className="overflow-hidden rounded-lg border">
           {corridas.map((c) => {

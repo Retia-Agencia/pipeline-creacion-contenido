@@ -6,6 +6,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { veCostos } from "@/domain/roles";
+import { ChartColumn } from "lucide-react";
 import { exigirTenant } from "@/lib/auth";
 import { leerProyectos } from "@/lib/proyectos";
 import {
@@ -64,7 +65,10 @@ export default async function EntenderPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Entender</h1>
+        <h1 className="flex items-center gap-2.5 text-2xl font-semibold">
+          <ChartColumn className="size-6 shrink-0 text-muted-foreground" aria-hidden />
+          Entender
+        </h1>
         {/* 🩸 El "y costos de la semana" iba SUELTO acá y la tarjeta sí estaba gateada, así que a un
             operador esta bajada le prometía algo que la pantalla no le iba a mostrar. No era una
             fuga —los números nunca viajaron, `leerCostos` ni se llama— pero es la familia de la

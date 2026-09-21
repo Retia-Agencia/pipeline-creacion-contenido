@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { LogOut } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { NavZonas } from "@/components/nav-zonas";
 import {
   SelectorEquipo,
   SelectorPipeline,
@@ -9,18 +11,10 @@ import {
 } from "@/components/selector-cockpit";
 import { usuarioActual } from "@/lib/auth";
 import { cockpitsDe, resolverContexto } from "@/lib/tenant";
-import { comoRuta, rutaZona } from "@/domain/rutas";
-import { zonasDe, type Zona } from "@/domain/roles";
+import { comoRuta } from "@/domain/rutas";
+import { zonasDe } from "@/domain/roles";
 import { zonasVisibles } from "@/domain/pipelines";
 import { cerrarSesion } from "@/app/actions";
-
-const ETIQUETAS: Record<Zona, string> = {
-  operar: "Operar",
-  curar: "Curar",
-  transcribir: "Transcribir",
-  entender: "Entender",
-  ajustes: "Ajustes",
-};
 
 // El nav muestra solo las zonas del rol (la UI esconde); cada página además exige su zona **y su
 // tenant** en el servidor (el servidor impide).
@@ -71,17 +65,14 @@ export default async function ZonasLayout({
 
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="border-b">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-6 py-3">
-          <nav className="flex items-center gap-1">
-            <span className="mr-3 text-sm font-semibold">Cockpit</span>
-            {zonas.map((zona) => (
-              <Button key={zona} variant="ghost" size="sm" asChild>
-                <Link href={rutaZona(enRuta, zona)}>{ETIQUETAS[zona]}</Link>
-              </Button>
-            ))}
-          </nav>
-          <div className="flex items-center gap-3">
+      {/* El header es lo único que se ve en las 12 pantallas, así que es donde más rinde el
+          orden. Queda pegado arriba al scrollear: en el feed, que es largo, tener que volver
+          hasta el principio para cambiar de zona era una fricción diaria. */}
+      <header className="sticky top-0 z-30 border-b bg-background/85 backdrop-blur-sm">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-2.5 sm:px-6">
+          <NavZonas zonas={zonas} base={enRuta} />
+
+          <div className="flex items-center gap-2">
             {/* Solo si hay a dónde saltar. La condición del equipo es además lo que hace que
                 nadie vea el nombre de una empresa ajena: sin más de una membresía, no hay
                 control. */}
@@ -91,24 +82,36 @@ export default async function ZonasLayout({
             {pipelinesDelEquipo > 1 && (
               <SelectorPipeline cockpits={opciones} actual={enRuta} />
             )}
-            {/* El nombre es el link a Mi cuenta: es donde todo el mundo busca lo suyo, y evita
-                sumar un ítem más al nav. No lleva gate de rol — la contraseña es de la persona. */}
+
+            {/* Persona y rol son UN bloque y no dos cosas sueltas: juntos contestan "quién soy
+                acá", que es una sola pregunta. El nombre sigue siendo el link a Mi cuenta —es
+                donde todo el mundo busca lo suyo y evita sumar un ítem al nav— y no lleva gate
+                de rol, porque la contraseña es de la persona. */}
             <Link
               href="/mi-cuenta"
-              className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+              className="flex items-center gap-2 rounded-lg px-2 py-1 transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
             >
-              {usuario.nombre}
+              <span className="hidden text-sm font-medium sm:inline">
+                {usuario.nombre}
+              </span>
+              <Badge variant="secondary">{sesion.rol}</Badge>
             </Link>
-            <Badge variant="secondary">{sesion.rol}</Badge>
+
             <form action={cerrarSesion}>
-              <Button variant="ghost" size="sm" type="submit">
-                Salir
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                type="submit"
+                title="Salir"
+                aria-label="Salir"
+              >
+                <LogOut />
               </Button>
             </form>
           </div>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-8">
+      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6">
         {children}
       </main>
     </div>

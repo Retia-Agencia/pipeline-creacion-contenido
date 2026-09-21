@@ -1,9 +1,17 @@
 import Link from "next/link";
+import { Settings, SlidersHorizontal, Users, type LucideIcon } from "lucide-react";
+import { Encabezado } from "@/components/ui/encabezado";
+import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { comoRuta, rutaDe } from "@/domain/rutas";
 import { pantallasDeAjustes, type PantallaAjustes } from "@/domain/pipelines";
 import { puedeAdministrarEquipo } from "@/domain/permisos";
 import { exigirTenant } from "@/lib/auth";
+
+const ICONOS_AJUSTES: Record<PantallaAjustes, LucideIcon> = {
+  motor: SlidersHorizontal,
+  equipo: Users,
+};
 
 // El índice de Ajustes, la 5ª zona (ADR-060). Mismo molde que `curar/page.tsx`, y por la misma
 // razón: **acá va solo el TEXTO**. Cuáles existen lo decide `domain/pipelines.ts`, que es la misma
@@ -46,28 +54,41 @@ export default async function AjustesPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Ajustes</h1>
-        <p className="text-muted-foreground">
-          La configuración de esta empresa: cómo busca el motor y quién entra al cockpit.
-        </p>
-      </div>
+      <Encabezado titulo="Ajustes" icono={Settings}>
+        La configuración de esta empresa: cómo busca el motor y quién entra al cockpit.
+      </Encabezado>
 
       {tarjetas.length === 0 ? (
-        <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-          No hay nada que configurar con tu rol en este pipeline.
-        </p>
+        <EstadoVacio
+          icono={Settings}
+          titulo="No hay nada que configurar con tu rol en este pipeline."
+        >
+          No es un error ni un permiso faltante: este pipeline no declara pantallas de ajustes
+          que tu rol alcance.
+        </EstadoVacio>
       ) : (
-        tarjetas.map((pantalla) => (
-          <Link key={pantalla} href={rutaDe(base, `ajustes/${pantalla}`)} className="block">
-            <Card className="transition-colors hover:bg-accent/40">
-              <CardHeader>
-                <CardTitle>{COPY[pantalla].titulo}</CardTitle>
-                <CardDescription>{COPY[pantalla].descripcion}</CardDescription>
-              </CardHeader>
-            </Card>
-          </Link>
-        ))
+        <div className="grid gap-4 sm:grid-cols-2">
+          {tarjetas.map((pantalla) => {
+            const Icono = ICONOS_AJUSTES[pantalla];
+            return (
+              <Link
+                key={pantalla}
+                href={rutaDe(base, `ajustes/${pantalla}`)}
+                className="group block rounded-xl focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+              >
+                <Card className="h-full transition-all group-hover:border-primary/30 group-hover:shadow-md group-hover:ring-primary/20">
+                  <CardHeader>
+                    <div className="mb-1 flex size-9 items-center justify-center rounded-lg bg-accent text-accent-foreground">
+                      <Icono className="size-4.5" aria-hidden />
+                    </div>
+                    <CardTitle>{COPY[pantalla].titulo}</CardTitle>
+                    <CardDescription>{COPY[pantalla].descripcion}</CardDescription>
+                  </CardHeader>
+                </Card>
+              </Link>
+            );
+          })}
+        </div>
       )}
     </div>
   );

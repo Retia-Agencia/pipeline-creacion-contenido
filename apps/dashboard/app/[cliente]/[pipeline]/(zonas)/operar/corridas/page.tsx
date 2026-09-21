@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { History } from "lucide-react";
 import { comoRuta, rutaDe } from "@/domain/rutas";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { veCostos } from "@/domain/roles";
@@ -45,7 +46,10 @@ export default async function CorridasPage({
         <Link href={rutaDe(base, "operar")} className="text-sm text-muted-foreground hover:underline">
           ← Operar
         </Link>
-        <h1 className="mt-1 text-2xl font-semibold">Corridas</h1>
+        <h1 className="mt-1 flex items-center gap-2.5 text-2xl font-semibold">
+          <History className="size-6 shrink-0 text-muted-foreground" aria-hidden />
+          Corridas
+        </h1>
         <p className="text-muted-foreground">
           Cada vez que una máquina corrió, qué hizo y por qué le fue así. Elegí la máquina arriba y
           abrí una corrida para ver el detalle.

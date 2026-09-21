@@ -1,4 +1,5 @@
 import { comoRuta, rutaDe } from "@/domain/rutas";
+import { ListChecks } from "lucide-react";
 import Link from "next/link";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FILTRO_INICIAL } from "@/domain/feed";
@@ -66,7 +67,10 @@ export default async function FeedPage({
         <Link href={rutaDe(base, "curar")} className="text-sm text-muted-foreground hover:underline">
           ← Curar
         </Link>
-        <h1 className="mt-1 text-2xl font-semibold">Feed</h1>
+        <h1 className="mt-1 flex items-center gap-2.5 text-2xl font-semibold">
+          <ListChecks className="size-6 shrink-0 text-muted-foreground" aria-hidden />
+          Feed
+        </h1>
         <p className="text-muted-foreground">
           Los videos que el motor trajo, agrupados por proyecto y ordenados de más caliente a más
           frío (o por corrida, con el toggle de arriba). 🔥 y 👍 lo aprueban (el 🔥 además se usa como ejemplo para afinar los criterios);

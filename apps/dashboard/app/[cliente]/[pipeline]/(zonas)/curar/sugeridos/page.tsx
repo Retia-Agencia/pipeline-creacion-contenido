@@ -1,4 +1,5 @@
 import { comoRuta, rutaDe } from "@/domain/rutas";
+import { Inbox } from "lucide-react";
 import Link from "next/link";
 import { BotonBuscar } from "@/components/boton-buscar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -55,7 +56,10 @@ export default async function SugeridosPage({
         <Link href={rutaDe(base, "curar")} className="text-sm text-muted-foreground hover:underline">
           ← Curar
         </Link>
-        <h1 className="mt-1 text-2xl font-semibold">Sugeridos</h1>
+        <h1 className="mt-1 flex items-center gap-2.5 text-2xl font-semibold">
+          <Inbox className="size-6 shrink-0 text-muted-foreground" aria-hidden />
+          Sugeridos
+        </h1>
         <p className="text-muted-foreground">
           Cuentas nuevas que propone el buscador. Aprobar una la suma al banco y empieza a traer
           videos; descartarla es definitivo.

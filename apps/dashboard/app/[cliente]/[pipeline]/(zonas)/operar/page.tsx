@@ -1,4 +1,5 @@
 import { comoRuta, rutaDe, type CockpitEnRuta } from "@/domain/rutas";
+import { Gauge } from "lucide-react";
 import Link from "next/link";
 import { BotonBuscar } from "@/components/boton-buscar";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -40,14 +41,23 @@ import { BotonArchivar } from "./boton-archivar";
 
 export const dynamic = "force-dynamic";
 
+// Los cuatro estados de una corrida, cada uno con su color.
+//
+// 🩸 Antes esto era `ok → secondary` y `parcial → outline`: o sea que **"salió bien" se dibujaba
+// con el gris neutro y "quedó a medias" con un borde vacío**, y para distinguirlos había que leer
+// la palabra de adentro — justo en la pantalla donde se busca "¿anduvo o no anduvo?".
+//
+// ⚠️ Este mapa está **duplicado** en `operar/corridas/pantalla.tsx`. Los dos se arreglaron juntos;
+// si alguien agrega un estado, van los dos. Unificarlo es la mejora obvia y no se hizo acá para
+// no mezclarla con el rediseño.
 const BADGE_POR_ESTADO: Record<
   Corrida["estado"],
-  "default" | "secondary" | "destructive" | "outline"
+  "exito" | "en-curso" | "atencion" | "destructive"
 > = {
-  en_curso: "default",
-  ok: "secondary",
+  en_curso: "en-curso",
+  ok: "exito",
   fallo: "destructive",
-  parcial: "outline",
+  parcial: "atencion",
 };
 
 // Una línea por proyecto, con los TRES datos juntos: lo que pide, con qué cuenta, y lo que
@@ -95,7 +105,7 @@ function FilaProyecto({ p, cockpit }: { p: ProyectoDelPlan; cockpit: CockpitEnRu
         // Este aviso gana sobre el de abajo, y no es lo mismo: aquel mira la corrida pasada, este
         // es aritmética sobre la próxima. Si el proyecto pide más videos de los que la corrida
         // llega a MIRAR, ningún ajuste de criterios lo arregla — faltan cuentas (ADR-043).
-        <p className="text-xs text-amber-700 dark:text-amber-500">
+        <p className="text-xs text-atencion-fuerte">
           ⚠️ Pide {p.pide} de {p.techo} videos crudos que llega a mirar: no le alcanza ni en el mejor
           caso.{" "}
           <Link href={rutaDe(cockpit, "curar/referentes")} className="underline">
@@ -186,7 +196,10 @@ export default async function OperarPage({
     <div className="space-y-6">
       <AutoRefresh corridaViva={corridaViva} />
       <div>
-        <h1 className="text-2xl font-semibold">Operar</h1>
+        <h1 className="flex items-center gap-2.5 text-2xl font-semibold">
+          <Gauge className="size-6 shrink-0 text-muted-foreground" aria-hidden />
+          Operar
+        </h1>
         <p className="text-muted-foreground">
           Lo que va a correr, el botón para correrlo, y cómo vienen las corridas.
         </p>

@@ -1,6 +1,7 @@
 "use client";
 
 import { rutaDe } from "@/domain/rutas";
+import { Radio } from "lucide-react";
 import { usarCockpit } from "../../usar-cockpit";
 import Link from "next/link";
 import { useState, useTransition } from "react";
@@ -104,7 +105,10 @@ export function Pantalla({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Referentes</h1>
+          <h1 className="flex items-center gap-2.5 text-2xl font-semibold">
+            <Radio className="size-6 shrink-0 text-muted-foreground" aria-hidden />
+            Referentes
+          </h1>
           <p className="text-muted-foreground">
             Las cuentas de las que el motor trae videos. Un cambio acá aplica en la próxima corrida.
           </p>
@@ -247,7 +251,7 @@ function Fila({
         {dormida && (
           <Badge
             variant="outline"
-            className="border-amber-500/50 text-amber-600 dark:text-amber-500"
+            className="border-amber-500/50 text-atencion-fuerte"
             title="Está prendida, pero ninguno de sus proyectos corre: su voz está apagada. No trae videos ni siembra propuestas."
           >
             sin trabajo

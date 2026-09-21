@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { ListChecks } from "lucide-react";
 import { plural } from "@/domain/plural";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -35,7 +36,10 @@ export function MazoLinkedin({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Feed de LinkedIn</h1>
+        <h1 className="flex items-center gap-2.5 text-2xl font-semibold">
+          <ListChecks className="size-6 shrink-0 text-muted-foreground" aria-hidden />
+          Feed de LinkedIn
+        </h1>
         <p className="text-muted-foreground">
           Lo que la máquina trajo, para decidir qué entra. 🔥 y 👍 lo aprueban, 👎 lo descarta.{" "}
           <strong>Calificar acá todavía no genera el post</strong>: marca la pieza y nada más.

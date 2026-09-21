@@ -1,4 +1,6 @@
 import { comoRuta, rutaDe } from "@/domain/rutas";
+import { EstadoVacio } from "@/components/ui/estado-vacio";
+import { Archive } from "lucide-react";
 import Link from "next/link";
 import { exigirPantallaDeCurar } from "@/lib/auth";
 import { leerMarcas } from "@/lib/grabados";
@@ -44,7 +46,10 @@ export default async function HistoricosPage({
         <Link href={rutaDe(base, "curar")} className="text-sm text-muted-foreground hover:underline">
           ← Curar
         </Link>
-        <h1 className="mt-1 text-2xl font-semibold">Históricos</h1>
+        <h1 className="mt-1 flex items-center gap-2.5 text-2xl font-semibold">
+          <Archive className="size-6 shrink-0 text-muted-foreground" aria-hidden />
+          Históricos
+        </h1>
         {/* El texto cambió con ADR-062: dejó de decir "todo lo que el equipo aprobó" porque una
             transcripción a pedido nunca se calificó, y desde entonces también vive acá. */}
         <p className="text-muted-foreground">
@@ -55,10 +60,9 @@ export default async function HistoricosPage({
       </div>
 
       {filas.length === 0 && marcas.size === 0 ? (
-        <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-          Todavía no hay nada aprobado. Lo que apruebes en el feed aparece acá el domingo, cuando
-          se archiva.
-        </p>
+        <EstadoVacio icono={Archive} titulo="Todavía no hay nada aprobado.">
+          Lo que apruebes en el feed aparece acá el domingo, cuando se archiva.
+        </EstadoVacio>
       ) : (
         <Lista
           guiones={filas}

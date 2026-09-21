@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Library } from "lucide-react";
 import { comoRuta, rutaDe } from "@/domain/rutas";
 import { exigirPantallaDeCurar } from "@/lib/auth";
 import { leerColecciones } from "@/lib/colecciones";
@@ -27,7 +28,10 @@ export default async function ColeccionesPage({
         <Link href={rutaDe(base, "curar")} className="text-sm text-muted-foreground hover:underline">
           ← Curar
         </Link>
-        <h1 className="mt-1 text-2xl font-semibold">Colecciones</h1>
+        <h1 className="mt-1 flex items-center gap-2.5 text-2xl font-semibold">
+          <Library className="size-6 shrink-0 text-muted-foreground" aria-hidden />
+          Colecciones
+        </h1>
         <p className="text-muted-foreground">
           Apartá los videos que vas a trabajar juntos. Una colección puede mezclar lo que trajo el
           motor, lo que transcribiste pegando un enlace y links sueltos.{" "}

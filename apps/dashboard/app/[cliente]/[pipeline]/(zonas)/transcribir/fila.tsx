@@ -133,7 +133,7 @@ export function Fila({
       {/* El aviso de ADR-095: para que Majo lo vea en vez de descubrirlo leyendo el guion hasta
           donde corta. `aviso` ya sale `null` para "completo" y "desconocido" — acá no se repite
           ese criterio. */}
-      {aviso && <p className="text-xs text-amber-600 dark:text-amber-500">⚠ {aviso}</p>}
+      {aviso && <p className="text-xs text-atencion-fuerte">⚠ {aviso}</p>}
 
       {t.error && <p className="text-xs text-muted-foreground">{t.error}</p>}
 

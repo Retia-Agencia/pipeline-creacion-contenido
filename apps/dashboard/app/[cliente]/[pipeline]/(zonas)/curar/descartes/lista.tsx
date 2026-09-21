@@ -7,7 +7,10 @@ import { Copiar } from "@/components/ui/copiar";
 import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils";
 import { BarraOrden, usarOrden } from "@/components/video/orden";
-import { VEREDICTOS, type DescarteFeed, type Veredicto } from "@/domain/feed";
+import {
+  AYUDA_CERCANIA,
+  ETIQUETA_CERCANIA,
+  nivelDeCercania, VEREDICTOS, type DescarteFeed, type Veredicto } from "@/domain/feed";
 import type { CriterioOrden } from "@/domain/orden";
 import { auditarDescarte } from "./actions";
 import { usarCockpit } from "../../usar-cockpit";
@@ -120,11 +123,21 @@ export function Lista({ descartes }: { descartes: DescarteFeed[] }) {
                     {d.proyecto || "(sin proyecto)"}
                     {d.referente && ` · ${d.referente}`}
                   </p>
-                  {d.relevanciaScore !== null && (
-                    <Badge variant="outline" title="Qué tan relevante lo juzgó el filtro. Cuanto más alto, más cerca estuvo de pasar.">
-                      {d.relevanciaScore.toFixed(2)}
-                    </Badge>
-                  )}
+                  {/* Qué tan cerca estuvo de pasar, en palabras. Antes acá había un `0.48`
+                      crudo con la explicación escondida en un `title`, y en el celular no hay
+                      tooltip. **La escala NO es la del heat** (estos van de 0 a 0.5, porque su
+                      techo es el umbral del gate): ver `nivelDeCercania` en `domain/feed.ts`. */}
+                  {(() => {
+                    const nivel = nivelDeCercania(d.relevanciaScore);
+                    return (
+                      <Badge
+                        variant={nivel === "casi" ? "atencion" : "outline"}
+                        title={AYUDA_CERCANIA[nivel]}
+                      >
+                        {ETIQUETA_CERCANIA[nivel]}
+                      </Badge>
+                    );
+                  })()}
                 </div>
               </button>
 

@@ -100,8 +100,16 @@ export function Tarjeta({
             </button>
             <Badge variant="secondary">{propuesta.plataforma}</Badge>
             {propuesta.afinidad !== null && (
-              <Badge variant="outline" title="Qué tan bien pega con el tema, de 0 a 1.">
-                afinidad {propuesta.afinidad}
+              // Porcentaje y no el decimal crudo: `0.75` y `0.7` son el mismo dato escrito de
+              // dos formas, y una columna de números que cambian de largo se lee peor.
+              // Acá NO va una etiqueta en palabras como en el feed o en descartes: la afinidad
+              // ya viene con su nombre adelante y la lista está ordenada por ella, así que una
+              // cuarta escala de adjetivos sería una palabra más para aprender, no menos.
+              <Badge
+                variant="outline"
+                title="Qué tan bien pega con el tema. Solo se proponen las de 60% para arriba."
+              >
+                afinidad {Math.round(propuesta.afinidad * 100)}%
               </Badge>
             )}
             {propuesta.seguidores !== null && (
@@ -132,7 +140,7 @@ export function Tarjeta({
         abierto={abierto}
         onCerrar={() => setAbierto(false)}
         titulo={propuesta.handle}
-        subtitulo={`${propuesta.plataforma}${propuesta.afinidad !== null ? ` · afinidad ${propuesta.afinidad}` : ""}${propuesta.seguidores !== null ? ` · ${miles(propuesta.seguidores)} seguidores` : ""}`}
+        subtitulo={`${propuesta.plataforma}${propuesta.afinidad !== null ? ` · afinidad ${Math.round(propuesta.afinidad * 100)}%` : ""}${propuesta.seguidores !== null ? ` · ${miles(propuesta.seguidores)} seguidores` : ""}`}
       >
         {propuesta.url && (
           <a
