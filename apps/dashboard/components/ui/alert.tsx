@@ -4,13 +4,23 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const alertVariants = cva(
-  "group/alert relative grid w-full gap-0.5 rounded-lg border px-2.5 py-2 text-left text-sm has-data-[slot=alert-action]:relative has-data-[slot=alert-action]:pr-18 has-[>svg]:grid-cols-[auto_1fr] has-[>svg]:gap-x-2 *:[svg]:row-span-2 *:[svg]:translate-y-0.5 *:[svg]:text-current *:[svg:not([class*='size-'])]:size-4",
+  "group/alert relative grid w-full gap-1 rounded-lg border px-3.5 py-3 text-left text-sm has-data-[slot=alert-action]:relative has-data-[slot=alert-action]:pr-18 has-[>svg]:grid-cols-[auto_1fr] has-[>svg]:gap-x-2.5 *:[svg]:row-span-2 *:[svg]:translate-y-0.5 *:[svg]:text-current *:[svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
         default: "bg-card text-card-foreground",
+        // El `<Alert>` es el sustituto del toast en todo el cockpit (no hay
+        // sistema de toasts y es a propósito), así que es LA pieza que le
+        // contesta a la gente. Un aviso que pasa desapercibido no contesta
+        // nada: cada variante trae su fondo suave y su borde del mismo tono.
         destructive:
-          "bg-card text-destructive *:data-[slot=alert-description]:text-destructive/90 *:[svg]:text-current",
+          "border-destructive/25 bg-destructive-suave text-destructive-fuerte *:data-[slot=alert-description]:text-destructive-fuerte/85 *:[svg]:text-current",
+        exito:
+          "border-exito/25 bg-exito-suave text-exito-fuerte *:data-[slot=alert-description]:text-exito-fuerte/85 *:[svg]:text-current",
+        atencion:
+          "border-atencion/30 bg-atencion-suave text-atencion-fuerte *:data-[slot=alert-description]:text-atencion-fuerte/85 *:[svg]:text-current",
+        "en-curso":
+          "border-en-curso/25 bg-en-curso-suave text-en-curso-fuerte *:data-[slot=alert-description]:text-en-curso-fuerte/85 *:[svg]:text-current",
       },
     },
     defaultVariants: {

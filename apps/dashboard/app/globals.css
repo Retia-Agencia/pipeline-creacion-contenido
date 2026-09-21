@@ -4,12 +4,35 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   La paleta del cockpit.
+   Este archivo es la ÚNICA fuente de color, radio y tipografía: las 12 pantallas
+   lo heredan. Sus valores salen de `docs/design/brief-visual.md`, que es lo que
+   se llena cuando hay que cambiarlos. No hardcodear un color en un `.tsx`.
+
+   🩸 **De dónde venía:** hasta acá esto era el preset `neutral` de shadcn sin
+   tocar, o sea **croma 0 en todos los tokens** — literalmente todo gris salvo
+   el rojo de `destructive`. Una corrida que salió bien y una neutra se veían
+   idénticas y había que leer la palabra para distinguirlas. El equipo de redes
+   (Majo y Jero) vive acá todas las mañanas; esa es la razón del cambio.
+   ───────────────────────────────────────────────────────────────────────────── */
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-geist-sans);
+
+  /* La escala tipográfica, un punto más grande que el default.
+     `text-sm` es el tamaño dominante del cockpit (está en casi todas las
+     pantallas), así que subirlo acá sube la legibilidad de todo de una,
+     sin tocar un solo `.tsx`. `base` y para arriba quedan como estaban. */
+  --text-xs: 0.8125rem; /* 13px (era 12) */
+  --text-xs--line-height: 1.5;
+  --text-sm: 0.9375rem; /* 15px (era 14) — el que más se usa */
+  --text-sm--line-height: 1.55;
+
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -27,6 +50,8 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-destructive-suave: var(--destructive-suave);
+  --color-destructive-fuerte: var(--destructive-fuerte);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -39,6 +64,26 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+
+  /* Los cuatro estados que el cockpit necesita para significar algo.
+     Cada uno viene en tres piezas y las tres hacen falta:
+       · el sólido    → puntos, íconos, bordes, barras
+       · `-suave`     → el fondo de un badge o de un aviso
+       · `-fuerte`    → el texto SOBRE ese fondo suave (contraste AA)
+     `destructive` ya existía y se suma a la familia con las mismas tres. */
+  --color-exito: var(--exito);
+  --color-exito-suave: var(--exito-suave);
+  --color-exito-fuerte: var(--exito-fuerte);
+  --color-en-curso: var(--en-curso);
+  --color-en-curso-suave: var(--en-curso-suave);
+  --color-en-curso-fuerte: var(--en-curso-fuerte);
+  --color-atencion: var(--atencion);
+  --color-atencion-suave: var(--atencion-suave);
+  --color-atencion-fuerte: var(--atencion-fuerte);
+  --color-destacado: var(--destacado);
+  --color-destacado-suave: var(--destacado-suave);
+  --color-destacado-fuerte: var(--destacado-fuerte);
+
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -49,72 +94,145 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  /* El fondo NO es blanco puro: es un blanco apenas cálido. La tarjeta sí es
+     blanca, y ese medio punto de diferencia es lo que hace que las tarjetas
+     floten sin necesidad de sombras pesadas ni bordes duros. */
+  --background: oklch(0.994 0.003 85);
+  --foreground: oklch(0.24 0.015 275);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.24 0.015 275);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  --popover-foreground: oklch(0.24 0.015 275);
+
+  /* El color de "acá se aprieta": índigo cálido. Es el de los botones
+     principales, los links, el chip del filtro activo y la zona activa del nav.
+     Elegido para no competir con los emoji 🔥 👍 👎 del feed, que son el
+     vocabulario del equipo y no se tocan. */
+  --primary: oklch(0.52 0.21 277);
+  --primary-foreground: oklch(0.985 0.008 277);
+
+  /* Los neutros llevan una pizca de croma cálido en vez de croma 0. Es la
+     diferencia entre "gris de sistema" y "gris de algo hecho por alguien". */
+  --secondary: oklch(0.965 0.006 85);
+  --secondary-foreground: oklch(0.3 0.015 275);
+  --muted: oklch(0.965 0.006 85);
+  --muted-foreground: oklch(0.52 0.018 275);
+  --accent: oklch(0.955 0.012 277);
+  --accent-foreground: oklch(0.36 0.09 277);
+
+  --border: oklch(0.912 0.006 85);
+  --input: oklch(0.9 0.007 85);
+  --ring: oklch(0.52 0.21 277);
+
+  /* ── Los estados ─────────────────────────────────────────────────────────
+     El orden es el de `docs/design/brief-visual.md` §3, y los nombres son los
+     de ahí: si el brief cambia un color, se cambia acá y en ningún otro lado. */
+
+  /* Bien / terminado — corrida `ok`, aprobado 👍, transcripción lista */
+  --exito: oklch(0.62 0.145 155);
+  --exito-suave: oklch(0.955 0.04 155);
+  --exito-fuerte: oklch(0.42 0.11 155);
+
+  /* En curso / esperando — corrida `en_curso`, cola de transcripción */
+  --en-curso: oklch(0.6 0.14 240);
+  --en-curso-suave: oklch(0.955 0.035 240);
+  --en-curso-fuerte: oklch(0.42 0.12 240);
+
+  /* Ojo / a medias — corrida `parcial`, "no le alcanza ni en el mejor caso" */
+  --atencion: oklch(0.72 0.155 75);
+  --atencion-suave: oklch(0.96 0.045 85);
+  --atencion-fuerte: oklch(0.48 0.11 65);
+
+  /* Mal / falló — corrida `fallo`, errores, borrar */
+  --destructive: oklch(0.577 0.22 27.5);
+  --destructive-suave: oklch(0.955 0.035 27.5);
+  --destructive-fuerte: oklch(0.45 0.17 27.5);
+
+  /* Destacado — el 🔥 del feed, lo ejemplar */
+  --destacado: oklch(0.68 0.185 45);
+  --destacado-suave: oklch(0.96 0.05 50);
+  --destacado-fuerte: oklch(0.47 0.14 42);
+
+  /* Las series de gráficos dejan de ser cinco grises y pasan a ser la familia
+     de estados, en el orden en que se leen. */
+  --chart-1: oklch(0.52 0.21 277);
+  --chart-2: oklch(0.62 0.145 155);
+  --chart-3: oklch(0.6 0.14 240);
+  --chart-4: oklch(0.72 0.155 75);
+  --chart-5: oklch(0.68 0.185 45);
+
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+
+  --sidebar: oklch(0.985 0.005 85);
+  --sidebar-foreground: oklch(0.24 0.015 275);
+  --sidebar-primary: oklch(0.52 0.21 277);
+  --sidebar-primary-foreground: oklch(0.985 0.008 277);
+  --sidebar-accent: oklch(0.955 0.012 277);
+  --sidebar-accent-foreground: oklch(0.36 0.09 277);
+  --sidebar-border: oklch(0.912 0.006 85);
+  --sidebar-ring: oklch(0.52 0.21 277);
 }
 
+/* ⚠️ El modo oscuro sigue DEFINIDO Y NUNCA ACTIVADO: no hay `next-themes`, ni
+   provider, ni toggle, así que nada agrega la clase `.dark` y nadie ve esto.
+   Se mantiene al día igual —cuesta poco y evita que quede a medias— pero la
+   decisión de prenderlo o borrarlo es la §7 del brief y todavía no está tomada.
+   Si se prende sin leer esto, lo que falta es el toggle, no los colores. */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: oklch(0.2 0.015 275);
+  --foreground: oklch(0.975 0.005 85);
+  --card: oklch(0.255 0.017 275);
+  --card-foreground: oklch(0.975 0.005 85);
+  --popover: oklch(0.255 0.017 275);
+  --popover-foreground: oklch(0.975 0.005 85);
+
+  --primary: oklch(0.72 0.16 277);
+  --primary-foreground: oklch(0.19 0.04 277);
+  --secondary: oklch(0.31 0.018 275);
+  --secondary-foreground: oklch(0.975 0.005 85);
+  --muted: oklch(0.31 0.018 275);
+  --muted-foreground: oklch(0.72 0.015 275);
+  --accent: oklch(0.34 0.045 277);
+  --accent-foreground: oklch(0.9 0.05 277);
+
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 16%);
+  --ring: oklch(0.72 0.16 277);
+
+  --exito: oklch(0.72 0.14 155);
+  --exito-suave: oklch(0.32 0.06 155);
+  --exito-fuerte: oklch(0.86 0.12 155);
+
+  --en-curso: oklch(0.72 0.13 240);
+  --en-curso-suave: oklch(0.32 0.06 240);
+  --en-curso-fuerte: oklch(0.86 0.1 240);
+
+  --atencion: oklch(0.8 0.145 80);
+  --atencion-suave: oklch(0.34 0.06 75);
+  --atencion-fuerte: oklch(0.89 0.12 85);
+
+  --destructive: oklch(0.704 0.191 22.2);
+  --destructive-suave: oklch(0.33 0.08 27.5);
+  --destructive-fuerte: oklch(0.87 0.11 22.2);
+
+  --destacado: oklch(0.77 0.16 50);
+  --destacado-suave: oklch(0.34 0.08 45);
+  --destacado-fuerte: oklch(0.88 0.12 55);
+
+  --chart-1: oklch(0.72 0.16 277);
+  --chart-2: oklch(0.72 0.14 155);
+  --chart-3: oklch(0.72 0.13 240);
+  --chart-4: oklch(0.8 0.145 80);
+  --chart-5: oklch(0.77 0.16 50);
+
+  --sidebar: oklch(0.255 0.017 275);
+  --sidebar-foreground: oklch(0.975 0.005 85);
+  --sidebar-primary: oklch(0.72 0.16 277);
+  --sidebar-primary-foreground: oklch(0.19 0.04 277);
+  --sidebar-accent: oklch(0.34 0.045 277);
+  --sidebar-accent-foreground: oklch(0.9 0.05 277);
+  --sidebar-border: oklch(1 0 0 / 12%);
+  --sidebar-ring: oklch(0.72 0.16 277);
 }
 
 @layer base {
@@ -126,5 +244,12 @@
   }
   html {
     @apply font-sans;
+    /* Los títulos de pantalla no se leen bien con el tracking por defecto a
+       tamaños grandes; esto los cierra un punto. */
+    -webkit-font-smoothing: antialiased;
+  }
+  h1,
+  h2 {
+    @apply tracking-tight;
   }
 }

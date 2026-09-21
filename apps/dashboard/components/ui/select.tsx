@@ -11,7 +11,7 @@ export function Select({ className, ...props }: React.ComponentProps<"select">) 
     <select
       data-slot="select"
       className={cn(
-        "h-8 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm shadow-xs outline-none",
+        "h-9 rounded-lg border border-input bg-card px-3 py-1 text-sm shadow-xs outline-none",
         "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
         "disabled:pointer-events-none disabled:opacity-50",
         className,

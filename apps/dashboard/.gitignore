@@ -40,3 +40,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# log del dev server cuando se lanza desacoplado (scratch local)
+.next-dev.log
