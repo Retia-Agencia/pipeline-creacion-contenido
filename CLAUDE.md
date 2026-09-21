@@ -130,6 +130,19 @@ por qué. **No los leas para saber qué existe hoy.**
 ⚠️ **Los 97 [ADRs](docs/adr/) NO se archivan.** Un ADR viejo no es un ADR obsoleto: es historia que
 se cita, y varios gobiernan código vivo.
 
+**Diseño del cockpit**
+- [docs/design/sistema-visual.md](docs/design/sistema-visual.md) — **cómo se ve el cockpit y por
+  qué**: tokens de color, los componentes que ya existen, íconos por zona y por pantalla, el
+  checklist de una pantalla nueva y los anti-patrones (cada uno estuvo en este repo).
+  **Leelo antes de tocar una pantalla**; lo apunta el `AGENTS.md` de la app. Su regla madre:
+  *ningún color se escribe en un `.tsx`*, salen todos de `globals.css`.
+  📏 **Su §10 es la que más caro sale re-aprender:** los tres números que muestra el cockpit son
+  **tres escalas distintas** — el `heat` va de 0 a 1, la `relevancia_score` de un descarte de 0 a
+  0.50 (su techo es el umbral del gate) y la `afinidad` de 0.6 a 1. Reusar los cortes de una en
+  otra **no falla**: deja una categoría vacía para siempre y la etiqueta dice siempre lo mismo.
+- [docs/design/brief-visual.md](docs/design/brief-visual.md) — el formulario para **cambiar** la
+  paleta (no para usarla). Se llena, se traduce a `globals.css`, y las pantallas cambian solas.
+
 **Decisiones**
 - [docs/adr/](docs/adr/) — ADRs 001–099 (99 archivos), una decisión por archivo con su porqué ([índice](docs/adr/README.md)).
   💸 **Si la pregunta es *"¿nos cambiamos de proveedor de scraping?"*, la contesta

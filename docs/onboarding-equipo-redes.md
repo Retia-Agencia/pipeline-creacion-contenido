@@ -4,6 +4,13 @@
 > dentro**. Está armada para que casi cualquier duda se resuelva acá. Si algo igual no se entiende o
 > falta, anotalo al final (sección "Lo que necesitamos") y lo resolvemos.
 >
+> *Actualizado: 2026-09-21 — **el cockpit se rediseñó** (colores, íconos, jerarquía) y se
+> corrigieron **cinco cosas que este manual daba por ciertas y ya no lo eran**, cada una marcada
+> con 📌 en su sección: la puerta es mail+contraseña (no magic link), *Entender* **no** muestra
+> costos al equipo, calificar es **un** acto y no dos, 🔥 Seleccionados es un **filtro** del feed
+> y no una pantalla, y los Descartes **ya no se vacían** los domingos. Al pie, en §12.1, quedaron
+> las seis preguntas de la demo de 10 minutos.*
+>
 > *Actualizado: 2026-08-29 — nuevo **§7.1**: qué le hace exactamente el 🔥 y el 👎 al heat (los dos
 > caminos, y por qué el 👎 pesa más de lo que parece). Además: apagar una voz ahora apaga **las dos**
 > máquinas (§5.2), Referentes avisa cuáles cuentas quedaron **sin trabajo** (§5.3), y una colección
@@ -107,8 +114,10 @@ se archiva y se mide.** Todo lo demás es automático.
 
 ## 2. La única herramienta que tocan
 
-**El cockpit**, y nada más: `pipeline-creacion-contenido.vercel.app`. Se entra con un **magic link**
-al mail (no hay contraseña que recordar).
+**El cockpit**, y nada más: `pipeline-creacion-contenido.vercel.app`. Se entra con **el mail y una
+contraseña**. La primera vez la contraseña la ponés vos: entrás una vez con el link que te llega al
+mail y la elegís en **Mi cuenta** (el link es tu nombre, arriba a la derecha). Si te la olvidás,
+el link al mail sigue siendo la puerta de repuesto.
 
 | Zona del cockpit | Para qué | Qué hacen ahí |
 |---|---|---|
@@ -238,12 +247,13 @@ Piénsenlas en tres grupos.
 
 ### Las que solo miran
 
-- **Entender** — el desempeño de cada semana: calidad por proyecto, salud del sistema y costos
+- **Entender** — el desempeño de cada semana: calidad por proyecto y salud del sistema
   (§6.2). Los números se calculan solos a partir de lo que ustedes califican; **nadie escribe ahí**.
 
 ### 4.1 El menú que ven
 
-A la izquierda hay cuatro zonas. Esto es todo lo que hay y qué se toca en cada una:
+**Arriba de todo hay cinco zonas**, cada una con su ícono. La que estás mirando queda marcada.
+Esto es todo lo que hay y qué se toca en cada una:
 
 | Zona | Para qué | Qué editan ahí |
 |---|---|---|
@@ -255,7 +265,7 @@ A la izquierda hay cuatro zonas. Esto es todo lo que hay y qué se toca en cada 
 | **Curar → Ajustes** | Las perillas (§5.5) | los valores |
 | **Curar → Históricos** | El archivo de sus guiones + qué ya grabaron | la **marca de grabado** y la carga de links ya grabados (+ los 2 botones de descarga) |
 | **Curar → Colecciones** | Apartar los videos que van a trabajar juntos, vengan de donde vengan | crear la colección, **renombrarla**, meterle videos pegando links, bajarla en Word o Excel, borrarla |
-| **Entender** | Precisión, salud y costos (§6.2) | **nada — solo lectura** |
+| **Entender** | Precisión y salud del sistema (§6.2) | **nada — solo lectura** |
 | **Transcribir** | Pegar un link suelto y recibir su texto | el link |
 
 > **Calificar es un solo acto.** No hay que poner un emoji *y* además un estado: eligen 🔥 / 👍 / 👎 y
@@ -546,6 +556,10 @@ Una voz tampoco se borra mientras tenga proyectos colgando: primero se resuelven
 
 ## 6. Cómo califican: las dos columnas que importan
 
+> 📌 **Esto cambió: marcan UNA sola cosa, el emoji.** El estado lo deduce el sistema solo, y si te
+> equivocás clickeás otro emoji encima — eso *es* el deshacer. Lo de abajo describe cómo era antes,
+> cuando eran dos campos; se conserva para quien lo aprendió así.
+
 Hay dos cosas que marcan, y son distintas:
 
 ### `calificacion` — su opinión rápida
@@ -559,7 +573,8 @@ Hay dos cosas que marcan, y son distintas:
 - **descartado** — lo miraron y no va. **También califíquenlo** (👎): la máquina aprende del "no".
 
 > **¿Cuál es más importante?** El `estado`. La máquina aprende sobre todo de aprobado vs descartado. La
-> `calificacion` (🔥/👍/👎) es una ayuda visual para ustedes y una señal más fina. Lo ideal: pongan **las dos**.
+> `calificacion` (🔥/👍/👎) es una ayuda visual para ustedes y una señal más fina.
+> ⚠️ **Ya no hace falta poner las dos: el estado se deriva del emoji** (ADR-034).
 
 > **El 🔥 ahora enseña.** Cada domingo la máquina destila lo que aprobaron y descartaron en patrones
 > (el campo `criterios_aprendidos` del Proyecto) para afinar sola su criterio, y usa los **🔥 como el
@@ -571,7 +586,10 @@ Hay dos cosas que marcan, y son distintas:
 > lo calificaron, se pierde sin pasar por el Histórico. Traten de vaciar la bandeja cada semana.
 
 ### La vista "🔥 Seleccionados"
-Es una pantalla aparte que muestra **solo los que pusieron en `aprobado`**, ordenados del más caliente al
+> 📌 **Esto cambió: hoy es un FILTRO del Feed, no una pantalla.** Arriba del feed hay chips con su
+> contador (Sin calificar · 🔥 · Aprobados · Todos); el de 🔥 muestra lo ejemplar.
+
+Era una pantalla aparte que mostraba **solo los que pusieron en `aprobado`**, ordenados del más caliente al
 más frío. **Es solo para ver**, no califican ahí. Funciona así: ustedes aprueban en la lista normal de
 Candidatos → automáticamente aparecen en esta vista. Es su "mapa de calor" de lo elegido, y se rearma solo.
 
@@ -586,7 +604,10 @@ Lo único que hacen: mirarlos rápido una vez por semana y marcar la columna `ve
 - **era bueno** — este video SÍ servía. Esta marca es oro: nos dice que los criterios de ese proyecto
   tienen un agujero, y es el dato con el que los afinamos.
 
-El domingo la máquina cuenta los "era bueno", los registra en Métricas y **vacía la página** (no se
+> 📌 **Esto cambió: la página ya NO se vacía** (ADR-036). Lo que no alcanzaron a marcar sigue
+> esperando la semana que viene, así que no se pierde — pero conviene no dejar que se acumule.
+
+El domingo la máquina cuenta los "era bueno", los registra en Métricas y antes **vaciaba la página** (no se
 acumulan; cada semana llega una tanda fresca). Si no alcanzan a revisarlos, no pasa nada, pero cada
 "era bueno" detectado mejora el filtro.
 
@@ -645,10 +666,13 @@ Qué significa cada columna, por página:
 | `runs_ok` / `runs_fallo` | corridas que cerraron bien / mal esa semana |
 | `duracion_min` | cuánto tardó la corrida promedio |
 
-**Costos** (el gasto estimado de la semana, en dólares): un número grande por servicio —
-transcripción (Supadata), filtros y traducciones (IA), y los scrapers (Apify, IG/TikTok/buscador).
-Elijan la semana arriba; `costo_total` es la suma. Los campos que dicen "conteo" no son dólares:
-son la cantidad de llamadas de la que sale el costo.
+> 💰 **Costos: esa sección no la ven, y está bien.** *Entender* tiene un bloque de costos en
+> dólares, pero **solo lo abre el rol `dev`**. No es que falte un permiso ni que esté a medias: lo
+> que cuesta operar la máquina es del lado de la agencia, y la base lo bloquea aunque alguien
+> cambie la pantalla. Si necesitan un número de costo, pídanlo.
+>
+> 📌 **Esto cambió.** Este manual antes describía la tabla de costos como si la vieran. Si la
+> buscaron y no apareció, no era un error suyo.
 
 ---
 
@@ -1003,6 +1027,40 @@ Si con eso no se resuelve, escríbannos con **qué esperaban** y **qué pasó** 
 **Dudas sueltas / cosas que no entendí:**
 -
 -
+
+
+### 12.1 Las seis preguntas (para la demo de 10 minutos)
+
+> Para Mani, Majo y Jero, juntos y con la pantalla en la mano. **Son diez minutos y cierran el
+> último punto abierto del MVP.** Cada pregunta apunta a una decisión de diseño que hoy está
+> tomada sin dato.
+>
+> 🩸 **Por qué importa:** el cockpit se rediseñó para ustedes **sin haberles preguntado nunca
+> nada** — esta sección estuvo vacía desde que existe. Y hay un hecho sin explicar: entre el 1 y
+> el 7 de agosto de 2026 no se registró **ni una sola calificación**. Hubo un bug de por medio,
+> pero el bug no lo explica para ustedes, a quienes la pantalla les funcionaba.
+
+1. **Abrí el cockpit como si fuera un lunes cualquiera. ¿Qué hacés primero?**
+   *(Se mira en silencio, sin ayudar. Si dudan en la primera pantalla, el problema es la
+   jerarquía, no el color.)*
+2. **La semana del 1 al 7 de agosto no calificaron nada. ¿Te acordás qué pasó?**
+   *(La más importante, y la única que no se contesta mirando el código.)*
+3. **En una tarjeta del feed dice "Caliente". ¿Qué entendés que significa?**
+   *(Antes ahí había un `0.87` crudo. Si la palabra tampoco se entiende, el problema es el
+   concepto y no la forma de mostrarlo.)*
+4. **¿Hay alguna palabra del cockpit que uses sin estar seguro de qué quiere decir?**
+   *(Candidatos: corrida, embudo, el gate, techo, high-end, tanda. Vale decir "todas".)*
+5. **¿Qué parte te hace perder más tiempo en una semana normal?**
+   *(Se busca el paso repetido, no la opinión estética.)*
+6. **Si pudieras cambiar UNA sola cosa del cockpit, ¿cuál?**
+   *(Una. Obligar a elegir es lo que la hace útil.)*
+
+**Respuestas:**
+
+| Fecha | Pregunta | Qué contestaron | Qué se hizo |
+|---|---|---|---|
+|  |  |  |  |
+|  |  |  |  |
 
 ---
 
