@@ -18,6 +18,14 @@ import {
   type Calificacion,
   type Filtro,
   type Veredicto,
+  AYUDA_CERCANIA,
+  AYUDA_HEAT,
+  ETIQUETA_CERCANIA,
+  ETIQUETA_HEAT,
+  NIVELES_CERCANIA,
+  NIVELES_HEAT,
+  nivelDeCercania,
+  nivelDeHeat,
 } from "./feed.ts";
 
 const cand = (id: string, extra: Partial<{ proyecto: string; heat: number | null; calificacion: Calificacion | null }> = {}) => ({
@@ -323,5 +331,75 @@ describe("agruparPorCorrida", () => {
 
   it("un feed vacío no inventa grupos", () => {
     assert.deepEqual(agruparPorCorrida([]), []);
+  });
+});
+
+describe("nivelDeHeat — el número del motor, dicho en palabras", () => {
+  it("parte el rango en tres y cada corte cae del lado de arriba", () => {
+    assert.equal(nivelDeHeat(1), "alto");
+    assert.equal(nivelDeHeat(0.87), "alto");
+    assert.equal(nivelDeHeat(0.66), "alto");
+    assert.equal(nivelDeHeat(0.65), "medio");
+    assert.equal(nivelDeHeat(0.33), "medio");
+    assert.equal(nivelDeHeat(0.32), "bajo");
+    assert.equal(nivelDeHeat(0), "bajo");
+  });
+
+  it("sin puntaje NO es puntaje cero — son dos cosas distintas y la tarjeta las dice distinto", () => {
+    assert.equal(nivelDeHeat(null), "sin-dato");
+    assert.equal(nivelDeHeat(NaN), "sin-dato");
+    assert.notEqual(nivelDeHeat(null), nivelDeHeat(0));
+  });
+
+  it("todo nivel tiene etiqueta y ayuda — una tarjeta no puede quedar sin frase", () => {
+    for (const nivel of NIVELES_HEAT) {
+      assert.ok(ETIQUETA_HEAT[nivel]?.length > 0, `falta etiqueta de ${nivel}`);
+      assert.ok(AYUDA_HEAT[nivel]?.length > 0, `falta ayuda de ${nivel}`);
+    }
+  });
+
+  it("respeta el orden del mazo: más heat nunca baja de nivel", () => {
+    // El mazo se ordena por el número exacto; la etiqueta es presentación. Esto ata las dos
+    // cosas: si un corte se moviera al revés, una tarjeta de arriba se vería peor que una de
+    // abajo y la lista parecería desordenada sin estarlo.
+    const orden: Record<string, number> = { alto: 3, medio: 2, bajo: 1, "sin-dato": 0 };
+    for (let a = 0; a <= 1; a += 0.01) {
+      const b = Math.min(1, a + 0.01);
+      assert.ok(
+        orden[nivelDeHeat(b)] >= orden[nivelDeHeat(a)],
+        `${b} quedó por debajo de ${a}`,
+      );
+    }
+  });
+});
+
+describe("nivelDeCercania — cuánto conviene mirar un descarte", () => {
+  it("usa la escala de los descartes (0–0.5), no la del heat", () => {
+    // El máximo real medido en prod es 0.50: con los cortes del heat (0.66) NINGÚN descarte
+    // llegaría nunca a la categoría de arriba y la etiqueta nacería muerta.
+    assert.equal(nivelDeCercania(0.5), "casi");
+    assert.equal(nivelDeCercania(0.4), "casi");
+    assert.equal(nivelDeCercania(0.39), "cerca");
+    assert.equal(nivelDeCercania(0.25), "cerca");
+    assert.equal(nivelDeCercania(0.24), "lejos");
+    assert.equal(nivelDeCercania(0), "lejos");
+  });
+
+  it("NO comparte cortes con nivelDeHeat — son dos escalas y mezclarlas es un bug mudo", () => {
+    // 0.45 es un descarte que casi pasa, y sería "medio" en la escala del feed.
+    assert.equal(nivelDeCercania(0.45), "casi");
+    assert.equal(nivelDeHeat(0.45), "medio");
+  });
+
+  it("sin puntaje no es puntaje cero", () => {
+    assert.equal(nivelDeCercania(null), "sin-dato");
+    assert.notEqual(nivelDeCercania(null), nivelDeCercania(0));
+  });
+
+  it("todo nivel tiene etiqueta y ayuda", () => {
+    for (const n of NIVELES_CERCANIA) {
+      assert.ok(ETIQUETA_CERCANIA[n]?.length > 0, `falta etiqueta de ${n}`);
+      assert.ok(AYUDA_CERCANIA[n]?.length > 0, `falta ayuda de ${n}`);
+    }
   });
 });

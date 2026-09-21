@@ -205,3 +205,52 @@ export function repartirEnlaces(
   }
   return reparto;
 }
+
+// ───────────────── Cómo se DIBUJA un enlace que quedó de título ─────────────────
+//
+// `registrarEnHistorico` guarda la URL como título de un guion transcripto a pedido, y tiene
+// razón: nadie le puso nombre al video y un "(sin título)" ayuda menos que el link. Pero en
+// pantalla eso son **814 filas de `https://www.instagram.com/p/DlC3N-Yvuq5/`**, que es ilegible
+// y hace que el Histórico no se pueda barrer con el ojo.
+//
+// 🔑 **Esto NO cambia el dato, solo su dibujo.** La URL sigue siendo el título en la base y el
+// que se copia; acá se decide cómo se muestra. Por eso vive en `domain/` y no en el `.tsx`: es
+// una regla, y el Histórico y cualquier otra lista que muestre outputs tienen que coincidir.
+
+/** Un título de output, listo para dibujar. `esEnlace` deja decidir a la pantalla cómo tratarlo. */
+export type TituloLegible = { texto: string; esEnlace: boolean; completo: string };
+
+/**
+ * Si el título es una URL de video conocida, la convierte en algo que se lee
+ * (`Instagram · DlC3N-Yvuq5`). Si no lo es, la devuelve tal cual: un guion aprobado desde el feed
+ * ya tiene un título de verdad y no hay que tocarlo.
+ */
+export function tituloLegible(titulo: string): TituloLegible {
+  const crudo = titulo.trim();
+  if (!/^https?:\/\//i.test(crudo)) {
+    return { texto: crudo, esEnlace: false, completo: crudo };
+  }
+  const e = clasificar(crudo);
+  if (esValido(e)) {
+    // ⚠️ **Se usa lo que dice la URL, no el `external_id`.** El `external_id` de Instagram es el
+    // shortcode ya convertido a su id numérico (`shortcodeAExternalId`), o sea 19 dígitos que no
+    // le dicen nada a nadie: `Instagram · 3603685504748284601`. El shortcode crudo —el que está
+    // en la URL y el que se ve al abrir el post— es corto y reconocible.
+    if (e.plataforma === "instagram") {
+      const m = crudo.match(/\/(?:p|reel|reels|tv)\/([A-Za-z0-9_-]+)/i);
+      if (m) return { texto: `Instagram · ${m[1]}`, esEnlace: true, completo: crudo };
+    } else {
+      // En TikTok lo reconocible es la cuenta, no el id del video.
+      const m = crudo.match(/tiktok\.com\/(@[A-Za-z0-9._]+)/i);
+      if (m) return { texto: `TikTok · ${m[1]}`, esEnlace: true, completo: crudo };
+    }
+    const nombre = e.plataforma === "instagram" ? "Instagram" : "TikTok";
+    return { texto: `${nombre} · ${e.external_id}`, esEnlace: true, completo: crudo };
+  }
+  // Una URL que el parser no reconoce se muestra sin el `https://www.`, que es ruido puro.
+  return {
+    texto: crudo.replace(/^https?:\/\/(www\.)?/i, "").replace(/\/+$/, ""),
+    esEnlace: true,
+    completo: crudo,
+  };
+}

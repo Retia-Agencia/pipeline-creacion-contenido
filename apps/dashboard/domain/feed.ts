@@ -152,6 +152,67 @@ export const ETIQUETA_FILTRO: Record<Filtro, string> = {
 export const esFiltro = (v: unknown): v is Filtro =>
   typeof v === "string" && (FILTROS as readonly string[]).includes(v);
 
+// ─────────────────────────────── El heat, dicho en palabras ─────────────────────────────────
+//
+// El `heat` es un número de 0 a 1 que sale del motor (`Heat-score v1`) y ordena el mazo. En la
+// tarjeta se dibujaba crudo —un `0.87` suelto en el pie— con la explicación escondida en un
+// `title`: o sea que para entender la única cifra de la tarjeta había que descubrir que tenía
+// tooltip, y **en un celular no hay tooltip que descubrir**.
+//
+// Traducirlo acá y no en el `.tsx` es la regla de la casa: el lenguaje del cockpit vive en
+// `domain/` (como `ESTADO_LEGIBLE` o `RAZON_FALTANTE_LEGIBLE`), donde se puede testear y donde
+// hay UN solo lugar que cambiar. La tarjeta de reels y la de LinkedIn son dos archivos distintos;
+// si la frase viviera en el JSX, ya serían dos frases.
+//
+// ⚠️ **Los cortes son de presentación, no del motor.** El orden del mazo lo sigue dando el número
+// exacto: esto solo decide cómo se nombra un valor que ya está calculado. Mover un corte cambia
+// la etiqueta de algunas tarjetas y no mueve ni una de lugar.
+//
+// 📊 **Dónde caen los cortes, medido contra prod el 2026-09-21** (86 candidatos sin calificar de
+// `retia/reels`): mediana 0.68, p25 0.20, p90 0.90. Reparto: **51% caliente · 12% tibio · 37% frío**.
+//
+// 🔑 Y el hallazgo que conviene no perder: **la distribución es bimodal**, no pareja. Hay un pico
+// abajo (0.1–0.3: 32 candidatos) y otro arriba (0.6–1.0: 50), con un valle casi vacío en el medio
+// (0.4–0.6: **2 candidatos**). O sea que el gate produce dos grupos, no un gradiente — por eso
+// "Tibio" casi no aparece, y eso es la verdad del dato y no un corte mal puesto. Si algún día el
+// valle se llena, el heat-score cambió de forma y esto hay que volver a medirlo.
+
+export const NIVELES_HEAT = ["alto", "medio", "bajo", "sin-dato"] as const;
+export type NivelHeat = (typeof NIVELES_HEAT)[number];
+
+// 📏 **Cortas a propósito, y medidas contra prod.** La primera versión decía "Muy prometedor" y
+// **rompía a dos líneas en la tarjeta**, empujando los tres emoji — o sea que la etiqueta le comía
+// el espacio al gesto que el equipo hace cientos de veces por semana.
+//
+// El vocabulario es el que el cockpit ya usa: la bajada del Feed dice *"ordenados de más caliente a
+// más frío"* y el 🔥 es el emoji de aprobar-y-destacar. Inventar una segunda metáfora al lado de esa
+// sería pedirle al equipo que aprenda dos.
+export const ETIQUETA_HEAT: Record<NivelHeat, string> = {
+  alto: "Caliente",
+  medio: "Tibio",
+  bajo: "Frío",
+  "sin-dato": "Sin puntaje",
+};
+
+/**
+ * La explicación larga, para el `title` y el `aria-label`. Sigue existiendo el tooltip: lo que
+ * cambia es que ahora **no hace falta** para entender la tarjeta.
+ */
+export const AYUDA_HEAT: Record<NivelHeat, string> = {
+  alto: "De lo mejor que trajo el motor esta semana para este proyecto.",
+  medio: "Está en el medio de la tanda.",
+  bajo: "Entró, pero el motor lo ve flojo comparado con el resto.",
+  "sin-dato": "El motor no le pudo calcular puntaje.",
+};
+
+/** En qué nivel cae un heat. `null` —que existe y aparece— es su propio caso, no un cero. */
+export function nivelDeHeat(heat: number | null): NivelHeat {
+  if (heat === null || Number.isNaN(heat)) return "sin-dato";
+  if (heat >= 0.66) return "alto";
+  if (heat >= 0.33) return "medio";
+  return "bajo";
+}
+
 type Calificable = { calificacion: Calificacion | null };
 
 /**
@@ -361,6 +422,46 @@ export function agruparPorCorrida<
 // Entidad distinta (ADR-021): un descarte nunca esperó calificación. El equipo dice si la
 // máquina hizo bien en matarlo; los "era bueno" son los **falsos negativos** que el archivado
 // cuenta al cerrar la semana, y es el único campo de esa tabla que lee una máquina.
+
+// ──────────────── Qué tan cerca estuvo un descarte de pasar, dicho en palabras ────────────────
+//
+// Hermano de `nivelDeHeat`, y **deliberadamente NO el mismo**: son dos escalas distintas y
+// mezclarlas sería un bug silencioso. Medido contra prod el 2026-09-21 (154 descartes):
+// `relevancia_score` va de **0.00 a 0.50** y nada lo supera — son justamente los que el gate
+// rechazó, así que su techo es el umbral del gate. Con los cortes del heat (0.66/0.33)
+// **ninguno** caería en "alto" y la etiqueta nacería muerta.
+//
+// Reparto con estos cortes: **25% casi pasa · 58% cerca · 17% lejos** (mediana 0.30, p75 0.35).
+//
+// 🔑 Y por qué estas palabras y no "alto/medio/bajo": en esta pantalla el número no describe
+// calidad, describe **cuánto conviene mirarlo**. Un descarte que casi pasa es donde el criterio
+// se está equivocando; uno lejano es basura obvia. La etiqueta ordena la atención de los 2
+// minutos semanales que el equipo le dedica, que es todo lo que esta pantalla pide.
+
+export const NIVELES_CERCANIA = ["casi", "cerca", "lejos", "sin-dato"] as const;
+export type NivelCercania = (typeof NIVELES_CERCANIA)[number];
+
+export const ETIQUETA_CERCANIA: Record<NivelCercania, string> = {
+  casi: "Casi pasa",
+  cerca: "Cerca",
+  lejos: "Lejos",
+  "sin-dato": "Sin puntaje",
+};
+
+export const AYUDA_CERCANIA: Record<NivelCercania, string> = {
+  casi: "Estuvo a un pelo de entrar al feed: si era bueno, acá es donde el criterio falla.",
+  cerca: "Quedó en la mitad de la tanda de descartes.",
+  lejos: "El filtro lo rechazó con claridad.",
+  "sin-dato": "El motor no le pudo calcular relevancia.",
+};
+
+/** En qué nivel cae la relevancia de un descarte. Escala 0–0.5, no 0–1: ver la nota de arriba. */
+export function nivelDeCercania(relevancia: number | null): NivelCercania {
+  if (relevancia === null || Number.isNaN(relevancia)) return "sin-dato";
+  if (relevancia >= 0.4) return "casi";
+  if (relevancia >= 0.25) return "cerca";
+  return "lejos";
+}
 
 export const VEREDICTOS = ["bien descartado", "era bueno"] as const;
 export type Veredicto = (typeof VEREDICTOS)[number];

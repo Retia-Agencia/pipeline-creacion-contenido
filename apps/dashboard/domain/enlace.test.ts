@@ -6,6 +6,7 @@ import {
   repartirEnlaces,
   shortcodeAExternalId,
   type EnlaceVideo,
+  tituloLegible,
 } from "./enlace.ts";
 
 // Pares reales sacados de processed_items en la base viva (2026-07-28). Cuando se corrió el
@@ -255,5 +256,35 @@ describe("repartirEnlaces", () => {
     const r = repartirEnlaces([ig("13")], new Set(), new Set());
     assert.deepEqual(r.nuevos.map((x) => x.external_id), ["13"]);
     assert.deepEqual(r.grabadas, []);
+  });
+});
+
+describe("tituloLegible — la URL que quedó de título, dibujada", () => {
+  it("un título de verdad no se toca", () => {
+    const t = tituloLegible("Stop saying «just checking in»");
+    assert.equal(t.texto, "Stop saying «just checking in»");
+    assert.equal(t.esEnlace, false);
+  });
+
+  it("una URL de Instagram se vuelve legible y conserva el original", () => {
+    const t = tituloLegible("https://www.instagram.com/p/DlC3N-Yvuq5/");
+    assert.equal(t.esEnlace, true);
+    // El shortcode de la URL, no el id numérico de 19 dígitos que guarda la base.
+    assert.equal(t.texto, "Instagram · DlC3N-Yvuq5");
+    assert.equal(t.completo, "https://www.instagram.com/p/DlC3N-Yvuq5/");
+  });
+
+  it("una URL de TikTok se reconoce como TikTok", () => {
+    const t = tituloLegible("https://www.tiktok.com/@alguien/video/7123456789012345678");
+    assert.equal(t.esEnlace, true);
+    // En TikTok lo reconocible es la cuenta, no el id del video.
+    assert.equal(t.texto, "TikTok · @alguien");
+  });
+
+  it("una URL que el parser no reconoce pierde el ruido pero no el dato", () => {
+    const t = tituloLegible("https://www.youtube.com/watch?v=abc");
+    assert.equal(t.esEnlace, true);
+    assert.ok(!t.texto.startsWith("http"), t.texto);
+    assert.equal(t.completo, "https://www.youtube.com/watch?v=abc");
   });
 });
