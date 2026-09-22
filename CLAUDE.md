@@ -80,6 +80,11 @@ en §Agent skills; acá solo se ubican.
   en producción**; lo vivo es su §15, el cierre del producto en dos carriles. ⚠️ **Es el doc vivo más
   grande del repo (1.638 líneas) y hasta el 2026-09-12 no estaba en este mapa** — o sea que para un
   agente nuevo no existía.
+- 🧭 [docs/agents/decisiones-hub.md](docs/agents/decisiones-hub.md) — **las 10 decisiones antes de
+  construir el HUB** (TikTok · Substack · 8 voces · producción · publicación programada, 2026-09-22).
+  Su hallazgo: *el stack aguanta, el modelo no* — hoy todo termina en "elegido", y `grabados` /
+  `guiones_limpios` no llevan la voz en la llave. Es el dueño del deck de decisiones; **el plan de
+  implementación se escribe después, con su hoja llena.**
 - [docs/agents/plan-motor-linkedin.md](docs/agents/plan-motor-linkedin.md) — de **esqueleto a motor**:
   las fases 0–4 para que el pipeline de LinkedIn corra. Su hallazgo ordenador: **los dos carriles no
   comparten bloqueos** — el personal está a un pedido (los few-shot) y el copiable necesita los tres.
