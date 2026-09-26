@@ -96,6 +96,18 @@ dentro de blockquotes que se acaban de archivar.
   que título y miniatura salgan sin pagar, y enmendar ADR-072.
 - **Luz verde de Mani al equipo de redes (25/09)** para correr y gastar lo que queda del ciclo.
 
+### 📚 Docs del repo (26/09)
+
+- **`AGENTS.md` pasa a ser el dueño de las instrucciones del repo y `CLAUDE.md` solo lo importa**
+  (`@AGENTS.md`). El `AGENTS.md` que entró el 22/09 con "decisiones hub" era una foto de `CLAUDE.md`
+  de agosto: 3 links rotos (`mapa-campos`, `plan-cockpit-propio`, un `AGENTS.md` de workflow que no
+  existe) y datos vencidos (6 workflows en `n8n:diff`, topología por re-import, ADRs hasta 068). Se
+  reemplazó por el contenido vigente; lo viejo queda en git. **Se edita `AGENTS.md`, nunca `CLAUDE.md`.**
+- Datos vencidos corregidos en el mapa: ADRs 001–100, cierres 145–159, `pool_crudo` con 1.079 filas
+  `origen = motor`, la marca de agua ya corrió, y `plan-marca-de-agua.md` entra al mapa (no estaba).
+  El índice de ADRs deja de decir *"sin corrida todavía"* en ADR-100.
+- `npm run validate`: 0 links rotos en 176 `.md`.
+
 ### Lo que sigue, en orden
 
 1. Majo pide **~200 videos para la semana que viene**. Con el roster actual psicología da ~12 por
