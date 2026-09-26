@@ -29,10 +29,10 @@ tercio del medio eran cierres viejos anidados uno dentro de otro bajo un encabez
 
 | buscás | está en |
 |---|---|
-| **el estado de hoy** | el §ARRANCÁ POR ACÁ de acá abajo (cierre 158) |
+| **el estado de hoy** | el §ARRANCÁ POR ACÁ de acá abajo (cierre 159) |
 | **el refactor del motor** | 🧭 [plan-refactor-motor.md](./plan-refactor-motor.md) — el punto de partida único |
 | **los mensajes al equipo de redes** | [plan-refactor-motor §9](./plan-refactor-motor.md) — **1 y 2 enviados el 12/09**, el 3 escrito y pendiente |
-| **los cierres 145 a 158** | acá abajo, completos |
+| **los cierres 145 a 159** | acá abajo, completos |
 | **los cierres 70 a 144** | [handoff-archivo-2026-06_09.md](./handoff-archivo-2026-06_09.md) |
 | **el refactor Voces→Proyectos** | 🗄️ terminado y archivado el 2026-09-12: [docs/archivo/refactor-voces-proyectos.md](../archivo/refactor-voces-proyectos.md) |
 
@@ -40,7 +40,69 @@ tercio del medio eran cierres viejos anidados uno dentro de otro bajo un encabez
 N`), **nunca anidado dentro del anterior**. Así fue como nacieron las 5.736 líneas de blockquotes
 dentro de blockquotes que se acaban de archivar.
 
-## 🚦 ARRANCÁ POR ACÁ — CIERRE 158 (2026-09-15, noche): el botón ▶ ya no estima el techo viejo ni dice "trae casi los mismos videos"
+## 🚦 ARRANCÁ POR ACÁ — CIERRE 159 (2026-09-25): audit de la corrida con 17 USD de Apify, 3 arreglos en producción
+
+> Mani pidió un audit para exprimir los ~17 USD que quedan del ciclo de Apify (50 de tope, 32,93
+> usados, reinicia el **09/10**). Veredicto: **la plata no es el cuello de botella; lo son el roster
+> y el umbral.** Arreglos implementados por Kiro, revisados y empujados por Claude.
+
+### 📏 Lo que se midió (gratis, por lectura)
+
+- **La marca de agua ya corrió** (el pendiente 1 del cierre 157 está cerrado): 5 corridas del motor
+  entre el 16/09 y el 23/09, todas `marca_de_agua: true`, una voz por vez.
+- **Psicología (María José, la única voz prendida) no puede llenar su N.** 13 referentes publican
+  ~31 reels/semana entre todos; la corrida del 23/09 compró 188 reels y entregó **12 de 100
+  pedidos** (5 proyectos × N 20). Su vista mediana es ~100k: con `min_views` 400k pasa el 22 % del
+  pool pagado (232 de 1.061), con 150k pasarían 486.
+- **Solape:** los 5 proyectos de psicología comparten los 13 referentes. 23/09: 43 aprobados del
+  gate = 12 videos distintos, `Autoestima` 10 aprobados y 0 entregados.
+- **Repetir la selección al día siguiente no trae nada:** Rosario 18/09 → 19/09, 63 reels comprados,
+  1 entregado.
+- **El cockpit gasta Apify del mismo cupo** (Colecciones: metadata y URL de descarga), ~2,2 USD del
+  16 al 25/09 contra ~2,5 del motor. Detalle en [costos.md §1.1](../costos.md).
+- **Una corrida de cada voz con proyectos activos cuesta hoy ~2 USD en total** (estimado por marca de agua).
+  Supadata: 1.353 de 30.000 créditos.
+- `@dralexgeorge` fue el mejor referente de psicología el 23/09 (4/4 en el gate) y ya no está en
+  `app.referentes`. **Pregunta abierta a Mani**, no bug.
+
+### ✅ En producción
+
+| qué | dónde | verificación |
+|---|---|---|
+| `filtrados_por_motivo` ya no sale `null`: `_muertos` se pega al primer ítem del array que se DEVUELVE, después del cap | `Heat-score v1` | test de regresión en `test-nodos.mjs` |
+| Aviso en `runs.metricas.avisos` cuando un referente alimenta a más de un proyecto de la corrida | `Armar plan de corrida` | 3 tests (solape, IG+TT del mismo proyecto no cuenta doble, proyecto inactivo no cuenta) |
+| La confirmación del ▶ dice que el cockpit gasta del mismo saldo y que el motor se frena con < 2,5 USD | `operar/boton-correr.tsx` | typecheck · 601 tests · build. **No visto en pantalla** (login) |
+
+`n8n:push motor` de los 2 nodos, `n8n:diff` verde en los 5. Rollback:
+`node n8n-sync.mjs restore motor .n8n-snapshots/motor-2026-09-26T01-57-40-910Z.json --apply`.
+
+### 🧭 Decisiones y dirección
+
+- **Dirección de producto (Mani, 25/09):** el cockpit pasa a ser **dashboard / tracker de la
+  operación de media de Retia**, y el scraping se **terceriza** a herramientas pagas (Virlos y
+  similares, sin investigar). Falta su ADR. Ojo con [ADR-098](../adr/ADR-098-el-proveedor-no-es-el-problema-la-cadencia-si.md):
+  cambiar de proveedor no baja el costo; el argumento válido es no mantener scraping propio.
+- **Mensaje al equipo de redes enviado por Mani** (a Majo, 25/09): faltan referentes, menos solape,
+  una voz a la vez, no repetir corridas, y que bajar el umbral a 150k casi duplica lo que llega.
+  ⚠️ No se mandó el reparto de plata ni el procedimiento de historia para cuentas nuevas.
+- **Reparto propuesto (sin enviar):** 3 USD cockpit · 1 USD corridas semanales · 2,5 intocables
+  (pre-flight) · ~10 USD cuentas nuevas, 2 por proyecto. Traer historia de una cuenta nueva pide
+  subir **dos** ajustes por una corrida (`Días de recencia` 150 **y** `Resultados por cuenta` 100):
+  `Asignar proyecto+voz` tiene su propia guardia de recencia. Con marca de agua solo gastan las
+  cuentas sin historia.
+- **Mani quiere que Transcribir sea solo Supadata.** Hoy lo que compra en Apify es de Colecciones
+  (`lib/apify.ts`), por ADR-072: sacarlo pide enmendar ese ADR. Pendiente de decisión.
+
+### Lo que sigue, en orden
+
+1. Majo pide **~200 videos para la semana que viene**. Con el roster actual psicología da ~12 por
+   corrida: sin muchas más cuentas (o sin bajar el umbral) no se llega.
+2. Decidir `min_views` para psicología (instrucción del jefe; ver plan-refactor-motor).
+3. Decidir si Colecciones deja de comprar metadata/descargas en Apify (enmienda ADR-072).
+4. ADR de la dirección cockpit-tracker + investigación de Virlos y similares.
+5. Verificar el texto del ▶ en pantalla (sigue pendiente desde el cierre 158).
+
+## 🔒 CIERRE 158 (2026-09-15, noche): el botón ▶ ya no estima el techo viejo ni dice "trae casi los mismos videos"
 
 > Cierra el pendiente #2 del cierre 157 (acá abajo): `queCostariaCorrer` seguía calculando
 > cuentas × resultados por cuenta aunque ADR-100 ya comprara menos, y la confirmación decía una

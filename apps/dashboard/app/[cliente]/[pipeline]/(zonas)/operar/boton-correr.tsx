@@ -31,6 +31,12 @@ const fecha = (iso: string) =>
 // ahora estima con la marca de agua puesta (`costoDeCorridaConMarca`) y cae al techo si está apagada
 // o no se pudo leer (`estimado.costo.conMarca` lo distingue); la frase la reemplaza cuándo fue la
 // última búsqueda, que es verdad se use o no la marca.
+//
+// 🩸 Y desde el audit del 2026-09-25 el saldo deja de leerse como si fuera exclusivo del ▶: el cupo
+// de Apify es UNO para todo (docs/costos.md §1.1). Transcribir compra metadata por cada link pegado
+// (~0,0023 USD/URL) del MISMO saldo —el 24/09 gastó 0,91 USD sin una sola corrida— y el motor se
+// planta solo cuando quedan menos de ~2,5 USD (`margen_cupo_apify_usd`, ADR-094). Las dos cosas se
+// dicen en la confirmación cuando hay saldo para mostrarlas.
 export function BotonCorrer({ deshabilitado }: { deshabilitado: boolean }) {
   const cockpit = usarCockpit();
   const [confirmando, setConfirmando] = useState(false);
@@ -98,6 +104,8 @@ export function BotonCorrer({ deshabilitado }: { deshabilitado: boolean }) {
                       {alcanza === 0 ? "no alcanza" : `alcanza para ${alcanza}`}
                     </strong>
                     .{" "}
+                    Ojo: Transcribir también gasta de este saldo (~0,0023 USD por link pegado), y el
+                    motor se planta solo cuando quedan menos de ~2,50 USD.{" "}
                   </>
                 )}
                 {estimado.ultimaBusqueda

@@ -155,6 +155,54 @@ seccion('El referente que cruza voces (4 de 12 en la base viva: @howtoconvince y
   check('con una de las 2 voces apagada NO avisa (no hay ambigüedad viva en esta corrida)', !logs.some((l) => /alimenta proyectos de/.test(l)), JSON.stringify(logs));
 }
 
+seccion('El referente que alimenta MÁS DE UN proyecto de la corrida (solapamiento de fuentes, ADR-089)');
+{
+  // 🩸 BUG del audit 2026-09-25: los proyectos que comparten referentes compiten por los mismos
+  // videos, el gate aprueba un video para varios pero `Armar candidato` lo entrega a UNO solo.
+  // Medido el 23/09: 5 proyectos de psicología comparten 13 referentes, 43 aprobados = 12 videos
+  // distintos, `Autoestima` con 10 aprobados y 0 entregados. Esto era invisible; ahora es un aviso.
+  const { plan } = runPlan({
+    proyectos: [P('p1', 'Autoestima', ['v1']), P('p2', 'Ansiedad', ['v1']), P('p3', 'Duelo', ['v1'])],
+    vocesActivas: [V('v1', 'Psicología')],
+    referentes: [
+      { id: 'r1', fields: { handle: '@psico1', plataforma: 'instagram', proyecto: ['p1', 'p2', 'p3'] } },
+      { id: 'r2', fields: { handle: '@psico2', plataforma: 'instagram', proyecto: ['p1', 'p2'] } },
+      { id: 'r3', fields: { handle: '@solop3', plataforma: 'instagram', proyecto: ['p3'] } },
+    ],
+  });
+  check('el solapamiento sale como AVISO de verdad (llega a runs.metricas.avisos, no solo al log)',
+    plan.avisos.some((a) => /alimentan a mas de un proyecto de esta corrida/.test(a)), JSON.stringify(plan.avisos));
+  check('cuenta bien: 2 de 3 referentes solapan (el que va a un solo proyecto no cuenta)',
+    plan.avisos.some((a) => /2 de 3 referentes/.test(a)), JSON.stringify(plan.avisos));
+  check('nombra ejemplos con @ y explica la competencia por los mismos videos',
+    plan.avisos.some((a) => /@psico1/.test(a) && /@psico2/.test(a) && /entrega a uno solo/.test(a)), JSON.stringify(plan.avisos));
+}
+{
+  // Un referente que va a un solo proyecto NO solapa, aunque aparezca en IG y TikTok del MISMO
+  // proyecto (se cuenta por proyecto distinto, no por plataforma).
+  const { plan } = runPlan({
+    proyectos: [P('p1', 'Uno', ['v1'])],
+    vocesActivas: [V('v1', 'V')],
+    referentes: [
+      { id: 'r1', fields: { handle: '@ig', plataforma: 'instagram', proyecto: ['p1'] } },
+      { id: 'r2', fields: { handle: '@ig', plataforma: 'tiktok', proyecto: ['p1'] } },
+    ],
+  });
+  check('un referente en IG+TT del MISMO proyecto no dispara el aviso de solapamiento',
+    !plan.avisos.some((a) => /mas de un proyecto de esta corrida/.test(a)), JSON.stringify(plan.avisos));
+}
+{
+  // Solo cuenta proyectos ACTIVOS de la corrida: si uno de los dos está apagado por voz, no hay
+  // competencia viva y no se avisa (mismo criterio que el aviso cruza-voces).
+  const { plan } = runPlan({
+    proyectos: [P('p1', 'Vive', ['v1']), P('p2', 'Apagado', ['v2'])],
+    vocesActivas: [V('v1', 'ON')], // v2 apagada → p2 no corre
+    referentes: [{ id: 'r1', fields: { handle: '@ref', plataforma: 'instagram', proyecto: ['p1', 'p2'] } }],
+  });
+  check('con un proyecto apagado el referente alimenta 1 solo proyecto vivo: no avisa',
+    !plan.avisos.some((a) => /mas de un proyecto de esta corrida/.test(a)), JSON.stringify(plan.avisos));
+}
+
 seccion('C.1 — N por proyecto (ADR-024)');
 {
   const { plan } = runPlan({
@@ -1441,6 +1489,32 @@ seccion('Heat-score v1 — dedup blindado (ADR-029)');
   const items = []; for (let i = 0; i < 5; i++) items.push(hvid('c' + i, 'P1', { reproducciones: 100 - i, likes: 100 - i }));
   const { out } = runHeat({ items, cfg: { cap_top_n: 2 } });
   check('cap_top_n corta a 2 videos distintos (regresión)', out.length === 2, 'entregó ' + out.length);
+}
+{
+  // 🩸 BUG del audit 2026-09-25: `_muertos` se pegaba en el primer item ANTES del cap, y el cap
+  // re-ordena por heat_score. En cuanto hay >1 sobreviviente y el orden pre-cap != orden post-cap,
+  // el item que llevaba `_muertos` deja de ser el primero y `Resumen del run` (que lee
+  // `.first().json._muertos`) escribe `filtrados_por_motivo = null`. Medido en prod: corridas del
+  // 21 y 23/09 en null; la del 19 (1 solo sobreviviente) sí lo tenía — justo el caso que no reordena.
+  // Este test fuerza el reorden: llegan en orden ASCENDENTE de heat y el cap deja los 2 más altos.
+  const items = [
+    hvid('bajo', 'P1', { reproducciones: 100, likes: 10 }),   // heat menor → primero pre-cap por orden de llegada dentro del proyecto tras sort desc queda último
+    hvid('medio', 'P1', { reproducciones: 500, likes: 50 }),
+    hvid('alto', 'P1', { reproducciones: 900, likes: 90 }),
+    hvid('muerto', 'P1', { reproducciones: 1, likes: 0 }),    // cae por min_views/min_likes
+  ];
+  const { out } = runHeat({ items, cfg: { cap_top_n: 2, min_views: 50, min_likes: 5 } });
+  check('el cap deja 2 videos y reordena por heat_score', out.length === 2 && out[0].external_id === 'alto', JSON.stringify(out.map((o) => o.external_id)));
+  check('🩸 `_muertos` viaja en el PRIMER item del array FINAL (post-cap), no en el que era primero antes',
+    !!(out[0] && out[0]._muertos) && out[0]._muertos.min_views + out[0]._muertos.min_likes === 1, JSON.stringify(out[0] && out[0]._muertos));
+  check('y ningún otro item lo lleva (un solo portador, como lo lee Resumen del run)',
+    out.slice(1).every((o) => o._muertos === undefined), JSON.stringify(out.map((o) => !!o._muertos)));
+}
+{
+  // El borde que hay que seguir manejando igual que hoy: si el array final queda VACÍO no hay dónde
+  // pegar `_muertos`, y `Resumen del run` cae a null a propósito (no es una corrida con desglose).
+  const { out } = runHeat({ items: [hvid('x', 'P1', { reproducciones: 1, likes: 0 })], cfg: { cap_top_n: 3, min_views: 100 } });
+  check('array final vacío: no truena y no hay portador de `_muertos`', out.length === 0, 'entregó ' + out.length);
 }
 
 // ════════════════════════════════════════════════════════════════════════════

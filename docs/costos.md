@@ -85,7 +85,14 @@ que × 0,0023 da **6,008 USD**, y la factura real de Apify en esa misma ventana 
   cupo primero mata al otro. **Separarlo sigue siendo decisión pendiente de Mani** (§8.2).
 - 🛡️ Tiene **pre-flight de cupo** (`Cupo Apify (pre-flight)`, ADR-094 capa 1): lee el saldo antes de
   colectar y frena la corrida si no alcanza. **Fail-open a propósito**: si la API no contesta, no
-  frena.
+  frena. El umbral es `margen_cupo_apify_usd` = **2,5 USD** en el `Config`: de lo que quede, el
+  motor solo puede usar el saldo menos 2,5.
+- 🩸 **El cockpit también compra en Apify, del mismo cupo y sin pre-flight** (medido el 25/09):
+  `lib/apify.ts` desde Colecciones, por metadata de cada link (`traerMetadata`, ADR-072) y por la URL
+  del mp4 cada vez que alguien baja un video (`traerVideoUrls`). Mismo actor, ~0,0023 USD por URL.
+  Del 16/09 al 25/09 fueron **~2,2 USD** (0,91 solo el 24/09) contra ~2,5 del motor en las mismas
+  fechas. Se mide cruzando `actor-runs` de Apify con las ventanas de `runs`: lo que cae fuera de toda
+  corrida es cockpit o script.
 
 ### 1.2 Supadata — NO es un problema de costo, y la tarifa del repo miente 5,7×
 
