@@ -23,6 +23,7 @@ import {
   veredictoIA,
   workflowDe,
   VENTANA_CORRIDA_MIN,
+  avisoSaldoCompartido,
   busquedasQueAlcanzan,
   costoDeCorrida,
   costoDeCorridaConMarca,
@@ -689,5 +690,15 @@ describe("conUnidad / disparoLegible", () => {
   it("un guion es un guion, no 'guiones'", () => {
     assert.equal(resumenCorto("transcriptor", corrida({ metricas: { listos: 1 } })), "1 guion");
     assert.equal(resumenCorto("transcriptor", corrida({ metricas: { listos: 3 } })), "3 guiones");
+  });
+});
+
+describe("avisoSaldoCompartido", () => {
+  it("nombra a Colecciones, el precio por link y el margen del motor", () => {
+    const t = avisoSaldoCompartido();
+    assert.match(t, /Colecciones/);
+    assert.match(t, /0,0023 USD/);
+    assert.match(t, /2,50 USD/);
+    assert.doesNotMatch(t, /Transcribir/);
   });
 });

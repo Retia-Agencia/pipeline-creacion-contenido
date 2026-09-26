@@ -71,7 +71,7 @@ dentro de blockquotes que se acaban de archivar.
 |---|---|---|
 | `filtrados_por_motivo` ya no sale `null`: `_muertos` se pega al primer ítem del array que se DEVUELVE, después del cap | `Heat-score v1` | test de regresión en `test-nodos.mjs` |
 | Aviso en `runs.metricas.avisos` cuando un referente alimenta a más de un proyecto de la corrida | `Armar plan de corrida` | 3 tests (solape, IG+TT del mismo proyecto no cuenta doble, proyecto inactivo no cuenta) |
-| La confirmación del ▶ dice que el cockpit gasta del mismo saldo y que el motor se frena con < 2,5 USD | `operar/boton-correr.tsx` | typecheck · 601 tests · build. **No visto en pantalla** (login) |
+| La confirmación del ▶ dice que Colecciones gasta del mismo saldo y que el motor no arranca con < 2,5 USD. La frase vive en `avisoSaldoCompartido` + `MARGEN_CUPO_MOTOR_USD` (`domain/corrida.ts`, regla del sistema visual) | `operar/boton-correr.tsx` | typecheck · 614 tests · build. **No visto en pantalla** (login) |
 
 `n8n:push motor` de los 2 nodos, `n8n:diff` verde en los 5. Rollback:
 `node n8n-sync.mjs restore motor .n8n-snapshots/motor-2026-09-26T01-57-40-910Z.json --apply`.
@@ -90,15 +90,18 @@ dentro de blockquotes que se acaban de archivar.
   subir **dos** ajustes por una corrida (`Días de recencia` 150 **y** `Resultados por cuenta` 100):
   `Asignar proyecto+voz` tiene su propia guardia de recencia. Con marca de agua solo gastan las
   cuentas sin historia.
-- **Mani quiere que Transcribir sea solo Supadata.** Hoy lo que compra en Apify es de Colecciones
-  (`lib/apify.ts`), por ADR-072: sacarlo pide enmendar ese ADR. Pendiente de decisión.
+- **Decidido (Mani, 25/09): el refactor saca de Apify todo gasto que no sea una corrida**
+  ([plan-refactor-motor §4 D12](./plan-refactor-motor.md)). Hoy lo que compra el cockpit es de
+  Colecciones (`lib/apify.ts`: metadata de ADR-072 y URL del mp4 en cada descarga). Falta la vía para
+  que título y miniatura salgan sin pagar, y enmendar ADR-072.
+- **Luz verde de Mani al equipo de redes (25/09)** para correr y gastar lo que queda del ciclo.
 
 ### Lo que sigue, en orden
 
 1. Majo pide **~200 videos para la semana que viene**. Con el roster actual psicología da ~12 por
    corrida: sin muchas más cuentas (o sin bajar el umbral) no se llega.
 2. Decidir `min_views` para psicología (instrucción del jefe; ver plan-refactor-motor).
-3. Decidir si Colecciones deja de comprar metadata/descargas en Apify (enmienda ADR-072).
+3. Buscar cómo sacar título y miniatura sin pagar (D12) y enmendar ADR-072.
 4. ADR de la dirección cockpit-tracker + investigación de Virlos y similares.
 5. Verificar el texto del ▶ en pantalla (sigue pendiente desde el cierre 158).
 

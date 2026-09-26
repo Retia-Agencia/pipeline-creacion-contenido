@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { busquedasQueAlcanzan, haceCuanto } from "@/domain/corrida";
+import { avisoSaldoCompartido, busquedasQueAlcanzan, haceCuanto } from "@/domain/corrida";
 import { correrAhora, queCostariaCorrer, type ResultadoDisparo } from "./actions";
 import { usarCockpit } from "../usar-cockpit";
 import { MOTOR_BLOQUEADO } from "./bloqueo";
@@ -33,10 +33,9 @@ const fecha = (iso: string) =>
 // última búsqueda, que es verdad se use o no la marca.
 //
 // 🩸 Y desde el audit del 2026-09-25 el saldo deja de leerse como si fuera exclusivo del ▶: el cupo
-// de Apify es UNO para todo (docs/costos.md §1.1). Transcribir compra metadata por cada link pegado
-// (~0,0023 USD/URL) del MISMO saldo —el 24/09 gastó 0,91 USD sin una sola corrida— y el motor se
-// planta solo cuando quedan menos de ~2,5 USD (`margen_cupo_apify_usd`, ADR-094). Las dos cosas se
-// dicen en la confirmación cuando hay saldo para mostrarlas.
+// de Apify es UNO para todo (docs/costos.md §1.1): Colecciones le compra metadata y descargas del
+// MISMO saldo (el 24/09 gastó 0,91 USD sin una sola corrida) y el motor no arranca por debajo del
+// margen de ADR-094. La frase vive en `avisoSaldoCompartido` (domain/corrida.ts).
 export function BotonCorrer({ deshabilitado }: { deshabilitado: boolean }) {
   const cockpit = usarCockpit();
   const [confirmando, setConfirmando] = useState(false);
@@ -104,8 +103,7 @@ export function BotonCorrer({ deshabilitado }: { deshabilitado: boolean }) {
                       {alcanza === 0 ? "no alcanza" : `alcanza para ${alcanza}`}
                     </strong>
                     .{" "}
-                    Ojo: Transcribir también gasta de este saldo (~0,0023 USD por link pegado), y el
-                    motor se planta solo cuando quedan menos de ~2,50 USD.{" "}
+                    {avisoSaldoCompartido()}{" "}
                   </>
                 )}
                 {estimado.ultimaBusqueda

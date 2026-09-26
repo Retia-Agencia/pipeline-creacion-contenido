@@ -197,6 +197,24 @@ export function costoDeCorridaConMarca(
   return { ...techo, usd: (reels + remedirN) * USD_POR_REEL_APIFY, techoUsd: techo.usd, conMarca: true };
 }
 
+/**
+ * Debajo de este saldo libre el motor no arranca (`margen_cupo_apify_usd` del `Config` de n8n,
+ * ADR-094). Copia a mano: el valor vive en n8n, no en la app. Si allá cambia, cambia acá.
+ */
+export const MARGEN_CUPO_MOTOR_USD = 2.5;
+
+/**
+ * El cupo de Apify es uno para todo (docs/costos.md §1.1): Colecciones también le compra a Apify la
+ * metadata de cada link y la URL del mp4 en cada descarga, del mismo saldo y sin freno propio.
+ */
+export function avisoSaldoCompartido(): string {
+  const usd = (n: number) => n.toLocaleString("es-CO", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+  return (
+    `Ojo: Colecciones también gasta de este saldo (~${usd(USD_POR_REEL_APIFY)} USD por link y por descarga), ` +
+    `y el motor no arranca si quedan menos de ${usd(MARGEN_CUPO_MOTOR_USD)} USD.`
+  );
+}
+
 /** Cuántas corridas enteras entran en lo que queda del cupo. Una corrida que no cobra no agota nada. */
 export function busquedasQueAlcanzan(libreUsd: number, costoUsd: number): number {
   if (costoUsd <= 0) return Number.POSITIVE_INFINITY;
