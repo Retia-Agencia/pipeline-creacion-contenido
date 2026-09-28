@@ -13,3 +13,6 @@ outputs-referentes/
 
 # Scratch de ejecucion de planes con subagentes (superpowers). No es del repo.
 .superpowers/
+
+# Cache de WebFetch del hook sdd-cache (ai-brain-starter). Es local de cada maquina, no del repo.
+.claude/sdd-cache/
