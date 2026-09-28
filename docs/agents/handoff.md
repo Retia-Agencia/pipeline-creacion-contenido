@@ -114,7 +114,7 @@ dentro de blockquotes que se acaban de archivar.
    corrida: sin muchas más cuentas (o sin bajar el umbral) no se llega.
 2. Decidir `min_views` para psicología (instrucción del jefe; ver plan-refactor-motor).
 3. Buscar cómo sacar título y miniatura sin pagar (D12) y enmendar ADR-072.
-4. ADR de la dirección cockpit-tracker + investigación de Virlos y similares.
+4. ADR de la dirección cockpit-tracker + **migración a Virlo en sombra**: [plan-migracion-virlo.md](./plan-migracion-virlo.md) (28/09). Fase 0 lista, espera la API key.
 5. Verificar el texto del ▶ en pantalla (sigue pendiente desde el cierre 158).
 
 ## 🔒 CIERRE 158 (2026-09-15, noche): el botón ▶ ya no estima el techo viejo ni dice "trae casi los mismos videos"

@@ -75,6 +75,10 @@ en §Agent skills; acá solo se ubican.
   de `docs/` (§10), **§11 con todo lo que quedó abierto** y **§12, la consolidación de `docs/`**
   (merges + chequeador de links) que Mani mandó a **su propia sesión dedicada y desechable**.
   **Si vas a tocar el motor, empezá acá.**
+- 🔀 [docs/agents/plan-migracion-virlo.md](docs/agents/plan-migracion-virlo.md) — **Apify + Supadata →
+  Virlo, en sombra primero** (28/09). Un ajuste `Proveedor de scraping` (0 apify · 1 sombra · 2 virlo)
+  y nada se borra hasta que Virlo gane con datos. ⚠️ **Virlo no documenta transcripts** (la llamada
+  dijo que sí): Supadata no se toca hasta que la sonda de la Fase 0 lo pruebe. Enmienda ADR-098.
 - [docs/agents/plan-multi-tenant.md](docs/agents/plan-multi-tenant.md) — de **producto individual** a
   **producto repartido**: varios pipelines y varios clientes sobre el mismo cockpit. **Fases 0-4 y 6
   en producción**; lo vivo es su §15, el cierre del producto en dos carriles. ⚠️ **Es el doc vivo más
