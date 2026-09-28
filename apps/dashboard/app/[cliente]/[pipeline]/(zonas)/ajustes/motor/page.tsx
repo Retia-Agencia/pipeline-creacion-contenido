@@ -61,6 +61,7 @@ export default async function AjustesPage({
       valor={fila.valor}
       descripcion={fila.descripcion}
       tipo={CATALOGO[fila.clave].tipo}
+      opciones={CATALOGO[fila.clave].opciones}
     />
   );
 

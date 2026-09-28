@@ -27,6 +27,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { externalIdVirlo, fechaUtc } from './normalizar-virlo.mjs';
 
 const { VIRLO_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE } = process.env;
 const BASE = 'https://api.virlo.ai/v1';
@@ -133,15 +134,6 @@ function videosDe(resp) {
   return mejor;
 }
 
-// Mismo alfabeto que apps/dashboard/domain/enlace.ts shortcodeAExternalId: de ese id numérico
-// dependen processed_items, la caché de transcripts y videos_meta.
-const ALFABETO = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
-function shortcodeAExternalId(sc) {
-  let n = 0n;
-  for (const c of sc) { const i = ALFABETO.indexOf(c); if (i < 0) return ''; n = n * 64n + BigInt(i); }
-  return n.toString();
-}
-const shortcodeDeUrl = (u) => (String(u ?? '').match(/instagram\.com\/(?:[^/]+\/)?(?:reel|reels|p|tv)\/([A-Za-z0-9_-]+)/) ?? [])[1] ?? null;
 
 function clasificarId(id) {
   const s = String(id ?? '');
@@ -209,7 +201,7 @@ async function analizarVideosLookup(handle, videos, segundos) {
   const v0 = videos[0];
   console.log(`   id → ${clasificarId(v0.id)}  (ej. ${v0.id})`);
   console.log(`   claves: ${Object.keys(v0).join(', ')}`);
-  const fechas = videos.map((v) => Date.parse(v.publish_date)).filter(Number.isFinite).sort((a, b) => a - b);
+  const fechas = videos.map((v) => fechaUtc(v.publish_date)?.getTime()).filter(Number.isFinite).sort((a, b) => a - b);
   if (fechas.length) {
     const dias = (Date.now() - fechas[0]) / 86_400_000;
     console.log(`   alcance: ${new Date(fechas[0]).toISOString().slice(0, 10)} → ${new Date(fechas.at(-1)).toISOString().slice(0, 10)} (${dias.toFixed(0)} días hacia atrás)`);
@@ -221,8 +213,9 @@ async function analizarVideosLookup(handle, videos, segundos) {
   // Mismo reel, dos proveedores: vistas de Virlo contra la última medición de Apify en pool_crudo.
   const porId = new Map();
   for (const v of videos) {
-    const sc = shortcodeDeUrl(v.url);
-    const eid = /^\d{15,}/.test(String(v.id)) ? String(v.id).split('_')[0] : sc ? shortcodeAExternalId(sc) : null;
+    // Mismo id que va a usar el motor (normalizar-virlo.mjs): de él dependen processed_items, la
+    // caché de transcripts y videos_meta.
+    const eid = externalIdVirlo(v, 'instagram');
     if (eid) porId.set(eid, v);
   }
   if (!porId.size) { console.log('   ⚠️ no pude derivar el media id de IG de ningún video'); return; }

@@ -30,9 +30,11 @@ saldo prepago (`402` si no alcanza, sin endpoint de saldo documentado) · creato
    Y [ADR-095](../adr/ADR-095-un-transcript-cortado-no-puede-pasar-por-completo.md) exige **cobertura en segundos** para detectar cortados. **Supadata no se toca
    hasta que la Fase 0 lo pruebe.**
 2. **Costo del camino por referentes.** Hoy son ~48–52 USD/mes (Supadata con plan fijo de 47 y Apify
-   a 1–5 USD por corrida, [costos.md](../costos.md) §3.3). En Virlo el lookup de ~74 referentes
-   sale ~37 USD por corrida, unos 160 USD/mes a una corrida por semana; con tracking semanal, ~80
-   USD/mes. Nick ofreció hasta 50 % de descuento por volumen. **Se mide y se negocia.**
+   a 1–5 USD por corrida, [costos.md](../costos.md) §3.3). En Virlo, un lookup de los referentes sale
+   0,50 USD por cuenta. `pool_crudo` midió **83 cuentas en los últimos 14 días** (28/09; el "~74" del
+   22/09 ya quedó viejo), o sea **~41 USD por corrida** y ~180 USD/mes a una corrida por semana. Con
+   tracking semanal serían ~90 USD/mes. Nick ofreció hasta 50 % de descuento por volumen. **Se mide y
+   se negocia.**
 3. **El cockpit pide por URL suelta.** Son `lib/apify.ts` (metadata y mp4 de colecciones →
    `videos_meta`) y `lib/transcribir.ts` (la pantalla Transcribir). Virlo no tiene un camino barato
    para esto, así que **esas dos llamadas se quedan** aunque el motor pase a Virlo.
@@ -45,14 +47,22 @@ la fachada. **0 apify** (default) · **1 sombra** (entrega Apify; Virlo corre y 
 interna** que `Normalizar IG`, así que Asignar, Pre-trim, Heat-score, Gate y Armar candidato no se
 tocan.
 
+🩸 **La sombra no puede mover lo que se compra** (encontrado el 28/09, al escribir la `046`). Las
+tres vistas de la marca de agua (`v_watermark_referentes`, `v_ritmo_referentes` y
+`v_remedir_candidatos`) leían **todo** `pool_crudo`. Si las filas de Virlo entraban ahí, la marca de
+agua de una cuenta avanzaba con un reel que vio Virlo, el motor le pedía a Apify "solo lo
+posterior", y ese reel no lo compraba nadie. La sombra habría hecho perder videos al flujo real, sin
+error. La `046` filtra las tres vistas a `proveedor = 'apify'`. Son el único camino por el que
+cockpit y fachada leen `pool_crudo`, así que la app no cambia.
+
 ## Fases
 
 | # | Qué | Estado |
 |---|---|---|
 | 0 | Sonda con plata real, sin tocar el pipeline | 🔧 script listo, **falta la API key** |
-| 1 | ADR-101 + migración `046` (ajuste, `pool_crudo.proveedor`, `videos_meta.fuente='virlo'`, tarifas) + CATALOGO del cockpit | ⬜ |
-| 2 | Rama Virlo en el motor, **en sombra** (`onError: continue`, solo hasta `pool_crudo`) + tests con los fixtures | ⬜ |
-| 3 | 2–3 corridas semanales en sombra + `comparar-proveedores.mjs` | ⬜ |
+| 1 | ADR-101 + migración `046` (ajuste, `pool_crudo.proveedor`, vistas filtradas, `videos_meta.fuente='virlo'`, tarifas) + CATALOGO del cockpit + `AJUSTE_MAP` | 🔧 **escrito el 28/09, sin aplicar ni desplegar**. Falta: Mani aplica la `046` → deploy de la app → `n8n:push -- motor --nodos "Armar plan de corrida"` |
+| 2 | Rama Virlo en el motor, **en sombra** (`onError: continue`, solo hasta `pool_crudo`) + tests con los fixtures | 🔧 `normalizar-virlo.mjs` + `test-virlo.mjs` listos contra la forma de la doc (**provisorio**). Falta cablear los nodos, y eso espera los fixtures reales |
+| 3 | 2–3 corridas semanales en sombra + `comparar-proveedores.mjs` | 🔧 script listo y probado (con datos reales solo de Apify; la comparación, con un `fetch` simulado) |
 | 4 | Carril Agents por proyecto (si la Fase 0 da volumen) | ⬜ |
 | 5 | Transcript de Virlo antes que Supadata (solo si la Fase 0 muestra texto) | ⬜ |
 | 6 | Corte: ajuste en `2` dos corridas → borrar nodos Apify con `n8n:push --borrar` → docs | ⬜ |

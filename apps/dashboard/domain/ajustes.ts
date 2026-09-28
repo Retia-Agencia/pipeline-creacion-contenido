@@ -14,12 +14,17 @@
 // decide cuántos videos se transcriben, o sea cuánto sale la corrida: era la única perilla de
 // cantidad que costaba plata y la única que no se podía tocar sin re-importar.
 
-export type TipoAjuste = "proporcion" | "entero" | "entero_positivo" | "toggle";
+export type TipoAjuste = "proporcion" | "entero" | "entero_positivo" | "toggle" | "opcion";
+
+/** Un valor permitido y cómo se lee en la pantalla. Solo lo usan los knobs de tipo `opcion`. */
+export type Opcion = readonly [valor: number, etiqueta: string];
 
 export type Knob = {
   /** Qué workflow lo consume. El equipo no lo ve; sirve para agrupar la pantalla. */
   consume: "motor" | "descubrimiento";
   tipo: TipoAjuste;
+  /** Solo en `opcion`: los valores que acepta, en el orden en que se muestran. */
+  opciones?: readonly Opcion[];
 };
 
 // Las claves son EXACTAMENTE las del check de `009` y las de los AJUSTE_MAP de los dos
@@ -42,6 +47,17 @@ export const CATALOGO: Record<string, Knob> = {
   "Buscar por referentes en Instagram": { consume: "motor", tipo: "toggle" },
   "Buscar por referentes en TikTok": { consume: "motor", tipo: "toggle" },
   "Usar marca de agua": { consume: "motor", tipo: "toggle" },
+  // Migración a Virlo (docs/agents/plan-migracion-virlo.md, migración 046). El 1 no entrega nada de
+  // Virlo: lo corre al lado y lo registra en pool_crudo para comparar. Volver a 0 es el rollback.
+  "Proveedor de scraping": {
+    consume: "motor",
+    tipo: "opcion",
+    opciones: [
+      [0, "Apify"],
+      [1, "Apify + Virlo en sombra"],
+      [2, "Virlo"],
+    ],
+  },
   "Propuestas por corrida": { consume: "descubrimiento", tipo: "entero_positivo" },
   "Afinidad mínima de propuesta": { consume: "descubrimiento", tipo: "proporcion" },
   "Descubrir en Instagram": { consume: "descubrimiento", tipo: "toggle" },
@@ -73,6 +89,12 @@ export function validarAjuste(clave: string, valor: unknown): Validacion {
       return n === 0 || n === 1
         ? { ok: true, valor: n }
         : { ok: false, error: "Solo 1 (sí) o 0 (no)." };
+    case "opcion": {
+      const opciones = knob.opciones ?? [];
+      return opciones.some(([v]) => v === n)
+        ? { ok: true, valor: n }
+        : { ok: false, error: `Tiene que ser una de estas: ${opciones.map(([v, e]) => `${v} (${e})`).join(", ")}.` };
+    }
     case "entero":
       return entero(n) && n >= 0
         ? { ok: true, valor: n }

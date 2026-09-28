@@ -2630,5 +2630,21 @@ seccion('ADR-100 — marca de agua y re-medición en Armar plan / Split / Apify'
   check('Body re-medición: posts, limite 1, sin fecha ni searchType', bPosts.resultsType === 'posts' && bPosts.resultsLimit === 1 && !('onlyPostsNewerThan' in bPosts) && !('searchType' in bPosts), JSON.stringify(bPosts));
 }
 
+seccion('Migración a Virlo — el interruptor viaja en el plan y no cambia nada todavía');
+{
+  const base = { proyectos: [P('p1', 'Uno', ['v1'])], vocesActivas: [V('v1', 'Voz')], referentes: [{ id: 'r1', fields: { handle: '@cuentaa', plataforma: 'instagram', proyecto: ['p1'], activo: true } }] };
+  const avisoVirlo = (plan) => plan.avisos.some((a) => /carril Virlo/.test(a));
+  const prov = (valor) => runPlan({ ...base, ajustes: valor === undefined ? [] : [{ id: 'x', fields: { clave: 'Proveedor de scraping', valor } }] }).plan;
+
+  const sin = prov();
+  check('sin la fila del ajuste: proveedor 0 (Apify) y sin aviso', sin.proveedor_scraping === 0 && !avisoVirlo(sin), JSON.stringify(sin.avisos));
+  check('con 0: igual que sin la fila', prov(0).proveedor_scraping === 0 && !avisoVirlo(prov(0)));
+  const sombra = prov(1);
+  check('con 1 (sombra): el plan lo lleva', sombra.proveedor_scraping === 1);
+  check('con 1: la compra de Apify es la MISMA que con 0', JSON.stringify(sombra.ig_pedidos) === JSON.stringify(sin.ig_pedidos), JSON.stringify(sombra.ig_pedidos));
+  check('con 1 sin rama Virlo: lo avisa en vez de ignorarlo', sombra.avisos.some((a) => /carril Virlo todavía no está/.test(a)), JSON.stringify(sombra.avisos));
+  check('con un valor inventado (7): cae a 0, no a un modo que no existe', prov(7).proveedor_scraping === 0);
+}
+
 console.log(fail ? `\n${fail} test(s) en rojo` : '\nTodo en verde');
 process.exit(fail ? 1 : 0);

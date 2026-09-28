@@ -2,6 +2,9 @@
 
 - **Estado:** aceptada — 2026-09-12. **No toca `core/`**: no hay migración, ni código, ni cambio de
   proveedor. Es el veredicto de una evaluación, registrado para que no se vuelva a hacer.
+- 🔀 **Enmendada (propuesta) por [ADR-101](./ADR-101-virlo-entra-en-sombra.md), 2026-09-28.** Cambió la
+  pregunta, no los números de acá: el scraping se terceriza (Mani, 25/09), así que Virlo entra en
+  sombra al lado de Apify. Los precios de esta ADR siguen siendo la vara contra la que se compara.
 - **Alcance deliberadamente chico.** Esta ADR decide **una sola cosa: Apify se queda.** Lo que la
   evaluación proponía *además* —bajar `min_views` a 100.000 y multiplicar el roster de 26 a ~300—
   **queda explícitamente fuera y sigue abierto**, porque depende de una conversación que no decide

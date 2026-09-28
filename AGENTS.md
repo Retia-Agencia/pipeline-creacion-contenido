@@ -376,6 +376,12 @@ se cita, y varios gobiernan código vivo.
   `desde` y 200 reels a re-medir (el tope). Motor empujado el mismo día, `n8n:diff` verde en los 5.
   ✅ **Y ya corrió:** 5 corridas del motor del 16 al 23/09, todas con `marca_de_agua: true`, una voz
   por vez. Lo que midieron está en el cierre 159 del handoff.
+  ⬜ **La [`046`](core/schema/046_proveedor_virlo.sql) (ADR-101, propuesta) está ESCRITA y SIN APLICAR** (28/09).
+  Agrega el ajuste `Proveedor de scraping` (0 apify · 1 sombra · 2 virlo) y `pool_crudo.proveedor`, y
+  🩸 **filtra las tres vistas de la marca de agua a `proveedor = 'apify'`**: sin eso, un reel que ve Virlo en
+  sombra corre la marca de agua de la cuenta y Apify deja de comprarlo. Orden: `046` → deploy de la
+  app (el CATALOGO ya conoce la clave) → `n8n:push` de `Armar plan de corrida`. Plan:
+  [plan-migracion-virlo.md](docs/agents/plan-migracion-virlo.md).
   ✅ **La [`043`](core/schema/043_ajustes_actualizado_en.sql) (ADR-097) está APLICADA** (verificado el
   15/09 en el catálogo: trigger `ajustes_sella_actualizado_en` sobre `app.ajustes`; escrita el 11/09). Le pone a `app.ajustes` el trigger `before update` que sella `actualizado_en`, y
   re-sella las dos filas que quedaron mintiendo. 🩸 **Existe por una columna que miente en verde:**

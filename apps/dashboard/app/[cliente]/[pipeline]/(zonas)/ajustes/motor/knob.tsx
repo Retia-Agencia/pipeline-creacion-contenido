@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { TipoAjuste } from "@/domain/ajustes";
+import type { Opcion, TipoAjuste } from "@/domain/ajustes";
 import { guardar, type ResultadoGuardar } from "./actions";
 import { usarCockpit } from "../../usar-cockpit";
 
@@ -17,18 +17,26 @@ const PASOS: Record<TipoAjuste, { paso: string; min: string; max?: string }> = {
   entero: { paso: "1", min: "0" },
   entero_positivo: { paso: "1", min: "1" },
   toggle: { paso: "1", min: "0", max: "1" },
+  opcion: { paso: "1", min: "0" },
 };
+
+const SI_NO: readonly Opcion[] = [
+  [1, "Sí"],
+  [0, "No"],
+];
 
 export function Knob({
   clave,
   valor,
   descripcion,
   tipo,
+  opciones,
 }: {
   clave: string;
   valor: number | null;
   descripcion: string | null;
   tipo: TipoAjuste;
+  opciones?: readonly Opcion[];
 }) {
   const cockpit = usarCockpit();
   const guardado = valor === null ? "" : String(valor);
@@ -58,8 +66,9 @@ export function Knob({
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
-        {tipo === "toggle" ? (
+        {tipo === "toggle" || tipo === "opcion" ? (
           // 1/0 en la base, Sí/No en la pantalla: el equipo no tiene por qué saber que es un número.
+          // Un `opcion` es lo mismo con más de dos valores, cada uno con su etiqueta del CATALOGO.
           // `h-8 w-32` es exactamente la caja del <Input> de al lado: con 18 knobs, dos tamaños
           // distintos convierten la columna de valores en un escalón y se lee como un error.
           <select
@@ -69,8 +78,11 @@ export function Knob({
             disabled={enviando}
             className="h-8 w-32 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs"
           >
-            <option value="1">Sí</option>
-            <option value="0">No</option>
+            {(tipo === "opcion" ? (opciones ?? []) : SI_NO).map(([v, etiqueta]) => (
+              <option key={v} value={String(v)}>
+                {etiqueta}
+              </option>
+            ))}
           </select>
         ) : (
           <Input

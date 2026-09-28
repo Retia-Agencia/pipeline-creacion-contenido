@@ -3,8 +3,31 @@ import { describe, it } from "node:test";
 import { CATALOGO, ajustesVisibles, validarAjuste } from "./ajustes.ts";
 
 describe("CATALOGO", () => {
-  it("tiene los 19 knobs del check (18 de la migración 009 + 'Usar marca de agua' de la 045)", () => {
-    assert.equal(Object.keys(CATALOGO).length, 19);
+  it("tiene los 20 knobs del check (18 de la 009 + 'Usar marca de agua' de la 045 + 'Proveedor de scraping' de la 046)", () => {
+    assert.equal(Object.keys(CATALOGO).length, 20);
+  });
+
+  it("todo knob `opcion` trae sus opciones, y ninguno de los demás las trae", () => {
+    for (const [clave, k] of Object.entries(CATALOGO)) {
+      assert.equal(k.tipo === "opcion", (k.opciones?.length ?? 0) > 0, clave);
+    }
+  });
+});
+
+describe("Proveedor de scraping (migración a Virlo)", () => {
+  it("acepta los tres modos", () => {
+    for (const v of [0, 1, 2]) assert.deepEqual(validarAjuste("Proveedor de scraping", v), { ok: true, valor: v });
+  });
+
+  it("acepta el string que llega del <select>", () => {
+    assert.deepEqual(validarAjuste("Proveedor de scraping", "1"), { ok: true, valor: 1 });
+  });
+
+  it("rechaza un modo que no existe, y el mensaje nombra los que sí", () => {
+    const r = validarAjuste("Proveedor de scraping", 3);
+    assert.equal(r.ok, false);
+    assert.match(r.ok ? "" : r.error, /0 \(Apify\).*2 \(Virlo\)/);
+    assert.equal(validarAjuste("Proveedor de scraping", 1.5).ok, false);
   });
 
   it("los 4 del descubrimiento están separados de los del motor", () => {
