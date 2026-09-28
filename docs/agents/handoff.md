@@ -29,10 +29,11 @@ tercio del medio eran cierres viejos anidados uno dentro de otro bajo un encabez
 
 | buscás | está en |
 |---|---|
-| **el estado de hoy** | el §ARRANCÁ POR ACÁ de acá abajo (cierre 159) |
+| **el estado de hoy** | el §ARRANCÁ POR ACÁ de acá abajo (cierre 160) |
+| **la migración a Virlo** | 🧭 [docs/virlo/00-plan.md](../virlo/00-plan.md) — plan en 5 partes, **propuesta** pendiente de confirmar |
 | **el refactor del motor** | 🧭 [plan-refactor-motor.md](./plan-refactor-motor.md) — el punto de partida único |
 | **los mensajes al equipo de redes** | [plan-refactor-motor §9](./plan-refactor-motor.md) — **1 y 2 enviados el 12/09**, el 3 escrito y pendiente |
-| **los cierres 145 a 159** | acá abajo, completos |
+| **los cierres 145 a 160** | acá abajo, completos |
 | **los cierres 70 a 144** | [handoff-archivo-2026-06_09.md](./handoff-archivo-2026-06_09.md) |
 | **el refactor Voces→Proyectos** | 🗄️ terminado y archivado el 2026-09-12: [docs/archivo/refactor-voces-proyectos.md](../archivo/refactor-voces-proyectos.md) |
 
@@ -40,7 +41,74 @@ tercio del medio eran cierres viejos anidados uno dentro de otro bajo un encabez
 N`), **nunca anidado dentro del anterior**. Así fue como nacieron las 5.736 líneas de blockquotes
 dentro de blockquotes que se acaban de archivar.
 
-## 🚦 ARRANCÁ POR ACÁ — CIERRE 159 (2026-09-25): audit de la corrida con 17 USD de Apify, 3 arreglos en producción
+## 🚦 ARRANCÁ POR ACÁ — CIERRE 160 (2026-09-28): Virlo, de la llamada a un plan, y el eje pasa a ser el tema
+
+> Llamada con Virlo (Nick + Andrés, CTO) el 28/09 a las 10am, grabada en Granola. Alejo subió **directo
+> a `main`** (sin branch) su plan de migración en sombra (`27101f3`, `7b4a5a1`). Mani pidió: extraer la
+> reunión, mapear la API entera, ubicar Virlo en la herramienta, revisar lo de Alejo y dejar un plan.
+> **Nada se aplicó, nada se empujó, no se gastó un centavo en Virlo.** Sin commit.
+
+### 🧭 Dónde quedó
+
+**[docs/virlo/](../virlo/00-plan.md)**, cinco docs: el plan (00), la reunión y la API (01), la
+arquitectura (02), la revisión del plan de Alejo (03), operación y costos (04), y los payloads campo
+por campo (05). **Estado: PROPUESTA**, con 7 decisiones (D-1 a D-7) para que Mani confirme en su §3.
+
+### 📏 Lo que se encontró (leyendo `llms-full.txt` y el OpenAPI entero: 121 rutas, 319 schemas)
+
+- **El techo es el roster, no el proveedor** ([costos.md §4.1.1](../costos.md)): con 500k de piso,
+  78 cuentas dan 0,6-2,3 aprobados/semana. Virlo sirve porque **cambia el eje**: sus agentes buscan
+  por tema en cualquier cuenta. ⚠️ Eso choca con **ADR-019** (el eje keyword murió con 3 %): la Fase 0
+  lo mide antes de construir, y si el equipo aprueba < 10 %, se descarta.
+- **Supadata se queda**: la API de agentes **no entrega el texto** del transcript (solo
+  `transcript_word_count`), y en Instagram casi no existe (tabla de benchmarks de Virlo). El texto
+  aparece solo en el digest de 48 h y en video trackeado. La llamada dijo lo contrario: se preguntó.
+- **Tampoco trae la duración** del video (solo `sound.duration`, TikTok). Sí aparece en `hooks` y
+  tracking.
+- **n8n deja de ser necesario para el carril nuevo** (Virlo agenda, filtra y avisa por webhook).
+  Propuesta D-3: la ingesta en el cockpit; el motor de Apify queda intacto como sombra y rollback.
+- **Data Intelligence (1,50 vs 0,50 USD)** trae 79 campos que **no están tipados en el OpenAPI**
+  (`object` opaco): filtros antes de pagar Supadata (`is_silent`, idioma, reposts, publicidad), encaje
+  con cómo graba la voz, y aprendizaje por característica en vez de por referente.
+- **La re-medición existe** (`total_videos_updated` por corrida). **Instagram viene poco** en los
+  ejemplos de la doc (3 % y 11 %): es el riesgo más grande para nosotros.
+- **Hay endpoint de saldo** (`GET /account/balance`, gratis); el plan de Alejo decía que no.
+
+### ✅ Decidido por Mani en la sesión
+
+- **Un agente por voz, no por proyecto.** Los proyectos son variedad dentro de la voz y se pisan; por
+  proyecto se sobregastaría. Los proyectos pasan a ser cajones donde se reparte. **Ojo con el número:**
+  ~280 videos por corrida son ~9-11 aprobados con 500k, contra ~46/semana que pide una voz: el riesgo
+  es que **falte**. Las corridas se suben solo en la voz que se quede corta.
+- **El intent** se escribe en el formato que recomienda Virlo, con variaciones por proyecto para
+  elegir. No se le preguntó a Virlo por el límite de 500 caracteres.
+- **Idiomas:** `english_only: false` deja pasar todo (no hay "todo menos español"); Virlo busca en el
+  idioma de las keywords. Sin keywords en español y descarte gratis por `language_detected`. Si un
+  agente puede mezclar idiomas, lo mide la Fase 0.
+- **Correo a Virlo ENVIADO** (28/09): transcript, duración, Instagram, ventana/re-medición, precio
+  por volumen (~25-100 corridas/mes). Fuente de cada pregunta en la doc: [01 §1.3](../virlo/01-reunion-y-api.md).
+  El texto exacto enviado no se verificó (la copia no había llegado al cerrar).
+
+### 🔎 Sobre lo de Alejo ([03](../virlo/03-revision-plan-alejo.md))
+
+Se adoptan: "al lado, nunca en lugar", la sombra que no mueve la marca de agua, el `external_id`
+desde la URL, la sonda con predicciones. Falla el **encuadre**: replica el roster en Virlo (0,50 USD
+por cuenta = ~41 USD por corrida) y deja los agentes como opcionales. **La `046` no se aplica** hasta
+cerrar D-1/D-3, y el `AJUSTE_MAP` del repo ya lee `proveedor_scraping` (no está en el live).
+`test-virlo.mjs` en verde. **Conviene hablarlo con Alejo antes de la Fase 1.**
+
+### Lo que sigue, en orden
+
+1. **Esperar la respuesta de Virlo** al correo.
+2. Mani confirma D-1 a D-7 ([00 §3](../virlo/00-plan.md)) y lo habla con Alejo.
+3. API key → **Fase 0** (~6 USD): 4 agentes de una corrida, uno por voz, idiomas mezclados vs uno solo.
+4. Al confirmar: `plan-migracion-virlo.md` pasa a antecedente, ADR-101 se reescribe (enmienda
+   ADR-019 y ADR-098) y la `046` se rehace.
+5. Lo pendiente del cierre 159 sigue vivo (umbral de psicología, D12, texto del ▶).
+
+---
+
+## 🔒 CIERRE 159 (2026-09-25): audit de la corrida con 17 USD de Apify, 3 arreglos en producción
 
 > Mani pidió un audit para exprimir los ~17 USD que quedan del ciclo de Apify (50 de tope, 32,93
 > usados, reinicia el **09/10**). Veredicto: **la plata no es el cuello de botella; lo son el roster

@@ -75,7 +75,17 @@ en §Agent skills; acá solo se ubican.
   de `docs/` (§10), **§11 con todo lo que quedó abierto** y **§12, la consolidación de `docs/`**
   (merges + chequeador de links) que Mani mandó a **su propia sesión dedicada y desechable**.
   **Si vas a tocar el motor, empezá acá.**
-- 🔀 [docs/agents/plan-migracion-virlo.md](docs/agents/plan-migracion-virlo.md) — **Apify + Supadata →
+- 🧭 [docs/virlo/00-plan.md](docs/virlo/00-plan.md) — **la migración a Virlo, en 5 partes** (28/09,
+  **PROPUESTA**: Mani confirma D-1 a D-7 en su §3). Reunión + API entera (01), arquitectura (02),
+  revisión del plan de Alejo (03), operación y costos (04), payloads campo por campo (05). Su tesis:
+  **Virlo no es un Apify más caro, cambia el eje de búsqueda** (del roster al tema, que es lo único que
+  ataca el techo de costos §4.1.1). **Un agente por voz**, no por proyecto (Mani, 28/09). Supadata se
+  queda (la API de agentes no entrega el texto del transcript, y en IG casi no existe). n8n deja de
+  ser necesario para el carril nuevo. Correo a Virlo enviado el 28/09, sin respuesta.
+  **Si vas a tocar algo de Virlo, empieza acá.**
+- 🔀 [docs/agents/plan-migracion-virlo.md](docs/agents/plan-migracion-virlo.md) — ⚠️ **revisado en
+  [docs/virlo/03](docs/virlo/03-revision-plan-alejo.md); pasa a antecedente cuando Mani confirme el
+  plan de `docs/virlo/`.** **Apify + Supadata →
   Virlo, en sombra primero** (28/09). Un ajuste `Proveedor de scraping` (0 apify · 1 sombra · 2 virlo)
   y nada se borra hasta que Virlo gane con datos. ⚠️ **Virlo no documenta transcripts** (la llamada
   dijo que sí): Supadata no se toca hasta que la sonda de la Fase 0 lo pruebe. Enmienda ADR-098.
@@ -377,6 +387,8 @@ se cita, y varios gobiernan código vivo.
   ✅ **Y ya corrió:** 5 corridas del motor del 16 al 23/09, todas con `marca_de_agua: true`, una voz
   por vez. Lo que midieron está en el cierre 159 del handoff.
   ⬜ **La [`046`](core/schema/046_proveedor_virlo.sql) (ADR-101, propuesta) está ESCRITA y SIN APLICAR** (28/09).
+  ⛔ **No aplicar hasta cerrar D-1 y D-3 de [docs/virlo/00-plan.md](docs/virlo/00-plan.md)**: con un
+  agente por voz en tabla propia, su §3 sobra y hay que rehacerla ([docs/virlo/03 §4](docs/virlo/03-revision-plan-alejo.md)).
   Agrega el ajuste `Proveedor de scraping` (0 apify · 1 sombra · 2 virlo) y `pool_crudo.proveedor`, y
   🩸 **filtra las tres vistas de la marca de agua a `proveedor = 'apify'`**: sin eso, un reel que ve Virlo en
   sombra corre la marca de agua de la cuenta y Apify deja de comprarlo. Orden: `046` → deploy de la

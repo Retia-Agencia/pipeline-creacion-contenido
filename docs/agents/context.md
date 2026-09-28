@@ -36,6 +36,15 @@ dataovercoffee (ADR-020 §8, rama paralela). Veteados con Haiku contra los crite
 la tabla `Referentes propuestos`; el equipo la marca aprobado/descartado y los aprobados se promueven
 solos a `Referentes`. Un handle propuesto no se re-propone (descartar es definitivo).
 
+**Agente (Virlo)** *(en evaluación, [docs/virlo](../virlo/00-plan.md))*:
+Una búsqueda por tema que corre en Virlo para **una voz**: una intención de una frase y 7 a 12
+keywords que salen de los proyectos de esa voz. Trae videos de cualquier cuenta, no de un roster. No
+confundir con un agente de IA de este repo.
+
+**Intención (intent)** *(en evaluación)*:
+La frase que le dice al Agente qué videos quedarse y cuáles descartar. Se escribe en el formato que
+recomienda Virlo (*[objetivo] [tipo de contenido] sobre [nicho], no [lo que se excluye]*).
+
 **Keyword**:
 Término **retirado del dominio** (ADR-019). Era una palabra/frase de búsqueda (hashtag de TikTok) para
 descubrimiento ciego; el eje se removió por completo y su reemplazo es el motor de descubrimiento de
