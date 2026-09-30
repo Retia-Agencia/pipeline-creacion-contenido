@@ -5,7 +5,7 @@ import type { TenantContext } from "@/domain/tenant";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { claveDe, parsearEnlaces, repartirEnlaces, type EnlaceVideo } from "@/domain/enlace";
-import { duracionOpcional } from "@/domain/cobertura";
+import { duracionOpcional, motivoSinTranscript } from "@/domain/cobertura";
 import { exigirTenant } from "@/lib/auth";
 import { cualesGrabadas, desmarcar, marcar } from "@/lib/grabados";
 import { registrarEvento } from "@/lib/eventos";
@@ -438,7 +438,8 @@ async function procesarUno(
       // el motor lo trae después, el gate lo descarta duro por sin_guion igual (ADR-030).
       await marcarResultado(ctx, fila.id, {
         estado: "sin_transcript",
-        error: "No se pudo sacar el texto: el video no tiene habla, o Supadata no lo consiguió.",
+        error: motivoSinTranscript(modo),
+        modo,
       });
       return "sin_transcript";
     }

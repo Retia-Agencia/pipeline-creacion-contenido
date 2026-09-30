@@ -3,8 +3,9 @@ import { describe, it } from "node:test";
 import {
   avisoDeCobertura, CASOS_COBERTURA, CASOS_RESPUESTA, CASOS_SEGMENTOS, coberturaDeRespuesta,
   coberturaDeSegmentos, duracionOpcional, textoDeRespuesta, textoDeSegmentos, veredictoCobertura,
-  CASOS_ENCOLADO, CASOS_REINTENTO, debeReintentar, esTranscriptEncolado, ganaElReintento,
-  modoResultante, UMBRAL_COBERTURA, yaProboGenerate,
+  CASOS_ENCOLADO, CASOS_REINTENTO, CASOS_VACIO, debeReintentar, debeReintentarVacio,
+  esTranscriptEncolado, ganaElReintento, modoResultante, motivoSinTranscript, UMBRAL_COBERTURA,
+  yaProboGenerate,
 } from "./cobertura.ts";
 
 describe("coberturaDeSegmentos", () => {
@@ -171,6 +172,14 @@ describe("debeReintentar", () => {
 });
 
 describe("ganaElReintento", () => {
+  it("si auto vino vacío, cualquier texto de generate gana aunque no haya cobertura", () => {
+    assert.equal(ganaElReintento({ texto: "", cobertura: null },
+                                 { texto: "generate", cobertura: null }), true);
+  });
+  it("si ambos vienen vacíos, generate no gana", () => {
+    assert.equal(ganaElReintento({ texto: "", cobertura: null },
+                                 { texto: "   ", cobertura: null }), false);
+  });
   it("gana quien cubre MÁS SEGUNDOS, no quien trae más texto", () => {
     assert.equal(ganaElReintento({ texto: "a".repeat(500), cobertura: 41.5 },
                                  { texto: "b", cobertura: 150.0 }), true);
@@ -252,5 +261,20 @@ describe("CASOS_REINTENTO — la tabla que corren las DOS copias", () => {
     for (const c of CASOS_REINTENTO) {
       assert.equal(debeReintentar(c.cobertura, c.duracion, c.umbral, c.modo), c.espera, c.nombre);
     }
+  });
+});
+
+describe("CASOS_VACIO — la tabla que corren las DOS copias", () => {
+  it("la copia del nodo la ejercita test-nodos.mjs; acá se prueba la de este archivo", () => {
+    for (const c of CASOS_VACIO) {
+      assert.equal(debeReintentarVacio(c.texto, c.modo), c.espera, c.nombre);
+    }
+  });
+});
+
+describe("motivoSinTranscript", () => {
+  it("distingue un generate vacío de un intento que no alcanzó a responder", () => {
+    assert.match(motivoSinTranscript("auto_tras_generate"), /ni de los subtítulos ni escuchando el audio/);
+    assert.match(motivoSinTranscript("auto"), /Reintentar en unos minutos/);
   });
 });

@@ -19,7 +19,7 @@
 import { readFileSync } from 'node:fs';
 // ADR-095 §3.2: la tabla de fixtures vive UNA vez en el dominio puro y se corre contra la copia
 // textual del nodo `Transcribir (Supadata)` — si divergen, esto falla ruidoso.
-import { CASOS_COBERTURA, CASOS_ENCOLADO, CASOS_REINTENTO, CASOS_RESPUESTA, CASOS_SEGMENTOS, UMBRAL_COBERTURA } from '../../apps/dashboard/domain/cobertura.ts';
+import { CASOS_COBERTURA, CASOS_ENCOLADO, CASOS_REINTENTO, CASOS_RESPUESTA, CASOS_SEGMENTOS, CASOS_VACIO, UMBRAL_COBERTURA } from '../../apps/dashboard/domain/cobertura.ts';
 // ADR-099: la fila que escribe `Preparar pool crudo` (origen=motor) tiene que ser IDENTICA a la del
 // backfill para el mismo item de Apify. Se importa el normalizador del backfill y se pinza contra la
 // copia textual del nodo — si divergen, el motor y el backfill guardarian filas distintas del mismo
@@ -734,14 +734,17 @@ await (async () => {
     });
     check('🔒 pero un transcript español sin lang SIGUE siendo "es" (no se paga traducirlo)', out[0].idioma_detectado === 'es', out[0].idioma_detectado);
   }
-  // ADR-030: retry cuando la primera respuesta vuelve vacía
+  // ADR-095 §Enmienda 4: una respuesta vacía de auto escala a generate.
   {
     const { out, llamadas } = await runTranscribir([tvid('r1')], { secuencia: [{ content: '', lang: '' }, { content: 'recuperado al reintentar', lang: 'en' }] });
-    check('retry: primera vacía → reintenta y recupera (2 llamadas)', out[0].transcripcion === 'recuperado al reintentar' && llamadas.length === 2, `tx='${out[0].transcripcion}' llamadas=${llamadas.length}`);
+    check('vacía en auto → generate recupera (2 llamadas)', out[0].transcripcion === 'recuperado al reintentar' && llamadas.length === 2, `tx='${out[0].transcripcion}' llamadas=${llamadas.length}`);
+    check('la 1ª pide mode=auto y la 2ª mode=generate', /mode=auto/.test(llamadas[0]) && /mode=generate/.test(llamadas[1]), JSON.stringify(llamadas));
+    check("el texto recuperado queda marcado como generate", out[0]._tx_modo === 'generate', out[0]._tx_modo);
   }
   {
     const { out, llamadas } = await runTranscribir([tvid('r2')], { secuencia: [{ content: '', lang: '' }, { content: '', lang: '' }] });
-    check('vacía sin motivo: agota los 5 intentos y hace fail-open', out[0].transcripcion === '' && llamadas.length === 5, `tx='${out[0].transcripcion}' llamadas=${llamadas.length}`);
+    check('auto y generate vacíos: hace fail-open tras 2 llamadas', out[0].transcripcion === '' && llamadas.length === 2, `tx='${out[0].transcripcion}' llamadas=${llamadas.length}`);
+    check("y deja el candado auto_tras_generate", out[0]._tx_modo === 'auto_tras_generate', out[0]._tx_modo);
   }
   // ─────────────────────────────────────────────────────────────────────────
   // ADR-030 §Enmienda (2026-08-31): "sin voz" y "Supadata saturada" dejan de tratarse igual.
@@ -750,7 +753,8 @@ await (async () => {
   // de verdad; los mismos 27 a 4 en vuelo trajeron 24 guiones.
   {
     const { out, llamadas } = await runTranscribir([tvid('u1')], { respuesta: { error: 'transcript-unavailable', message: 'Transcript Unavailable' } });
-    check('sin voz (transcript-unavailable) NO se reintenta: 1 sola llamada', out[0].transcripcion === '' && llamadas.length === 1, `llamadas=${llamadas.length}`);
+    check('transcript-unavailable en auto escala una vez a generate', out[0].transcripcion === '' && llamadas.length === 2, `llamadas=${llamadas.length}`);
+    check("si generate tampoco puede, queda el candado", out[0]._tx_modo === 'auto_tras_generate', out[0]._tx_modo);
   }
   {
     const { out, llamadas } = await runTranscribir([tvid('t429')], { secuencia: [{ _throw: '429 - {"error":"limit-exceeded"}' }, { content: 'recuperado tras el 429', lang: 'en' }] });
@@ -787,13 +791,18 @@ await (async () => {
     check('y viaja marcado como cache (para que no se re-escriba en la tabla)', out[0]._tx_origen === 'cache', String(out[0]._tx_origen));
   }
   {
-    // Un mudo cacheado vale tanto como un guion: evita pagarle a Supadata para que vuelva a decir
-    // que el video no tiene audio.
-    const { out, llamadas } = await runTranscribir([tvid('c2')], {
+    // POST Transcripciones ignora duplicados: un vacío ya cacheado es definitivo porque cualquier
+    // resultado nuevo se descartaría y generate se volvería a pagar en cada corrida.
+    const sinModo = await runTranscribir([tvid('c2')], {
       cache: [{ external_id: 'c2', estado: 'sin_transcript', script: null }],
     });
-    check('🟢 mudo cacheado tampoco se re-pide (0 llamadas) y queda resuelto',
-      llamadas.length === 0 && out[0]._tx_resuelta === true, `llamadas=${llamadas.length} resuelta=${out[0]._tx_resuelta}`);
+    const conAuto = await runTranscribir([tvid('c2b')], {
+      cache: [{ external_id: 'c2b', estado: 'sin_transcript', script: null, modo: 'auto' }],
+    });
+    check('🟢 vacío cacheado sin modo o en auto NO se re-pide y queda resuelto',
+      sinModo.llamadas.length === 0 && sinModo.out[0]._tx_resuelta === true
+      && conAuto.llamadas.length === 0 && conAuto.out[0]._tx_resuelta === true,
+      JSON.stringify({ sinModo: sinModo.llamadas.length, conAuto: conAuto.llamadas.length }));
   }
   {
     const { llamadas } = await runTranscribir([tvid('c3')], {
@@ -828,10 +837,10 @@ await (async () => {
     check('🔒 y si la RPC ni corrió, fail-open igual (cache es plata, no memoria)', llamadas.length === 1, `llamadas=${llamadas.length}`);
   }
   {
-    // El ahorro real, mezclado: 2 cacheados y 1 nuevo ⇒ una sola llamada.
+    // El ahorro real, mezclado: 2 cacheados definitivos y 1 nuevo ⇒ una sola llamada.
     const { llamadas, out } = await runTranscribir([tvid('m1'), tvid('m2'), tvid('m3')], {
       cache: [{ external_id: 'm1', estado: 'listo', script: 'g1', idioma: 'en' },
-              { external_id: 'm3', estado: 'sin_transcript', script: null }],
+              { external_id: 'm3', estado: 'sin_transcript', script: null, modo: 'auto_tras_generate' }],
     });
     check('lote mixto: solo el no-cacheado va a Supadata (1 de 3)', llamadas.length === 1, `llamadas=${llamadas.length}`);
     check('y los tres salen con transcripción resuelta', out.every((o) => o._tx_resuelta === true), JSON.stringify(out.map((o) => o._tx_resuelta)));
@@ -983,7 +992,7 @@ await (async () => {
     const inicio = codigo.indexOf('// ⤵ COPIA TEXTUAL');
     const fin = codigo.indexOf('// ⤴ FIN COPIA TEXTUAL');
     if (inicio === -1 || fin === -1) throw new Error('no encontré los marcadores de la copia textual en el nodo');
-    const copia = new Function(codigo.slice(inicio, fin) + '\nreturn { UMBRAL_COBERTURA, textoDeSegmentos, coberturaDeSegmentos, textoDeRespuesta, coberturaDeRespuesta, veredictoCobertura, yaProboGenerate, debeReintentar, ganaElReintento, modoResultante, esTranscriptEncolado };')();
+    const copia = new Function(codigo.slice(inicio, fin) + '\nreturn { UMBRAL_COBERTURA, textoDeSegmentos, coberturaDeSegmentos, textoDeRespuesta, coberturaDeRespuesta, veredictoCobertura, yaProboGenerate, debeReintentar, debeReintentarVacio, ganaElReintento, modoResultante, esTranscriptEncolado };')();
 
     const fallos = CASOS_COBERTURA.filter((c) => copia.veredictoCobertura(c.cobertura, c.duracion, c.umbral) !== c.espera);
     check('la copia del nodo pasa CASOS_COBERTURA importada del .ts (' + CASOS_COBERTURA.length + ' casos)',
@@ -1006,6 +1015,11 @@ await (async () => {
       copia.debeReintentar(c.cobertura, c.duracion, c.umbral, c.modo) !== c.espera);
     check('la copia del nodo pasa CASOS_REINTENTO (cuándo se gasta una llamada más, ' + CASOS_REINTENTO.length + ' casos)',
       fallosRe.length === 0, JSON.stringify(fallosRe.map((c) => c.nombre)));
+
+    const fallosVacio = CASOS_VACIO.filter((c) =>
+      copia.debeReintentarVacio(c.texto, c.modo) !== c.espera);
+    check('la copia del nodo pasa CASOS_VACIO (auto vacío escala una sola vez, ' + CASOS_VACIO.length + ' casos)',
+      fallosVacio.length === 0, JSON.stringify(fallosVacio.map((c) => c.nombre)));
 
     // 🔑 Los CUATRO desenlaces de `modoResultante`, valor contra valor: es lo único que distingue
     // "disparó y perdió" de "nunca disparó", y esa distinción ES el candado contra la re-compra.

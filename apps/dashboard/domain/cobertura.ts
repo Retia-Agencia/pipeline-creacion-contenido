@@ -273,6 +273,10 @@ export function debeReintentar(
   return veredictoCobertura(cobertura, duracion, umbral) === "parcial";
 }
 
+export function debeReintentarVacio(texto: string, modo: string | null | undefined): boolean {
+  return texto.trim() === "" && !yaProboGenerate(modo);
+}
+
 /**
  * Quién gana entre lo que ya había y lo que trajo el reintento.
  *
@@ -282,9 +286,17 @@ export function debeReintentar(
  * En empate manda lo que ya estaba: nunca se pisa un guion por otro que no demostró ser mejor.
  */
 export function ganaElReintento(actual: Intento, candidato: Intento): boolean {
+  if (actual.texto.trim() === "" && candidato.texto.trim() !== "") return true;
   if (candidato.cobertura == null) return false;
   if (actual.cobertura == null) return true;
   return candidato.cobertura > actual.cobertura;
+}
+
+export function motivoSinTranscript(modo: Modo): string {
+  if (modo === "auto_tras_generate") {
+    return "Supadata no sacó texto ni de los subtítulos ni escuchando el audio. Puede ser un video sin voz o uno que Supadata no logra descargar.";
+  }
+  return "Supadata no alcanzó a transcribirlo a tiempo. Dale Reintentar en unos minutos.";
 }
 
 /**
@@ -348,4 +360,14 @@ export const CASOS_REINTENTO = [
 ] as const satisfies readonly {
   nombre: string; cobertura: number | null; duracion: number | null; umbral: number;
   modo: string; espera: boolean;
+}[];
+
+export const CASOS_VACIO = [
+  { nombre: "vacío en auto: se escucha el audio", texto: "", modo: "auto", espera: true },
+  { nombre: "espacios y fila vieja: se escucha el audio", texto: "   ", modo: null, espera: true },
+  { nombre: "con texto: no se reintenta por vacío", texto: "hola", modo: "auto", espera: false },
+  { nombre: "vacío en generate: ya se probó", texto: "", modo: "generate", espera: false },
+  { nombre: "vacío tras perder generate: no se vuelve a pagar", texto: "", modo: "auto_tras_generate", espera: false },
+] as const satisfies readonly {
+  nombre: string; texto: string; modo: string | null; espera: boolean;
 }[];

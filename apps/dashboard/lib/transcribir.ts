@@ -1,6 +1,6 @@
 import {
-  coberturaDeRespuesta, debeReintentar, esTranscriptEncolado, ganaElReintento, modoResultante,
-  textoDeRespuesta, UMBRAL_COBERTURA, type Modo,
+  coberturaDeRespuesta, debeReintentar, debeReintentarVacio, esTranscriptEncolado,
+  ganaElReintento, modoResultante, textoDeRespuesta, UMBRAL_COBERTURA, type Modo,
 } from "@/domain/cobertura";
 import { leerClave } from "@/lib/env";
 // Las dos llamadas externas del transcriptor (ADR-031): Supadata para el transcript, Haiku para
@@ -101,7 +101,8 @@ export async function transcribirConReintento(
 ): Promise<TranscripcionConModo> {
   const primero = await transcribir(url, "auto");
 
-  if (!debeReintentar(primero.cobertura, duracion, UMBRAL_COBERTURA, "auto")) {
+  if (!debeReintentar(primero.cobertura, duracion, UMBRAL_COBERTURA, "auto")
+      && !debeReintentarVacio(primero.texto, "auto")) {
     return { ...primero, modo: "auto" };
   }
 

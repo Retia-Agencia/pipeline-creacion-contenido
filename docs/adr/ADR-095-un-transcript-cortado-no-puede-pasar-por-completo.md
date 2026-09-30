@@ -462,3 +462,16 @@ de Majo, no videos ajenos.
 4. 🐤 **Canario:** `select count(cobertura_seg) from app.transcripciones` nace en **cero** por
    definición (la migración no backfillea). La primera fila la escribe el motor la próxima vez que
    transcriba un video, no una verificación manual.
+
+## Enmienda 4 — vacío en auto también escala a generate (2026-09-30)
+
+`auto` vacío no demuestra que el video no tenga voz: en Instagram suele significar que no había
+subtítulos nativos. De 17 reels probados, 14 sí entregaron texto con `mode=generate`; hoy 21 links
+pegados habían terminado `sin_transcript` porque, sin duración, ese segundo intento nunca ocurría.
+
+Desde ahora un `auto` sin texto escala una vez a `generate`, en el cockpit y en el motor. Cuesta
+~2 créditos por generate en videos de alrededor de un minuto. Si generate también vuelve vacío,
+queda el candado `auto_tras_generate` y el mensaje dice lo que pasó: 5 de 19 reels de IG probados
+siguen dando `transcript-unavailable` porque Supadata no logra obtener el audio. El polling de los
+`202` sigue diferido, como decidió ADR-096.
+En el motor, un vacío ya cacheado no se re-escala porque `POST Transcripciones` ignora duplicados y perdería el resultado; para los viejos, el camino es **Reintentar** en el cockpit.
