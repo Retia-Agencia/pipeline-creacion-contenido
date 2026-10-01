@@ -553,6 +553,10 @@ gana el norte (ROADMAP §1).
 Skills disponibles: `/grill-me`, `/grill-with-docs` (alinear + documentar antes de construir),
 `/tdd` (red-green-refactor), `/diagnose` (debugging disciplinado), `/improve-codebase` (profundizar
 módulos), `/handoff` (compactar una sesión).
+**De Supabase** (oficiales, `npx skills add supabase/agent-skills`, 01/10; viven en `.agents/skills/` con
+symlink en `.claude/skills/`, versión fijada en `skills-lock.json`): `supabase` (checklist de seguridad
+de RLS, vistas y llaves) y `supabase-postgres-best-practices` (índices, locks, RLS rápida). Úsalos
+antes de escribir una migración. Solo son docs, sin scripts (revisado al instalar).
 
 ## Feedback loops
 
