@@ -1,0 +1,50 @@
+{
+  "pedido": {
+    "intent": "Find short educational videos by psychologists and therapists about emotional regulation and emotional intelligence, not motivational quotes, comedy skits or personal vlogs.",
+    "topic_hint": "Emotional regulation"
+  },
+  "respuesta": {
+    "data": {
+      "keywords": [
+        "emotional regulation psychologist",
+        "emotional intelligence therapist",
+        "regulate emotions expert",
+        "psychology emotional skills",
+        "therapy emotional control",
+        "mental health emotional regulation",
+        "emotional intelligence explained",
+        "therapist emotional coping",
+        "psychologist emotional tools",
+        "emotional literacy expert"
+      ],
+      "exclude_keywords": [
+        "quotes",
+        "comedy",
+        "skit",
+        "vlog",
+        "motivation",
+        "personal",
+        "storytime",
+        "challenge",
+        "funny",
+        "meme"
+      ],
+      "reasoning": "This set focuses on educational content about emotional regulation and intelligence delivered by professionals, using broad and specific terms. Excludes target common off-topic content like motivational quotes, comedy, and personal vlogs as requested.",
+      "quality": {
+        "score": 100,
+        "passes": true,
+        "issues": [],
+        "stats": {
+          "count": 10,
+          "avg_words_per_keyword": 3.1,
+          "single_word_count": 0,
+          "long_keyword_count": 0,
+          "duplicate_count": 0,
+          "core_token_coverage": 0.9,
+          "core_token": "emotional"
+        }
+      },
+      "timely_context_used": false
+    }
+  }
+}

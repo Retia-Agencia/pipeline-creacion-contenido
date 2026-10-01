@@ -1,0 +1,49 @@
+{
+  "pedido": {
+    "intent": "Trouve des vidéos courtes et éducatives avec des scripts pratiques pour communiquer au travail : conversations difficiles, donner du feedback, parler à son manager et diriger une équipe, pas de conseils amoureux, de comédie ni d'astuces de productivité génériques.",
+    "topic_hint": "Communication au travail"
+  },
+  "respuesta": {
+    "data": {
+      "keywords": [
+        "communication travail",
+        "conversations difficiles travail",
+        "donner feedback constructif",
+        "parler à son manager",
+        "diriger une équipe communication",
+        "communication professionnelle",
+        "gestion conflits travail",
+        "leadership communication",
+        "scripts communication travail",
+        "améliorer communication pro"
+      ],
+      "exclude_keywords": [
+        "amour",
+        "couple",
+        "relation",
+        "drôle",
+        "humour",
+        "blague",
+        "productivité",
+        "astuce",
+        "vie perso"
+      ],
+      "reasoning": "This set focuses on professional communication skills, covering difficult conversations, feedback, and leadership, while excluding personal relationships, comedy, and generic productivity tips as requested. The keywords are in French to match the intent's language.",
+      "quality": {
+        "score": 100,
+        "passes": true,
+        "issues": [],
+        "stats": {
+          "count": 10,
+          "avg_words_per_keyword": 2.9,
+          "single_word_count": 0,
+          "long_keyword_count": 0,
+          "duplicate_count": 0,
+          "core_token_coverage": 0.6,
+          "core_token": "communication"
+        }
+      },
+      "timely_context_used": false
+    }
+  }
+}

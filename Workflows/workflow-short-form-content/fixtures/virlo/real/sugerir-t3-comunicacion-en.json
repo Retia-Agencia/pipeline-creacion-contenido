@@ -1,0 +1,48 @@
+{
+  "pedido": {
+    "intent": "Find short educational videos with practical scripts for communicating at work: difficult conversations, giving feedback, talking to your boss and leading a team, not relationship advice, comedy or generic productivity tips.",
+    "topic_hint": "Workplace communication"
+  },
+  "respuesta": {
+    "data": {
+      "keywords": [
+        "workplace communication tips",
+        "difficult conversations work",
+        "giving feedback at work",
+        "talking to your boss",
+        "leading a team communication",
+        "professional communication skills",
+        "script for difficult conversation",
+        "effective workplace dialogue",
+        "manager communication strategies",
+        "team leadership communication"
+      ],
+      "exclude_keywords": [
+        "relationship",
+        "comedy",
+        "funny",
+        "productivity",
+        "dating",
+        "marriage",
+        "skit",
+        "prank"
+      ],
+      "reasoning": "This set focuses on practical, script-based workplace communication by including broad terms and specific scenarios like difficult conversations and leading teams, while excluding personal relationship advice, comedy, and generic productivity content.",
+      "quality": {
+        "score": 100,
+        "passes": true,
+        "issues": [],
+        "stats": {
+          "count": 10,
+          "avg_words_per_keyword": 3.4,
+          "single_word_count": 0,
+          "long_keyword_count": 0,
+          "duplicate_count": 0,
+          "core_token_coverage": 0.5,
+          "core_token": "communication"
+        }
+      },
+      "timely_context_used": false
+    }
+  }
+}

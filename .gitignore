@@ -16,3 +16,4 @@ outputs-referentes/
 
 # Cache de WebFetch del hook sdd-cache (ai-brain-starter). Es local de cada maquina, no del repo.
 .claude/sdd-cache/
+Workflows/workflow-short-form-content/fixtures/virlo/crudo/

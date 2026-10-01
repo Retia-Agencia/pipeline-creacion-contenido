@@ -61,7 +61,7 @@ Lo que se sigue pagando fuera de Virlo:
 **Hoy se gasta ~100 USD/mes** (Apify con tope de 50 + Supadata 47 + Haiku) **para 0,6-2,3
 aprobados por semana** en el piso de 500k.
 
-## 3. Cuánto rinde una corrida (predicción, a reemplazar por la Fase 0)
+## 3. Cuánto rinde una corrida (predicción; lo medido está en §3.1)
 
 | Paso | Supuesto | Fuente | Videos |
 |---|---|---|---|
@@ -83,6 +83,66 @@ al mes, **antes** del descuento de hasta 50 %.
 Apify: 0,61 a 6,27 USD por entregado ([costos.md §3.3](../costos.md)), o sea **1,5 a 16 USD por
 aprobado**. *Si la Fase 0 da la mitad de lo predicho, Virlo sigue siendo un orden de magnitud más
 barato por aprobado.* Eso es lo que se lleva a la negociación con Nick.
+
+### 3.1 Medido: la sonda de la Fase 0 (A2, 2026-10-01)
+
+Seis agentes de una corrida con Data Intelligence, sobre las temáticas de
+[07 §B0](./07-refactor-tickets.md): T1 (emocional), T2 (trading), y T3 (comunicación laboral)
+cuatro veces: solo inglés, solo portugués, solo francés y **mezclada** (EN + PT + FR). Las tres
+plataformas, `english_only: false`. Keywords de `suggest-keywords` (calidad 100 en las cinco)
+más las nuestras de B0; las excluidas, recortadas a mano (Virlo proponía `money`, `strategy` y
+`profit` para trading, y una excluida tira el video si la palabra aparece en el caption).
+**Costo: 9,00 USD exactos** (saldo 50 → 41, medido con `GET /account/balance`). Cómo repetirla:
+[`fixtures/virlo/sonda-2026-10-01.sh`](../../Workflows/workflow-short-form-content/fixtures/virlo/sonda-2026-10-01.sh)
+y después `sonda-virlo.mjs leer-agent <id>` (gratis). Las respuestas enteras quedan en
+`fixtures/virlo/crudo/` (gitignored, 24 MB); la muestra para los tests de A1, en
+[`fixtures/virlo/real/`](../../Workflows/workflow-short-form-content/fixtures/virlo/real/).
+
+Los números de abajo se leyeron entre 25 y 45 min después de cada corrida. **Todavía faltaba
+llegar entre el 13 % y el 33 % de Data Intelligence** en los videos de 500k+, así que los
+`intent_match` pueden subir.
+
+| Pregunta | Predicción | Medido | ¿Se cumple? |
+|---|---|---|---|
+| Videos por corrida | 200-360 | **658-822** (`GET videos`). El reporte dice `videos_linked` 726-2.265: **el reporte no es lo que se puede leer** | Sí, de sobra |
+| Con 500k+ vistas | ~15 % (≥ 30) | **6-12 %: 41-92 videos** por agente (T1 92 · T3-en 71 · T2 61 · PT 49 · mezcla 46 · FR 41) | El % no; el conteo ≥ 30 sí, en los seis |
+| `intent_match` true entre esos | ~70 % | **24-71 %**: FR 71 · T1 65 · PT 63 · T3-en 52 · T2 38 · **mezcla 24** | Solo FR, T1 y PT. La mezcla, debajo del 40 % |
+| Coincidencia `intent_match` vs nuestro gate | ≥ 75 % | No medido: va con el asignador (A3) | Pendiente |
+| **Aprobación del equipo** | **≥ 25 %** | **Pendiente: hoja ciega de 105 videos** (abajo) | **Decide el veredicto** |
+| Portugués vs inglés | PT trae menos volumen | El agente PT trajo **734 videos, pero solo 199 en portugués** (255 en inglés, 106 en español). El FR, **63 en francés de 658**. Entre los 500k+: 4 PT y 3 FR | Una keyword en otro idioma **no** garantiza videos en ese idioma |
+| Agente mezclado (EN+PT+FR) | Trae los tres idiomas | **740 videos** (395 EN, 50 PT, 30 ES, 13 FR) contra **2.039 únicos** de los tres separados. El que más descarta por intención (**881, 39 %**) | **Un agente por idioma** (D-5): mezclar no ahorra, achica |
+| Aprobados por corrida por voz | ~9-11 | Pendiente (sale de la hoja) | Pendiente |
+| Transcript entre los 500k+ | TT/YT ~85 %, IG ~40 % | **TikTok 82-95 % · YouTube 87-100 % · Instagram 4 de 19 (21 %)** | TT/YT sí. IG por debajo del 25 %, con una muestra chica y DI todavía llegando |
+| Transcript `platform` contra Supadata (20 videos) | ±15 % en ≥ 90 % | **20 de 20, 18 idénticos al carácter**: los dos leen el mismo caption de la plataforma | Sí. Para TT/YT, **Supadata no agrega nada** |
+| Plataformas en el total | IG ~15 · YT ~50 · TT ~35 | **IG 9-12 % · YT 25-40 % · TT 56-64 %**. Entre los 500k+: **IG 1-8 %** | IG < 10 % entre los 500k+: toca el agente de prueba solo-Instagram (D-8) |
+| Aprobación por plataforma | YT ≤ IG/TT | Pendiente (la hoja trae la plataforma en la clave) | Pendiente |
+| Re-medidos en la 2.ª corrida recurrente | > 30 % | No medible con agentes de una corrida | Va al piloto (V-11) |
+| `intelligence_status: ready` al terminar | ≥ 70 % | Al `finalized` (mezcla): **37 %** de los 500k+. Entre 25 y 45 min después: **67-87 %** | **No.** La ingesta tiene que releer más tarde (lo que ya dice §4) |
+
+**Lo que la tabla no preguntaba y salió:**
+
+- 🩸 **YouTube trae videos de hasta 2020.** De los 312 videos únicos de 500k+, **109 (35 %) tienen
+  más de un año, y los 109 son YouTube.** Virlo dijo *"hasta 1 año atrás"* ([01 §1.4](./01-reunion-y-api.md) #4):
+  no vale para YouTube. Edad de los 312: < 30 días 14 % · 30-90 días 23 % · 90-365 días 28 % · > 1 año 35 %.
+  El filtro `start_date` de `GET videos` es gratis, así que se corta al leer; lo que hay que decidir
+  es **cuántos días** (hoy el ajuste `Días de recencia` del motor dice 50).
+- **Los transcripts `platform` casi nunca traen `segments`**, y el `transcribed` sí. Para la regla de
+  cobertura de ADR-095 alcanza igual: `duration` vino en **4.029 de 4.029** videos, pero la
+  cobertura en segundos solo existe en los `transcribed`.
+- **Algunos transcripts `platform` son basura corta** (10 y 18 caracteres en la muestra, Supadata
+  devuelve lo mismo): el gate de "transcript vacío" tiene que medir largo, no presencia.
+- **Virlo reescribe las keywords**: con una intención que dice *"practical scripts"*, le agregó
+  `scripts` a casi todas las de T3 (`intent_keywords`). Se ve en el `keyword_breakdown` de cada corrida.
+- **T1 y T2 casi no se pisan** (2 videos en común): temáticas distintas sí dan material distinto.
+
+**Veredicto: técnicamente SIGUE; la compuerta todavía no se puede cerrar.** Todo lo que puede romper
+el modelo por el lado de Virlo aguantó: alcanza el volumen, sale barato, trae los transcripts de
+TT/YT y el id de Instagram se deriva bien (`external_id` de los seis reels de muestra, por la regla
+de `normalizar-virlo.mjs`). La fila en negrita la contesta el equipo:
+**`fixtures/virlo/crudo/calificacion-ciega.csv`** (105 videos de 500k+, 15 con `intent_match` true y
+5 false por agente, sin repetidos, mezclados y **sin decir de dónde vienen**). La clave
+(`calificacion-clave.json`, al lado) dice de qué agente, plataforma, idioma y `intent_match` es cada
+fila, para cruzar después.
 
 ## 4. Cómo se vigila
 

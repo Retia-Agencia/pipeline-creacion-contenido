@@ -145,6 +145,8 @@ Cada fase tiene su **verificación**: sin ella la fase no está cerrada.
 | Re-medidos por corrida (`total_videos_updated`) | > 30 % en la segunda corrida de un recurrente | Si es ~0: la re-medición implícita no existe |
 | Videos con `intelligence_status: ready` al llegar el webhook | ≥ 70 % | Si es bajo: la ingesta tiene que releer más tarde antes de filtrar |
 
+✅ **Medido el 01/10 (A2)**: [04 §3.1](./04-operacion-y-costos.md). Técnicamente sigue; falta la fila en negrita, que la contesta el equipo con la hoja ciega.
+
 **Verificación:** una tabla en [04 §3](./04-operacion-y-costos.md) con los números medidos en vez de
 los supuestos, y un veredicto de **sigue / no sigue** contra la fila en negrita.
 

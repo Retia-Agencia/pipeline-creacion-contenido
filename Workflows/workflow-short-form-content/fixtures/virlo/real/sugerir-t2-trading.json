@@ -1,0 +1,50 @@
+{
+  "pedido": {
+    "intent": "Find short educational videos where experienced traders explain trading psychology, discipline and mindset, not chart-only screen recordings, signals or get-rich-quick promises.",
+    "topic_hint": "Trading psychology"
+  },
+  "respuesta": {
+    "data": {
+      "keywords": [
+        "trading psychology",
+        "trader mindset",
+        "trading discipline",
+        "emotional trading",
+        "forex psychology",
+        "stock market mindset",
+        "trading mental game",
+        "successful trader habits",
+        "investing psychology",
+        "day trading mindset"
+      ],
+      "exclude_keywords": [
+        "signals",
+        "charts",
+        "indicators",
+        "strategy",
+        "get rich",
+        "profit",
+        "money",
+        "analysis",
+        "live trade",
+        "bot"
+      ],
+      "reasoning": "This keyword set focuses on the psychological aspects of trading, using terms real traders use to discuss mindset and discipline. Excludes target common off-topic content like technical analysis, trading signals, and 'get rich quick' schemes.",
+      "quality": {
+        "score": 100,
+        "passes": true,
+        "issues": [],
+        "stats": {
+          "count": 10,
+          "avg_words_per_keyword": 2.4,
+          "single_word_count": 0,
+          "long_keyword_count": 0,
+          "duplicate_count": 0,
+          "core_token_coverage": 0.5,
+          "core_token": "trading"
+        }
+      },
+      "timely_context_used": false
+    }
+  }
+}

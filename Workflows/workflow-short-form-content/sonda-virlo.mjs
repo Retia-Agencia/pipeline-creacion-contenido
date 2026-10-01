@@ -10,12 +10,19 @@
 //        activos de app.referentes. Sin --apply solo dice qué pediría y cuánto costaría.
 //        Contesta: ¿qué es `id` (media id numérico, shortcode, uuid)? ¿cuántos días hacia atrás
 //        llega? ¿viene `duration`? ¿las vistas coinciden con pool_crudo para el mismo reel?
-//   agent --intent "…" --keywords "a;b;c" [--di] [--apply]
-//        Crea un agent de una sola corrida (0,50 USD; 1,50 con --di = Data Intelligence), con
-//        english_only=false (el default de Virlo es true y nosotros buscamos en todos los idiomas).
-//        Espera a `finalized` y baja todos los videos.
-//   leer-agent <agent_id>
-//        Baja los videos de un agent ya corrido. Leer es gratis.
+//   saldo
+//        GET /account/balance. Gratis.
+//   sugerir --intent "…" --topic "…" [--slug x]
+//        POST /agents/suggest-keywords. Gratis; guarda la respuesta como sugerir-<slug>.json.
+//   agent --intent "…" --keywords "a;b;c" [--exclude "a;b"] [--platforms instagram,tiktok,youtube]
+//         [--english-only] [--name x] [--di] [--apply]
+//        Crea un agent de una sola corrida (0,50 USD; 1,50 con --di = Data Intelligence). Por
+//        defecto las tres plataformas (D-8 se mide, no se asume) y english_only=false (A2, 01/10:
+//        el default de Virlo es true). Espera a `finalized` y lee los videos.
+//   leer-agent <agent_id> [--min-views 500000]
+//        Baja los videos de un agent ya corrido, el reporte de su corrida y, de los que pasan el
+//        piso, el transcript (`include_transcript`). Leer es gratis. Imprime las filas de la tabla
+//        de predicciones de docs/virlo/00-plan.md §4.
 //
 // 🔑 Lo que decide la Fase 5 (transcripts): en la llamada del 28/09 Virlo dijo que con Data
 // Intelligence entrega el transcript; la doc pública no muestra ningún campo con el texto. Esta
@@ -32,6 +39,7 @@ import { externalIdVirlo, fechaUtc } from './normalizar-virlo.mjs';
 const { VIRLO_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE } = process.env;
 const BASE = 'https://api.virlo.ai/v1';
 const DIR_FIXTURES = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'virlo');
+const DIR_CRUDO = join(DIR_FIXTURES, 'crudo'); // gitignored: respuestas enteras, MB
 const USD_LOOKUP = 0.5;
 const USD_AGENT = 0.5;
 const USD_AGENT_DI = 1.5;
@@ -45,11 +53,12 @@ const flag = (n) => args.includes('--' + n);
 const valor = (n, d) => { const i = args.indexOf('--' + n); return i < 0 ? d : args[i + 1]; };
 const APPLY = flag('apply');
 
-if (!['lookup', 'agent', 'leer-agent'].includes(modo)) {
-  console.error('Uso: sonda-virlo.mjs lookup|agent|leer-agent [flags]  (ver cabecera del archivo)');
+const MODOS = ['saldo', 'sugerir', 'lookup', 'agent', 'leer-agent'];
+if (!MODOS.includes(modo)) {
+  console.error(`Uso: sonda-virlo.mjs ${MODOS.join('|')} [flags]  (ver cabecera del archivo)`);
   process.exit(1);
 }
-if (!VIRLO_API_KEY && (APPLY || modo === 'leer-agent')) {
+if (!VIRLO_API_KEY && (APPLY || ['saldo', 'sugerir', 'leer-agent'].includes(modo))) {
   console.error('Falta VIRLO_API_KEY en el .env (formato virlo_tkn_…, dev.virlo.ai/dashboard/api-keys).');
   process.exit(1);
 }
@@ -66,9 +75,10 @@ async function virlo(metodo, ruta, cuerpo) {
     },
     body: cuerpo ? JSON.stringify(cuerpo) : undefined,
   });
-  // X-Cost viene en créditos (1 crédito = 0,01 USD) según docs/credits.
+  // X-Cost viene en DÓLARES (`0.50`); los créditos van aparte en X-Credits-Used. Medido el 01/10:
+  // este renglón dividía por 100 y habría reportado 100 veces menos de lo gastado.
   const costo = Number(r.headers.get('x-cost') ?? 0);
-  if (costo) gastado += costo / 100;
+  if (costo) gastado += costo;
   const texto = await r.text();
   let json = null;
   try { json = JSON.parse(texto); } catch { /* se devuelve el texto crudo */ }
@@ -80,9 +90,9 @@ async function virlo(metodo, ruta, cuerpo) {
   return json ?? texto;
 }
 
-function guardar(nombre, datos) {
-  mkdirSync(DIR_FIXTURES, { recursive: true });
-  const archivo = join(DIR_FIXTURES, nombre);
+function guardar(nombre, datos, dir = DIR_FIXTURES) {
+  mkdirSync(dir, { recursive: true });
+  const archivo = join(dir, nombre);
   writeFileSync(archivo, JSON.stringify(datos, null, 2));
   console.log(`   💾 ${archivo}`);
 }
@@ -235,16 +245,19 @@ async function analizarVideosLookup(handle, videos, segundos) {
 // ═══════════════════════════════════════ agent ═══════════════════════════════════════
 async function modoAgent() {
   const intent = valor('intent', null);
-  const keywords = valor('keywords', '').split(';').map((k) => k.trim()).filter(Boolean);
+  const lista = (n) => valor(n, '').split(';').map((k) => k.trim()).filter(Boolean);
+  const keywords = lista('keywords');
+  const exclude = lista('exclude');
   const di = flag('di');
   if (!intent || !keywords.length) { console.error('Faltan --intent "…" y --keywords "a;b;c".'); process.exit(1); }
   const cuerpo = {
     is_recurring: false,
-    name: `sonda ${new Date().toISOString().slice(0, 10)}`,
+    name: valor('name', `sonda ${new Date().toISOString().slice(0, 10)}`),
     intent,
     keywords,
-    platforms: ['instagram', 'tiktok'],
-    english_only: false,
+    ...(exclude.length ? { exclude_keywords: exclude } : {}),
+    platforms: valor('platforms', 'instagram,tiktok,youtube').split(','),
+    english_only: flag('english-only'),
     data_intelligence_enabled: di,
   };
   console.log('Agent de una corrida:\n' + JSON.stringify(cuerpo, null, 2));
@@ -263,33 +276,85 @@ async function modoAgent() {
     process.stdout.write(`   ${Math.round((Date.now() - t0) / 1000)} s · ${agente?.data?.latest_run?.status ?? '?'}\r`);
   }
   console.log(`\n   finalized=${agente?.data?.finalized} en ${Math.round((Date.now() - t0) / 60000)} min`);
-  guardar(`agent-${id}.json`, agente);
+  guardar(`agent-${id}.json`, agente, DIR_CRUDO);
   if (di) console.log('   ⚠️ Data Intelligence sigue llegando después de finalized: re-leé en unos minutos con leer-agent.');
   await modoLeerAgent(id);
 }
 
-async function modoLeerAgent(id) {
-  const videos = [];
-  for (let offset = 0; ; offset += 100) {
-    const pag = await virlo('GET', `/agents/${id}/videos?limit=100&offset=${offset}`);
+// Pagina con `page` hasta página vacía y deduplica por `id` (docs: `offset` da 400, y una página
+// puede venir corta con más detrás).
+async function paginar(ruta, limit) {
+  const porId = new Map();
+  for (let page = 1; page < 200; page++) {
+    const sep = ruta.includes('?') ? '&' : '?';
+    const pag = await virlo('GET', `${ruta}${sep}limit=${limit}&page=${page}`);
     const lote = pag?.data?.videos ?? videosDe(pag);
-    videos.push(...lote);
-    if (lote.length < 100) break;
+    if (!lote.length) break;
+    for (const v of lote) porId.set(v.id, v);
   }
-  guardar(`agent-${id}-videos.json`, videos);
-  const piso = Number(valor('min-views', 400_000));
-  const porPlat = {};
-  for (const v of videos) porPlat[v.platform] = (porPlat[v.platform] ?? 0) + 1;
-  const sobre = videos.filter((v) => Number(v.views) >= piso);
-  const match = sobre.filter((v) => v.intent_match !== false && v.matched_intent !== false);
-  console.log(`\n${videos.length} videos · por plataforma ${JSON.stringify(porPlat)}`);
-  console.log(`≥ ${piso.toLocaleString('es')} vistas: ${sobre.length} · y además con match de intent: ${match.length}`);
+  return [...porId.values()];
+}
+
+const pct = (a, b) => (b ? `${a}/${b} (${Math.round((100 * a) / b)} %)` : `${a}/0`);
+const contar = (xs, f) => xs.reduce((o, x) => { const k = f(x); o[k] = (o[k] ?? 0) + 1; return o; }, {});
+
+async function modoLeerAgent(id) {
+  const piso = Number(valor('min-views', 500_000));
+  const videos = await paginar(`/agents/${id}/videos`, 100);
+  guardar(`agent-${id}-videos.json`, videos, DIR_CRUDO);
+  // Los del piso, otra vez y con transcript: páginas de 20 (la doc pide 10-20 con transcript).
+  const sobre = await paginar(`/agents/${id}/videos?min_views=${piso}&include_transcript=true`, 20);
+  guardar(`agent-${id}-sobre-${piso}.json`, sobre, DIR_CRUDO);
+  const runs = await virlo('GET', `/agents/${id}/runs?limit=10`);
+  guardar(`agent-${id}-runs.json`, runs, DIR_CRUDO);
+
+  const run = runs?.data?.runs?.[0] ?? {};
+  console.log(`\n── corrida ${run.id ?? '?'} · ${run.status ?? '?'} · ${Math.round((run.execution_time_ms ?? 0) / 60000)} min`);
+  console.log(`   videos_linked ${run.videos_linked} · por plataforma (antes de filtros) yt ${run.youtube_count} tt ${run.tiktok_count} ig ${run.instagram_count}`);
+  console.log(`   descartes: intención ${run.intent_filtered} · idioma ${run.language_filtered_count} · excluidas ${run.exclude_keywords_filtered}`);
+  console.log(`   insertados ${run.total_videos_inserted} · actualizados ${run.total_videos_updated}`);
+  for (const k of run.keyword_breakdown ?? []) console.log(`     ${String(k.videos_linked).padStart(4)}  ${k.keyword}`);
+
+  const match = (v) => v.intent_match?.matches;
+  const plat = (v) => v.platform;
+  console.log(`\n${videos.length} videos · por plataforma ${JSON.stringify(contar(videos, plat))}`);
+  console.log(`intent_match en el total: ${JSON.stringify(contar(videos, (v) => String(match(v) ?? null)))}`);
+  console.log(`intelligence_status: ${JSON.stringify(contar(videos, (v) => v.intelligence_status))}`);
+  console.log(`con duration: ${pct(videos.filter((v) => Number(v.duration) > 0).length, videos.length)}`);
+  console.log(`\n≥ ${piso.toLocaleString('es')} vistas: ${pct(sobre.length, videos.length)} · por plataforma ${JSON.stringify(contar(sobre, plat))}`);
+  console.log(`  y con intent_match true: ${pct(sobre.filter((v) => match(v) === true).length, sobre.length)}`);
+  console.log(`  intelligence_status ready: ${pct(sobre.filter((v) => v.intelligence_status === 'ready').length, sobre.length)}`);
+  for (const [p, n] of Object.entries(contar(sobre, plat))) {
+    const de = sobre.filter((v) => v.platform === p);
+    const conT = de.filter((v) => v.transcript?.text);
+    console.log(`  transcript ${p}: ${pct(conT.length, n)} · fuente ${JSON.stringify(contar(conT, (v) => v.transcript.source))} · con segmentos ${conT.filter((v) => v.transcript.segments?.length).length}`);
+  }
+  const ig = sobre.find((v) => v.platform === 'instagram') ?? videos.find((v) => v.platform === 'instagram');
+  if (ig) console.log(`  reel IG de muestra: ${ig.url} → external_id ${externalIdVirlo(ig, 'instagram') || '⚠️ no derivable'}`);
   if (videos[0]) console.log(`claves de un video: ${Object.keys(videos[0]).join(', ')}`);
-  resumenTranscripts(videos);
+}
+
+async function modoSaldo() {
+  const r = await virlo('GET', '/account/balance');
+  console.log(JSON.stringify(r.data));
+}
+
+async function modoSugerir() {
+  const intent = valor('intent', null);
+  if (!intent) { console.error('Falta --intent "…".'); process.exit(1); }
+  const cuerpo = { intent, ...(valor('topic', null) ? { topic_hint: valor('topic') } : {}) };
+  const r = await virlo('POST', '/agents/suggest-keywords', cuerpo);
+  guardar(`sugerir-${valor('slug', 'x')}.json`, { pedido: cuerpo, respuesta: r }, join(DIR_FIXTURES, 'real'));
+  const d = r.data ?? {};
+  console.log(`keywords (${d.keywords?.length}): ${d.keywords?.join(' · ')}`);
+  console.log(`excluidas: ${d.exclude_keywords?.join(' · ')}`);
+  console.log(`calidad ${d.quality?.score} passes=${d.quality?.passes} ${JSON.stringify(d.quality?.issues ?? [])}`);
 }
 
 try {
-  if (modo === 'lookup') await modoLookup();
+  if (modo === 'saldo') await modoSaldo();
+  else if (modo === 'sugerir') await modoSugerir();
+  else if (modo === 'lookup') await modoLookup();
   else if (modo === 'agent') await modoAgent();
   else await modoLeerAgent(args[1]);
 } catch (e) {

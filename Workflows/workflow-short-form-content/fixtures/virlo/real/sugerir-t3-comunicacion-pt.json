@@ -1,0 +1,50 @@
+{
+  "pedido": {
+    "intent": "Encontre vídeos curtos e educativos com roteiros práticos para se comunicar no trabalho: conversas difíceis, dar feedback, falar com o chefe e liderar uma equipe, não conselhos de relacionamento, comédia ou dicas genéricas de produtividade.",
+    "topic_hint": "Comunicação no trabalho"
+  },
+  "respuesta": {
+    "data": {
+      "keywords": [
+        "comunicação no trabalho",
+        "conversas difíceis trabalho",
+        "dar feedback profissional",
+        "falar com chefe",
+        "liderar equipe comunicação",
+        "roteiros comunicação trabalho",
+        "habilidades comunicação profissional",
+        "comunicação eficaz trabalho",
+        "diálogo construtivo trabalho",
+        "gestão de conflitos trabalho"
+      ],
+      "exclude_keywords": [
+        "relacionamento",
+        "comédia",
+        "produtividade",
+        "dicas gerais",
+        "engraçado",
+        "namoro",
+        "amor",
+        "piada",
+        "meme",
+        "motivação"
+      ],
+      "reasoning": "The keywords focus on practical communication scenarios in a professional setting, using terms real people would search for. Excludes target common off-topic content like personal relationships, comedy, and generic productivity advice, as specified in the intent.",
+      "quality": {
+        "score": 100,
+        "passes": true,
+        "issues": [],
+        "stats": {
+          "count": 10,
+          "avg_words_per_keyword": 3.1,
+          "single_word_count": 0,
+          "long_keyword_count": 0,
+          "duplicate_count": 0,
+          "core_token_coverage": 0.6,
+          "core_token": "trabalho"
+        }
+      },
+      "timely_context_used": false
+    }
+  }
+}

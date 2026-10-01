@@ -1,0 +1,333 @@
+{
+  "data": {
+    "agent_id": "2157de08-6ec5-4593-824b-894c5a10f85a",
+    "limit": 10,
+    "offset": 0,
+    "count": 1,
+    "runs": [
+      {
+        "id": "222e5da4-ea85-4d81-b367-8acec8b7b322",
+        "agent_id": "2157de08-6ec5-4593-824b-894c5a10f85a",
+        "status": "completed",
+        "total_videos_inserted": 812,
+        "total_videos_updated": 1453,
+        "total_videos_failed": 0,
+        "videos_linked": 2265,
+        "meta_ads_linked": 0,
+        "slideshows_linked": 586,
+        "youtube_count": 683,
+        "tiktok_count": 2196,
+        "instagram_count": 348,
+        "exclude_keywords_filtered": 95,
+        "intent_filtered": 881,
+        "language_filtered_count": 0,
+        "duplicates_dropped": 0,
+        "outliers_identified": 8,
+        "trends_detected": null,
+        "execution_time_ms": 849772,
+        "created_at": "2026-10-01T20:41:35.939Z",
+        "started_at": "2026-10-01T20:41:35.998Z",
+        "completed_at": "2026-10-01T20:55:45.728Z",
+        "keyword_breakdown": [
+          {
+            "keyword": "améliorer la communication pro scripts",
+            "tiktok_count": 81,
+            "videos_linked": 54,
+            "youtube_count": 20,
+            "videos_updated": 34,
+            "instagram_count": 2,
+            "videos_inserted": 20
+          },
+          {
+            "keyword": "assertive communication at work scripts",
+            "tiktok_count": 40,
+            "videos_linked": 73,
+            "youtube_count": 33,
+            "videos_updated": 51,
+            "instagram_count": 13,
+            "videos_inserted": 22
+          },
+          {
+            "keyword": "communication professionnelle scripts",
+            "tiktok_count": 65,
+            "videos_linked": 54,
+            "youtube_count": 17,
+            "videos_updated": 41,
+            "instagram_count": 3,
+            "videos_inserted": 13
+          },
+          {
+            "keyword": "communication travail scripts",
+            "tiktok_count": 57,
+            "videos_linked": 71,
+            "youtube_count": 19,
+            "videos_updated": 38,
+            "instagram_count": 10,
+            "videos_inserted": 33
+          },
+          {
+            "keyword": "comunicação eficaz no trabalho",
+            "tiktok_count": 78,
+            "videos_linked": 90,
+            "youtube_count": 24,
+            "videos_updated": 53,
+            "instagram_count": 1,
+            "videos_inserted": 37
+          },
+          {
+            "keyword": "comunicação no trabalho scripts",
+            "tiktok_count": 36,
+            "videos_linked": 52,
+            "youtube_count": 32,
+            "videos_updated": 22,
+            "instagram_count": 7,
+            "videos_inserted": 30
+          },
+          {
+            "keyword": "conversas difíceis no trabalho scripts",
+            "tiktok_count": 49,
+            "videos_linked": 63,
+            "youtube_count": 10,
+            "videos_updated": 37,
+            "instagram_count": 12,
+            "videos_inserted": 26
+          },
+          {
+            "keyword": "conversations difficiles au travail scripts",
+            "tiktok_count": 59,
+            "videos_linked": 48,
+            "youtube_count": 6,
+            "videos_updated": 23,
+            "instagram_count": 8,
+            "videos_inserted": 25
+          },
+          {
+            "keyword": "dar feedback profissional scripts",
+            "tiktok_count": 46,
+            "videos_linked": 33,
+            "youtube_count": 7,
+            "videos_updated": 18,
+            "instagram_count": 5,
+            "videos_inserted": 15
+          },
+          {
+            "keyword": "diálogo construtivo no trabalho scripts",
+            "tiktok_count": 68,
+            "videos_linked": 51,
+            "youtube_count": 12,
+            "videos_updated": 25,
+            "instagram_count": 5,
+            "videos_inserted": 26
+          },
+          {
+            "keyword": "difficult workplace conversations",
+            "tiktok_count": 89,
+            "videos_linked": 115,
+            "youtube_count": 43,
+            "videos_updated": 75,
+            "instagram_count": 30,
+            "videos_inserted": 40
+          },
+          {
+            "keyword": "diriger une équipe communication scripts",
+            "tiktok_count": 48,
+            "videos_linked": 45,
+            "youtube_count": 20,
+            "videos_updated": 33,
+            "instagram_count": 3,
+            "videos_inserted": 12
+          },
+          {
+            "keyword": "donner feedback constructif scripts",
+            "tiktok_count": 82,
+            "videos_linked": 30,
+            "youtube_count": 2,
+            "videos_updated": 14,
+            "instagram_count": 1,
+            "videos_inserted": 16
+          },
+          {
+            "keyword": "effective workplace dialogue scripts",
+            "tiktok_count": 76,
+            "videos_linked": 84,
+            "youtube_count": 35,
+            "videos_updated": 65,
+            "instagram_count": 15,
+            "videos_inserted": 19
+          },
+          {
+            "keyword": "falar com chefe scripts",
+            "tiktok_count": 56,
+            "videos_linked": 48,
+            "youtube_count": 19,
+            "videos_updated": 22,
+            "instagram_count": 0,
+            "videos_inserted": 26
+          },
+          {
+            "keyword": "gestão de conflitos no trabalho scripts",
+            "tiktok_count": 86,
+            "videos_linked": 52,
+            "youtube_count": 13,
+            "videos_updated": 14,
+            "instagram_count": 5,
+            "videos_inserted": 38
+          },
+          {
+            "keyword": "gestion des conflits au travail scripts",
+            "tiktok_count": 76,
+            "videos_linked": 41,
+            "youtube_count": 4,
+            "videos_updated": 18,
+            "instagram_count": 0,
+            "videos_inserted": 23
+          },
+          {
+            "keyword": "giving feedback at work scripts",
+            "tiktok_count": 63,
+            "videos_linked": 68,
+            "youtube_count": 21,
+            "videos_updated": 46,
+            "instagram_count": 4,
+            "videos_inserted": 22
+          },
+          {
+            "keyword": "habilidades de comunicação profissional",
+            "tiktok_count": 100,
+            "videos_linked": 116,
+            "youtube_count": 26,
+            "videos_updated": 82,
+            "instagram_count": 3,
+            "videos_inserted": 34
+          },
+          {
+            "keyword": "how to say no at work scripts",
+            "tiktok_count": 40,
+            "videos_linked": 62,
+            "youtube_count": 35,
+            "videos_updated": 41,
+            "instagram_count": 11,
+            "videos_inserted": 21
+          },
+          {
+            "keyword": "leadership communication scripts",
+            "tiktok_count": 64,
+            "videos_linked": 89,
+            "youtube_count": 9,
+            "videos_updated": 68,
+            "instagram_count": 20,
+            "videos_inserted": 21
+          },
+          {
+            "keyword": "leading a team communication scripts",
+            "tiktok_count": 74,
+            "videos_linked": 96,
+            "youtube_count": 33,
+            "videos_updated": 84,
+            "instagram_count": 0,
+            "videos_inserted": 12
+          },
+          {
+            "keyword": "liderar equipe comunicação scripts",
+            "tiktok_count": 72,
+            "videos_linked": 78,
+            "youtube_count": 43,
+            "videos_updated": 46,
+            "instagram_count": 0,
+            "videos_inserted": 32
+          },
+          {
+            "keyword": "manager communication scripts",
+            "tiktok_count": 75,
+            "videos_linked": 96,
+            "youtube_count": 20,
+            "videos_updated": 71,
+            "instagram_count": 23,
+            "videos_inserted": 25
+          },
+          {
+            "keyword": "managing up scripts",
+            "tiktok_count": 83,
+            "videos_linked": 65,
+            "youtube_count": 14,
+            "videos_updated": 31,
+            "instagram_count": 6,
+            "videos_inserted": 34
+          },
+          {
+            "keyword": "parler à son manager scripts",
+            "tiktok_count": 73,
+            "videos_linked": 58,
+            "youtube_count": 6,
+            "videos_updated": 34,
+            "instagram_count": 10,
+            "videos_inserted": 24
+          },
+          {
+            "keyword": "professional communication scripts",
+            "tiktok_count": 41,
+            "videos_linked": 63,
+            "youtube_count": 21,
+            "videos_updated": 49,
+            "instagram_count": 9,
+            "videos_inserted": 14
+          },
+          {
+            "keyword": "roteiros de comunicação no trabalho",
+            "tiktok_count": 64,
+            "videos_linked": 65,
+            "youtube_count": 21,
+            "videos_updated": 39,
+            "instagram_count": 13,
+            "videos_inserted": 26
+          },
+          {
+            "keyword": "scripts de communication au travail",
+            "tiktok_count": 67,
+            "videos_linked": 80,
+            "youtube_count": 33,
+            "videos_updated": 45,
+            "instagram_count": 40,
+            "videos_inserted": 35
+          },
+          {
+            "keyword": "scripts for difficult conversations",
+            "tiktok_count": 76,
+            "videos_linked": 65,
+            "youtube_count": 14,
+            "videos_updated": 45,
+            "instagram_count": 15,
+            "videos_inserted": 20
+          },
+          {
+            "keyword": "talking to your boss scripts",
+            "tiktok_count": 72,
+            "videos_linked": 82,
+            "youtube_count": 37,
+            "videos_updated": 41,
+            "instagram_count": 44,
+            "videos_inserted": 41
+          },
+          {
+            "keyword": "team leadership communication scripts",
+            "tiktok_count": 74,
+            "videos_linked": 98,
+            "youtube_count": 14,
+            "videos_updated": 84,
+            "instagram_count": 27,
+            "videos_inserted": 14
+          },
+          {
+            "keyword": "workplace communication scripts",
+            "tiktok_count": 66,
+            "videos_linked": 80,
+            "youtube_count": 20,
+            "videos_updated": 64,
+            "instagram_count": 3,
+            "videos_inserted": 16
+          }
+        ]
+      }
+    ]
+  }
+}
