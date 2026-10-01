@@ -35,7 +35,7 @@ Es la **referencia**: qué es Virlo y qué dijo cada quien. Qué hacemos con eso
 | 6 | Se filtra por vistas, viralidad, recencia, likes. | `GET /agents/:id/videos` filtra por `min_views`, fechas, plataforma, región, `intent_match`. **Gratis y cuantas veces se quiera.** Ordena por fecha, vistas o `created_at`, **no** por virality score (hay que calcularlo). | ✅ |
 | 7 | Cadencia diaria, semanal o mensual; el agente sigue buscando y si vuelve a encontrar un video **le actualiza las métricas**. | Cadencia `daily`, `weekly`, `monthly` o cron (máx. 1 por día). Las corridas reportan `total_videos_updated`. **No está garantizado** que un video vuelva a aparecer. | 🟡 a medir |
 | 8 | Idioma: se puede pedir solo inglés o todos; detectan el idioma de cada video. | `english_only` (**default `true`**). Para otro idioma: `false` y escribir intent y keywords **en ese idioma**. `language_detected` viene con Data Intelligence. | ✅ con trampa |
-| 9 | El transcript "es tuyo", lo pueden bajar; con Data Intelligence obtienes cada transcript. | ❌ **No en la API de agentes.** Ni la doc ni el OpenAPI exponen el texto: solo `transcript_word_count`, `transcript_character_count` y `transcript_quality`. El texto aparece solo en dos lados: los *digests* de 48 h (`transcript_raw`, y **nunca en Instagram**) y un video trackeado (`latest_transcript`, 0,25 USD por chequeo). Y la tabla de benchmarks de Virlo dice: videos de Instagram con transcript: **"almost none"**. | ❌ contradicción |
+| 9 | El transcript "es tuyo", lo pueden bajar; con Data Intelligence obtienes cada transcript. | ✅ **Corregido el 01/10** (§1.4 #1): `include_transcript=true` en `GET /agents/:id/videos`, gratis. *El 28/09 esta fila decía ❌ "no en la API de agentes", leyendo una doc que no lo mostraba.* En Instagram, solo con Data Intelligence. | ✅ |
 | 10 | Pueden reemplazar nuestro agente de Claude que decide si un video va o no. | Parcial. `intent_match` juzga contra **una frase de 500 caracteres máx.**; nuestros criterios son prosa larga por proyecto + voz + aprendidos. | 🟡 a medir |
 | 11 | Dos productos: app web (desde 49 USD/mes) y API (prepago). La app es una capa sobre la API. La API sale 20-30 % más barata para quien solo quiere datos. | Correcto: saldo prepago, sin suscripción, 1 crédito = 0,01 USD. | ✅ |
 | 12 | Descuentos por volumen de hasta **50 %**. Canal directo por email (no usamos Slack); se puede escribir en español (Andrés). | Comercial, no está en la doc. | 📌 compromiso |
@@ -45,7 +45,7 @@ Es la **referencia**: qué es Virlo y qué dijo cada quien. Qué hacemos con eso
 1. ✅ **La consulta por escrito a Virlo: ENVIADA por Mani el 28/09** (con copia a su correo personal;
    al cierre de la sesión la copia todavía no había llegado, así que el texto exacto enviado no se
    verificó). Destinatarios de la llamada: Nick (`nic@virlo.ai`) y Andrés, CTO (`andres@virlo.ai`).
-   **Falta la respuesta.** La versión final que se le pasó a Mani, en inglés, tenía estas preguntas
+   **Respondido el 01/10 (§1.4).** La versión final que se le pasó a Mani, en inglés, tenía estas preguntas
    (ordenadas por lo que más cambia el plan):
    1. Texto del transcript de los videos de un agente: ¿endpoint o campo? ¿con tiempos? ¿en
       Instagram? (§1.2 #9). Decide si Supadata se va.
@@ -69,6 +69,33 @@ Es la **referencia**: qué es Virlo y qué dijo cada quien. Qué hacemos con eso
 2. **Precio de agencia**: presentarles el volumen real ([04 §2-3](./04-operacion-y-costos.md))
    después de la Fase 0, con números, para negociar el descuento.
 3. La API key (la tiene que crear Mani o Alejo en `dev.virlo.ai/dashboard/api-keys`).
+
+### 1.4 La respuesta de Virlo (Andrés, recibida el 2026-10-01)
+
+Se contrastó cada respuesta contra la doc **ese mismo día** (`llms-full.txt`, 12.473 líneas).
+
+| # | Pregunta | Lo que contestó | ¿Está en la doc? | Qué cambia en el plan |
+|---|---|---|---|---|
+| 1 | Texto del transcript | `include_transcript=true` en `GET /agents/:id/videos`, **gratis**: `text`, `segments` (`start`/`end` en segundos) y `source`. TikTok y YouTube: ~85 % trae el transcript que publica la plataforma (`source: platform`, **solo texto**). Virlo transcribe el audio (`source: transcribed`, **siempre con tiempos**) solo en agentes con Data Intelligence y solo si la plataforma no publicó. **Instagram: solo con Data Intelligence**, ~40 % de los reels en agentes recientes; casi todo el resto no tiene a nadie hablando. `null` = sin voz **o** todavía no procesado. Páginas con transcript: `limit` 10-20. | ✅ §Get videos → Transcripts | **D-2 se da vuelta:** Virlo primero, Supadata de respaldo ([00 §3](./00-plan.md)). **D-7 deja de ser opcional** para Instagram. |
+| 2 | Duración del video | Cada video trae `duration` (segundos). Distinta de `sound.duration`, que es la pista de audio. | ✅ (`null` si la plataforma no la reporta) | ADR-095 recibe `duracion_seg` gratis. Hoy la tiene 1 de 150 filas de `videos_meta`. |
+| 3 | Instagram | La plataforma la decide `platforms` (default las tres); cada keyword se busca en todas. En agentes recientes: **IG ~15 %, YouTube ~50 %, TikTok ~35 %**. IG da menos resultados por keyword; dicen que lo están mejorando. | No (dato comercial) | **La mitad del material sería YouTube Shorts**, que hoy no usamos. Y 500k en YouTube está muy arriba de su top 10 % (32K, §2.7): la predicción de "15 % pasa 500k" queda en duda. Pregunta nueva para el equipo de media ([00 §5](./00-plan.md)). |
+| 4 | Ventana y re-medición | Única: hasta 1 año atrás (TikTok corta en 6 meses). Recurrente: **1 mes por corrida, y la primera va 1 año atrás**. Un video re-encontrado **siempre** actualiza vistas, likes, comentarios y compartidos; para seguir uno sí o sí, video tracking. Embudo: resultados de búsqueda de la plataforma por keyword → ≥1.000 vistas dentro de la ventana → sin duplicados → filtro de idioma → intención → después filtros gratis. | Parcial (la ventana no aparece en la doc) | **El dolor 2 de la llamada (recencia) se cae:** la primera corrida trae un año de material ya maduro. La re-medición implícita queda acotada a lo que la búsqueda vuelve a devolver dentro del mes. |
+| 5 | Precio | Lista 0,50 / 1,50 USD por corrida; leer siempre gratis. **50 USD de crédito gratis para el piloto.** Después, si les gusta, **0,40 / 1,40 USD**. | Lista ✅ (`docs/credits`) | El piloto (Fase 0 + Fase 3) sale gratis ([04 §2](./04-operacion-y-costos.md)). El "hasta 50 %" de la llamada quedó en **20 % sobre la base** (0,10 USD por corrida). |
+| 6 | Idiomas | Sí: con `english_only: false` un agente puede tener keywords en inglés, portugués y francés, y cada una busca en su idioma (no traducen). **Recomienda un agente por idioma**: reportes en un solo idioma, resultados más limpios. | Implícito | D-5: mezclar funciona; lo que se mide en la Fase 0 es si rinde igual. La recomendación choca con el costo de D-1 ([00 §3](./00-plan.md)). |
+
+**La respuesta de Mani (enviada el 01/10):** acepta los **50 USD de crédito** para el piloto, en la
+cuenta de la agencia que ya existe en Virlo (`administrativa@retiagrowth.com`); deja el 0,40 / 1,40
+USD para **después del piloto**; y hace **una pregunta nueva**: *¿un agente con `platforms` solo
+Instagram trae más resultados de IG por corrida, o el volumen por keyword es el mismo?* (decide D-8).
+**Falta la respuesta** y **falta confirmar que el crédito se cargó** (`GET /account/balance`, gratis,
+cuando haya API key).
+
+🩸 **La lección: la doc de Virlo se mueve, se re-lee y no se cita.** El 28/09 este doc dijo *"la API
+de agentes no expone el texto"* (§1.2 #9) leyendo `llms-full.txt` entero (12.455 líneas). El 01/10
+el mismo archivo tiene 12.473 y documenta `include_transcript` y `duration`. O la doc cambió en esos
+tres días, o se nos pasó: en los dos casos, la conclusión de un día no sirve para el siguiente. Por
+eso existe [06-mapa-doc-virlo.md](./06-mapa-doc-virlo.md): la doc sección por sección, con fecha de
+lectura.
 
 ---
 
@@ -109,8 +136,9 @@ Un agente = **una búsqueda por nicho**, una vez o recurrente.
 (`username`, `followers`, `verified`, `country`), `hashtags`, `thumbnail_url`, `keyword_found_by`,
 `is_duet`, `is_stitch`, `upload_region`, `sound` (con `duration`), `intelligence`,
 `intelligence_status`, `intent_match`.
-**No trae:** duración del video (solo la del sonido; sí aparece en `GET /agents/:id/hooks`),
-texto del transcript, ni el media id de la plataforma (se deriva de la `url`). Campo por campo, y
+Desde el 01/10 (§1.4) también trae **`duration`** y, con `include_transcript=true`, el
+**`transcript`** (`text`, `segments`, `source`). **No trae** el media id de la plataforma (se
+deriva de la `url`). Campo por campo, y
 para qué sirve cada uno: [05-payloads-y-decisiones.md](./05-payloads-y-decisiones.md).
 
 **Qué más da el agente, gratis:** `summary` · `creators/outliers` (cuentas chicas con videos

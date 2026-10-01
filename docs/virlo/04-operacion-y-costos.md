@@ -36,6 +36,14 @@ al 28/09 **solo una está activa** (Nicolás Martínez). Un mes = 4,33 semanas.
 | + botón "correr ahora" (corrida única) | c/u | 0,50 USD | 1,50 USD |
 | + Carril B: 15 referentes estrella, chequeo semanal | 65 chequeos | 16 USD | n/a |
 
+**Con el precio que ofreció Virlo después del piloto (0,40 / 1,40 USD, 01/10):** 1 por semana = **10 /
+36 USD**; 5 por semana = **52 / 182 USD**; diaria = **72 / 252 USD**. El descuento es sobre la base
+(0,10 USD por corrida), no sobre Data Intelligence: con DI baja ~7 %, no 20 %.
+
+**El piloto sale gratis:** Virlo carga **50 USD de crédito** para la prueba. Alcanza para ~33
+corridas con Data Intelligence: la Fase 0 (4 corridas, ~6 USD) y la Fase 3 con 2 voces piloto
+semanales durante 3 semanas (~9 USD) entran con margen.
+
 Si el agente mezcla idiomas (D-5) sigue siendo una corrida; si hace falta un agente por idioma, cada
 fila se multiplica por la cantidad de idiomas.
 
@@ -46,7 +54,7 @@ Lo que se sigue pagando fuera de Virlo:
 
 | Proveedor | Para qué | Mes |
 |---|---|---|
-| Supadata | Transcripts (~4.000/mes a escala objetivo, dentro del plan) | 47 USD hoy (revisar si hay plan menor) |
+| Supadata | **Respaldo** de transcripts (D-2, 01/10) + pantallas de URL suelta | 47 USD hoy (con el respaldo medido en el piloto, revisar si hay plan menor) |
 | Apify | Solo Colecciones: metadata y mp4 por URL | ~7 USD (2,2 USD en 9 días, medido 25/09) |
 | Anthropic (Haiku) | Traducir + gate (si D-4 lo deja) | similar a hoy |
 

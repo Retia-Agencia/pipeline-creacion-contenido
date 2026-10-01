@@ -40,9 +40,14 @@ endpoints; acá está **qué trae cada respuesta y para qué nos sirve**.*
 | `intent_match` (`matches`, `reasoning`) | Solo con Data Intelligence. Candidato a reemplazar el gate (D-4). |
 | `id` | uuid de Virlo. **No** es el id de la plataforma: el nuestro se deriva de la `url`. |
 
-**No viene:** la duración del video (solo la del sonido) ni el texto del transcript. La duración sí
-aparece en dos lugares: `GET /agents/:id/hooks` (`video.duration`, solo para videos con hook
-clasificado) y los posts de tracking (`duration_seconds`, en Instagram sí, en TikTok no).
+**Desde el 01/10 también viene** ([01 §1.4](./01-reunion-y-api.md)):
+
+| Campo | Para qué nos sirve |
+|---|---|
+| `duration` (segundos, `null` si la plataforma no la da) | `duracion_seg` de ADR-095, que hoy tiene 1 de 150 filas de `videos_meta`. |
+| `transcript` (con `include_transcript=true`): `text`, `segments[{start,end,text}]`, `source` (`platform` \| `transcribed`) | El guion, sin pagar Supadata (D-2). `segments` da la cobertura en segundos. `null` = sin voz o todavía no procesado (se distingue con `intelligence_status` y `is_silent`). Con transcript, pedir páginas de 10-20. |
+
+*Hasta el 01/10 este párrafo decía que no venían ni la duración ni el texto.*
 
 ## 2. Qué suma Data Intelligence (79 campos), agrupado por uso
 
@@ -91,12 +96,12 @@ característica**: comparar `hook_type`, `content_format`, `visual_format`, `emo
 (cuartil de arriba contra cuartil de abajo), con la aprobación humana en vez de las vistas. De eso
 salen: un ajuste al ranking y propuestas de cambio a la intención y las excluidas del agente.
 
-### 2.5 Detectar un transcript cortado (hipótesis)
+### 2.5 Detectar un transcript cortado
 
-ADR-095 necesita cobertura en segundos, y la duración casi nunca está (1 de 150 filas de
-`videos_meta`). Virlo da **`transcript_character_count`** de su propio transcript: si el de Supadata
-tiene mucho menos texto que el de Virlo para el mismo video, está cortado. **No necesita la
-duración.** Se valida en la Fase 0 con los parciales conocidos.
+*Era una hipótesis indirecta (comparar largos de texto) hasta el 01/10.* Ahora es directo: con
+`source: transcribed`, cobertura = último `segments.end` y duración = `duration`, que es exactamente
+lo que pide ADR-095. Queda indirecto solo para `source: platform` (sin tiempos): ahí sí se compara
+`transcript_character_count` contra el largo de Supadata, y la Fase 0 lo mide en ~20 videos.
 
 ## 3. La corrida y el webhook: la salud del carril
 

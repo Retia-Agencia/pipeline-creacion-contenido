@@ -67,7 +67,7 @@ números, no puede llenar la demanda con ningún proveedor.
 | Qué | Por qué |
 |---|---|
 | **El creator lookup como reemplazo del roster** | 0,50 USD por cuenta por corrida = ~41 USD por corrida con 83 cuentas, contra 1-6 USD hoy. El propio plan lo dice. Si se sigue a cuentas, es con tracking (0,25) y para pocas. |
-| **La Fase 5 ("transcript de Virlo antes que Supadata")** | Queda congelada hasta que Nick conteste por escrito. Con la doc actual no hay texto que usar, y en IG no existe. |
+| ~~**La Fase 5 ("transcript de Virlo antes que Supadata")**~~ | **Se descongela (01/10): Alejo tenía razón en la dirección.** Virlo confirmó el transcript en la API ([01 §1.4](./01-reunion-y-api.md)) y pasa a ser D-2 del plan, ya no una fase final. |
 | **Aplicar la `046` como está** | No se aplica hasta decidir D-1 y D-3. Su §3 (vistas filtradas) solo hace falta si Virlo escribe en `pool_crudo`; con el Carril A en una tabla propia, sobra. Sus §2 y §4 (columna `proveedor`, tarifas) se rescatan en la migración que corresponda. |
 | **`comparar-proveedores.mjs` como juez principal** | Compara reel por reel en el carril de referentes. Sirve solo si el Carril B se pone en sombra. Se guarda. |
 | **El `AJUSTE_MAP` que ya lee `proveedor_scraping`** en `workflow.json` | Está en el repo y **no** en el live (no se hizo el push). Si D-1 se confirma, se revierte esa línea para que el repo no declare un ajuste que nadie usa. |

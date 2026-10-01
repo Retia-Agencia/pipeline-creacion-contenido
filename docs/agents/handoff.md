@@ -29,11 +29,11 @@ tercio del medio eran cierres viejos anidados uno dentro de otro bajo un encabez
 
 | buscás | está en |
 |---|---|
-| **el estado de hoy** | el §ARRANCÁ POR ACÁ de acá abajo (cierre 160) |
-| **la migración a Virlo** | 🧭 [docs/virlo/00-plan.md](../virlo/00-plan.md) — plan en 5 partes, **propuesta** pendiente de confirmar |
+| **el estado de hoy** | el §ARRANCÁ POR ACÁ de acá abajo (cierre 161) |
+| **la migración a Virlo** | 🧭 [docs/virlo/00-plan.md](../virlo/00-plan.md) — plan en 6 partes, **propuesta** pendiente de confirmar |
 | **el refactor del motor** | 🧭 [plan-refactor-motor.md](./plan-refactor-motor.md) — el punto de partida único |
 | **los mensajes al equipo de redes** | [plan-refactor-motor §9](./plan-refactor-motor.md) — **1 y 2 enviados el 12/09**, el 3 escrito y pendiente |
-| **los cierres 145 a 160** | acá abajo, completos |
+| **los cierres 145 a 161** | acá abajo, completos |
 | **los cierres 70 a 144** | [handoff-archivo-2026-06_09.md](./handoff-archivo-2026-06_09.md) |
 | **el refactor Voces→Proyectos** | 🗄️ terminado y archivado el 2026-09-12: [docs/archivo/refactor-voces-proyectos.md](../archivo/refactor-voces-proyectos.md) |
 
@@ -41,7 +41,45 @@ tercio del medio eran cierres viejos anidados uno dentro de otro bajo un encabez
 N`), **nunca anidado dentro del anterior**. Así fue como nacieron las 5.736 líneas de blockquotes
 dentro de blockquotes que se acaban de archivar.
 
-## 🚦 ARRANCÁ POR ACÁ — CIERRE 160 (2026-09-28): Virlo, de la llamada a un plan, y el eje pasa a ser el tema
+## 🚦 ARRANCÁ POR ACÁ — CIERRE 161 (2026-10-01): Virlo contestó, y el transcript sí viene en la API
+
+> Andrés (Virlo) respondió el correo del 28/09. Se cruzaron las seis respuestas contra el plan y contra
+> la doc viva, y se guardó la doc de Virlo sección por sección. **Nada se aplicó, nada se empujó, no se
+> gastó.** Solo docs.
+
+### 📏 Lo que cambió ([docs/virlo/01 §1.4](../virlo/01-reunion-y-api.md))
+
+- **El transcript SÍ viene:** `include_transcript=true` en `GET /agents/:id/videos`, gratis, con
+  `segments` (tiempos) y `source`. TT/YT ~85 % (texto de la plataforma, sin tiempos); **IG solo con
+  Data Intelligence**, ~40 %, siempre con tiempos. ⇒ **D-2 se da vuelta: Virlo primero, Supadata de
+  respaldo**, y **D-7 (Data Intelligence) pasa a obligatoria**.
+- **La duración viene** (`duration`) ⇒ ADR-095 la recibe gratis.
+- **Plataformas: IG ~15 %, YouTube ~50 %, TikTok ~35 %.** Riesgo nuevo: la mitad es YouTube Shorts,
+  que hoy no usamos. **D-8** (las tres, se filtra al leer) y la pregunta **P-YT** para el equipo.
+- **Ventana:** recurrente mira 1 mes por corrida y la **primera, 1 año** ⇒ el dolor de la recencia se
+  cae. Un video re-encontrado siempre actualiza métricas.
+- **Precio:** 50 USD de crédito gratis para el piloto; después 0,40 / 1,40 USD.
+- **Idiomas:** mezclar funciona; Andrés recomienda uno por idioma. **D-5:** mezcla por defecto, uno por
+  idioma solo si la Fase 0 muestra que rinde < 80 % del de un idioma.
+
+🩸 **El 28/09 leímos 12.455 líneas de doc y dijimos "no hay transcript". El 01/10 son 12.473 y está
+documentado.** La doc de Virlo se re-mide antes de citarla: por eso nace
+[docs/virlo/06-mapa-doc-virlo.md](../virlo/06-mapa-doc-virlo.md), con fecha por lectura y prioridad
+de re-lectura.
+
+### Lo que sigue, en orden
+
+1. ✅ **Mani le respondió a Andrés el 01/10**: pidió los 50 USD de crédito para la cuenta
+   `administrativa@retiagrowth.com`, dejó el 0,40 / 1,40 para después del piloto y preguntó si un
+   agente solo Instagram trae más IG (D-8). **Faltan su respuesta y ver el crédito cargado.**
+2. **Re-leer las secciones de prioridad 1** de [06](../virlo/06-mapa-doc-virlo.md) (solo se re-leyó
+   §Get videos), y sacar fixtures del **playground** (gratis, sin key) para `normalizar-virlo.mjs`.
+3. **Un `/grill-with-docs` dedicado** sobre [00 §3](../virlo/00-plan.md) para cerrar D-1 a D-8, con
+   lo que traiga el paso 2 en la mesa. Antes, hablarlo con Alejo; P-YT va al equipo de media.
+4. API key → Fase 0 (ahora gratis).
+5. Lo pendiente del cierre 159 sigue vivo.
+
+## 🔒 CIERRE 160 (2026-09-28): Virlo, de la llamada a un plan, y el eje pasa a ser el tema
 
 > Llamada con Virlo (Nick + Andrés, CTO) el 28/09 a las 10am, grabada en Granola. Alejo subió **directo
 > a `main`** (sin branch) su plan de migración en sombra (`27101f3`, `7b4a5a1`). Mani pidió: extraer la

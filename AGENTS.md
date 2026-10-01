@@ -79,9 +79,12 @@ en §Agent skills; acá solo se ubican.
   **PROPUESTA**: Mani confirma D-1 a D-7 en su §3). Reunión + API entera (01), arquitectura (02),
   revisión del plan de Alejo (03), operación y costos (04), payloads campo por campo (05). Su tesis:
   **Virlo no es un Apify más caro, cambia el eje de búsqueda** (del roster al tema, que es lo único que
-  ataca el techo de costos §4.1.1). **Un agente por voz**, no por proyecto (Mani, 28/09). Supadata se
-  queda (la API de agentes no entrega el texto del transcript, y en IG casi no existe). n8n deja de
-  ser necesario para el carril nuevo. Correo a Virlo enviado el 28/09, sin respuesta.
+  ataca el techo de costos §4.1.1). **Un agente por voz**, no por proyecto (Mani, 28/09). n8n deja de
+  ser necesario para el carril nuevo. **Virlo respondió el 01/10** ([01 §1.4](docs/virlo/01-reunion-y-api.md)):
+  el transcript **sí** viene en la API (gratis; en IG solo con Data Intelligence), así que **Supadata
+  pasa a respaldo**; la duración también viene; la mitad de lo que trae un agente es YouTube; el
+  piloto sale gratis (50 USD de crédito). La doc de Virlo sección por sección y con fecha de lectura:
+  [06-mapa-doc-virlo.md](docs/virlo/06-mapa-doc-virlo.md). *La doc se mueve: se re-mide antes de citarla.*
   **Si vas a tocar algo de Virlo, empieza acá.**
 - 🔀 [docs/agents/plan-migracion-virlo.md](docs/agents/plan-migracion-virlo.md) — ⚠️ **revisado en
   [docs/virlo/03](docs/virlo/03-revision-plan-alejo.md); pasa a antecedente cuando Mani confirme el

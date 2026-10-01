@@ -42,7 +42,7 @@ hipótesis, no un hecho**. Por eso la Fase 0 mide exactamente eso antes de const
 | Techo | El tamaño del nicho (miles en liderazgo, psicología, trading) | El ritmo de publicación del roster (el techo medido de hoy) |
 | Piso de 500k | Filtro **gratis** al leer (`min_views`) | Filtro nuestro |
 | Re-medición | Implícita, si el agente vuelve a encontrar el video (a medir) | Explícita: snapshots en cada chequeo |
-| Transcript | No | No |
+| Transcript | **Sí** (01/10): gratis al leer; IG solo con Data Intelligence | Solo video tracking (`latest_transcript`) |
 | Hoy lo hace | Nadie (murió en ADR-019) | Apify + marca de agua + pool crudo (ADR-100) |
 | Costo con 78 referentes semanales | n/a | ~84 USD/mes (Apify hoy: ~5-25) |
 
@@ -120,7 +120,7 @@ Tres ideas de diseño:
 | `Heat-score v1` (percentiles + piso) | `min_views` al leer + Virality Score + guardados/compartidos + velocidad ([05 §6](./05-payloads-y-decisiones.md)) | **Se rehace** con datos mejores |
 | Señal de selección por referente | Aprendizaje por característica del video (hook, formato, tono), por voz ([05 §2.4](./05-payloads-y-decisiones.md)) | **Se reemplaza** |
 | Dedup (`processed_items` + feed vivo) | Nada en Virlo lo hace entre agentes | **Se queda** |
-| `Transcribir (Supadata)` + caché | Virlo no entrega el texto (y en IG casi no existe) | **Se queda** (D-2) |
+| `Transcribir (Supadata)` + caché | `include_transcript=true` al leer los videos del agente, gratis | **Pasa a respaldo** (D-2, 01/10): solo para lo que llega `null` |
 | `Traducir (Haiku)` | Nada | **Se queda** |
 | `Gate de relevancia` (Haiku sobre transcript) | `intent_match` con Data Intelligence | **En duda** (D-4) |
 | `Armar candidato` (N, dedup, spillover) | Nada | **Se queda** |
@@ -128,7 +128,7 @@ Tres ideas de diseño:
 | Workflow de descubrimiento de referentes | `creators/outliers` + `similar` del agente | **Absorbe** (si el Carril B existe) |
 | Workflow de archivado | Nada (trabaja sobre `candidatos`) | **Se queda** |
 | Colecciones: metadata y mp4 por URL (`lib/apify.ts`) | Solo `video-outlier` a 0,50 USD por video (200× Apify) | **Apify se queda** para esto, con saldo chico |
-| Pantalla Transcribir (`lib/transcribir.ts`) | Nada | **Supadata se queda** |
+| Pantalla Transcribir (`lib/transcribir.ts`) | Nada por URL suelta | **Supadata se queda** |
 | LinkedIn | Virlo no lo cubre | **Fuera de alcance** |
 
 **Lo nuevo que no existe hoy y Virlo trae gratis con cada corrida:** tendencias del nicho con su
@@ -140,18 +140,24 @@ tracker del cockpit y para el frente de PreWave (§7).
 
 ## 5. Las dos preguntas grandes
 
-### 5.1 ¿Se puede reemplazar Supadata? **Hoy no.** (D-2)
+### 5.1 ¿Se puede reemplazar Supadata? **En el camino principal, sí. Del todo, no.** (D-2)
 
-- La API de agentes **no expone el texto** del transcript. Lo usa por dentro para filtrar, pero no
-  lo entrega (doc + OpenAPI, 28/09).
-- Y aunque lo entregara: Virlo mismo dice que los reels de Instagram **casi nunca tienen
-  transcript**, y la mayor parte de lo nuestro es Instagram (los 78 referentes activos son IG).
-- Supadata es la línea más barata del sistema: 3.589 transcripciones en toda la historia ≈ **5,63
-  USD** ([costos.md §1.2](../costos.md)), el 12 % de **un** mes del plan. A la escala objetivo
-  (~4.000 transcripciones al mes) sigue cabiendo en el plan actual. **El ahorro de sacarla es ~0.**
-- **Lo que sí se puede hacer:** preguntarle a Nick por escrito (si hay un endpoint con el texto,
-  entra como caché antes de Supadata, con la regla de cobertura de ADR-095), y revisar si se puede
-  bajar de plan en Supadata.
+*Esta sección decía "hoy no" hasta el 01/10, con el argumento de que la API no entregaba el texto.
+Virlo contestó que sí, y la doc de ese día lo confirma ([01 §1.4](./01-reunion-y-api.md)).*
+
+- **El transcript viene gratis** al leer los videos del agente (`include_transcript=true`): `text`,
+  `segments` con tiempos y `source`.
+- **TikTok y YouTube:** ~85 % trae el de la plataforma (`platform`, solo texto). **Instagram:** solo
+  en agentes con Data Intelligence, siempre con tiempos, ~40 % de los reels; el resto casi todo es
+  sin voz. Por eso D-7 se vuelve obligatoria.
+- **La regla de cobertura de ADR-095 sigue valiendo:** con `segments` y `duration` se calcula
+  directo. Lo único nuevo es el `platform` sin tiempos, que la Fase 0 compara contra Supadata.
+- **Supadata se queda de respaldo:** para los `null` que no son silencio y para las pantallas de URL
+  suelta (Transcribir, Colecciones), donde Virlo no tiene nada barato.
+- **El ahorro en plata es chico** (3.589 transcripciones en toda la historia ≈ 5,63 USD,
+  [costos.md §1.2](../costos.md)). Lo que se gana es un paso menos en el camino principal y no pagar
+  dos veces un transcript que Virlo ya hizo para filtrar.
+- **A revisar después del piloto:** si el respaldo es chico, bajar de plan en Supadata.
 
 ### 5.2 ¿n8n sigue siendo necesario? **Para el carril nuevo, no.** (D-3)
 
@@ -204,7 +210,7 @@ a uno con Virlo:
 |---|---|
 | Buscar "autoridades": cuentas de 40-100k con un video de 500-600k | `creators/outliers?follower_tier=micro` ordenado por `weighted_score` |
 | Viralidad = ~1.000 likes/día las primeras 2 semanas | Métricas + `publish_date` del video; tracking con snapshots |
-| Priorizar portugués y francés, evitar español | Agentes por idioma (§3.1) |
+| Priorizar portugués y francés, evitar español | Keywords en PT y FR en el agente de la voz; uno por idioma si la mezcla rinde peor (D-5) |
 | El guion se escribe **después** de aprobar el video | Pregunta abierta: ¿transcribir antes o después de aprobar? (00-plan §5) |
 
 Ese frente (convertir el cockpit en el centro de operación del equipo de media) va en su propio
