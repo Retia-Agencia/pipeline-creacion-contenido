@@ -668,6 +668,7 @@ await (async () => {
     check('la concurrencia sale de Config: con 24 hay hasta 24 EN VUELO a la vez (antes: 1)', maxEnVuelo() === 24, 'max en vuelo = ' + maxEnVuelo());
     check('cada video distinto se llama UNA vez (dedup intacto con el pool)', llamadas.length === 40, llamadas.length + ' llamadas');
     check('todos salen con transcript', out.every((o) => o.transcripcion === 'transcript de prueba'), JSON.stringify(out.filter((o) => !o.transcripcion).length + ' sin transcript'));
+    check('un miss normal no se marca para reescribir una fila previa', out.every((o) => o._tx_reescribir === false), JSON.stringify(out.map((o) => o._tx_reescribir)));
   }
   {
     // Config viejo (sin la clave) ⇒ cae al default del código, no a 1: un re-import a medias no
@@ -859,6 +860,18 @@ await (async () => {
     });
     check('🔴 cache con cobertura parcial (30/100) NO cuenta como resuelto: se re-pide a Supadata', llamadas.length === 1, `llamadas=${llamadas.length}`);
     check('y el transcript que sale es el nuevo, no el cortado que traía la caché', out[0].transcripcion === 'recuperado de Supadata', out[0].transcripcion);
+    check('y sale marcado para pisar la fila parcial que obligó a re-pagarlo', out[0]._tx_reescribir === true, String(out[0]._tx_reescribir));
+  }
+  {
+    // ADR-095 §Enmienda 3: aunque la nueva compra vuelva vacía, el modo nuevo es el candado. Se
+    // conserva el guion parcial anterior para no degradar el libro del ASR al persistirlo.
+    const { out } = await runTranscribir([tvid('pc-vacio')], {
+      duraciones: { 'pc-vacio': 100 },
+      cache: [{ external_id: 'pc-vacio', estado: 'listo', script: 'guion parcial útil', idioma: 'en', cobertura_seg: 30, duracion_seg: 100, modo: 'auto' }],
+      secuencia: [{ content: '', lang: 'en' }, { content: '', lang: 'en' }],
+    });
+    check('🔒 si re-pagar un parcial devuelve vacío, conserva el guion cacheado', out[0].transcripcion === 'guion parcial útil', out[0].transcripcion);
+    check('pero conserva el modo nuevo que bloquea otro pago', out[0]._tx_modo === 'auto_tras_generate', out[0]._tx_modo);
   }
   {
     // 96/100 >= 0.9 ⇒ sigue siendo un hit normal: cero llamadas, y la cobertura cacheada viaja.
@@ -1616,7 +1629,7 @@ seccion('Preparar procesados — solo se quema lo ENTREGADO al Feed (ADR-087)');
 // dejar de quemar lo no entregado: sin ella, un rechazado del gate volvería y se re-transcribiría
 // en cada corrida, para siempre.
 // ════════════════════════════════════════════════════════════════════════════
-const runPrepTx = (videos, iid = 'inst-42') => {
+const runPrepTxTodo = (videos, iid = 'inst-42') => {
   const $ = (n) => {
     if (n === 'Config') return { first: () => ({ json: { instance_id: iid } }) };
     if (n === 'Transcribir (Supadata)') return { all: () => videos.map((j) => ({ json: j })) };
@@ -1624,8 +1637,9 @@ const runPrepTx = (videos, iid = 'inst-42') => {
   };
   const out = new Function('$', '$input', 'console', jsCode('Preparar transcripciones'))(
     $, { all: () => [] }, { log: () => {} });
-  return out[0].json.filas;
+  return out[0].json;
 };
+const runPrepTx = (videos, iid = 'inst-42') => runPrepTxTodo(videos, iid).filas;
 const txvid = (id, extra = {}) => Object.assign(
   { external_id: id, plataforma: 'instagram', url: 'https://v/' + id,
     transcripcion: 'guion de ' + id, idioma_detectado: 'en',
@@ -1635,6 +1649,10 @@ seccion('Preparar transcripciones — la caché de ASR (ADR-087)');
 {
   const filas = runPrepTx([txvid('a')]);
   check('un video transcrito se guarda como listo, con su guion', filas.length === 1 && filas[0].estado === 'listo' && filas[0].script === 'guion de a', JSON.stringify(filas));
+}
+{
+  const preparado = runPrepTxTodo([]);
+  check('Preparar devuelve siempre los dos destinos', Array.isArray(preparado.filas) && Array.isArray(preparado.reescribir), JSON.stringify(preparado));
 }
 {
   const filas = runPrepTx([txvid('a')]);
@@ -1692,6 +1710,26 @@ seccion('Preparar transcripciones — la caché de ASR (ADR-087)');
   check('una sin cobertura sale con cobertura_seg: null y no con 0', filas.length === 1
     && filas[0].cobertura_seg === null && filas[0].duracion_seg === null && filas[0].modo === null,
     JSON.stringify(filas));
+}
+{
+  const { filas, reescribir } = runPrepTxTodo([txvid('repagado', {
+    _tx_reescribir: true,
+    _tx_cobertura: 30,
+    _tx_duracion: 100,
+    _tx_modo: 'auto_tras_generate',
+  })]);
+  const fila = reescribir[0] || {};
+  check('🔴 una transcripción re-pagada va a reescribir y no al alta común', filas.length === 0 && reescribir.length === 1, JSON.stringify({ filas, reescribir }));
+  check('la reescritura lleva el modo candado y omite origen para conservar el dueño', fila.modo === 'auto_tras_generate' && !Object.hasOwn(fila, 'origen'), JSON.stringify(fila));
+}
+{
+  const reescritura = w.nodes.find((n) => n.name === 'POST Transcripciones (reescritura)');
+  const prefer = reescritura?.parameters?.headerParameters?.parameters?.find((h) => h.name === 'Prefer')?.value;
+  const saleA = (nombre, destino) => w.connections[nombre]?.main?.[0]?.some((c) => c.node === destino);
+  check('el workflow tiene el POST sumidero de reescritura con merge-duplicates', !!reescritura && /resolution=merge-duplicates/.test(prefer || ''), JSON.stringify({ existe: !!reescritura, prefer }));
+  check('la cadena es POST Transcripciones → reescritura → Traducir',
+    saleA('POST Transcripciones', 'POST Transcripciones (reescritura)') && saleA('POST Transcripciones (reescritura)', 'Traducir (Claude Haiku)'),
+    JSON.stringify({ post: w.connections['POST Transcripciones'], reescritura: w.connections['POST Transcripciones (reescritura)'] }));
 }
 
 // ════════════════════════════════════════════════════════════════════════════
