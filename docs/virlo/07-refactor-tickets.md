@@ -63,6 +63,7 @@ Tamaños: **S** ≤ medio día · **M** 1-2 días · **L** 3+ días. Lo no trivi
 | ⬜ **B3** | **Libro de gasto y saldo** (D-10): costo de cada corrida, saldo leído después de cada corrida, historial por agente y total; **aviso de agente pausado por saldo** con botón para reactivar. Prender la **recarga automática** en Virlo (paso manual de Mani, anotado). | T0, A4 (para el costo real de las corridas) | La pantalla muestra el gasto de las corridas de A4 y el saldo coincide con el de Virlo. | M |
 | ⬜ **B4** | **Feed y descartes con Virlo**: el **Virality Score** al lado de las vistas (D-11); el origen guardado y **no mostrado** durante el piloto (D-6); las razones nuevas de descarte ("fuera de la intención (Virlo)", "ninguno: …"); el **faltante contra el N** por proyecto (D-1b). | T0 | Typecheck + tests; un candidato de Virlo y uno de Apify se ven iguales en la tarjeta. | M |
 | ⬜ **B5** | **Lo que hizo autopilot**: en el agente, las keywords que agregó y su razón (`activity`), para que nadie vea keywords que no escribió sin saber de dónde salieron (D-9). | B2 | Después de una corrida recurrente se ven sus cambios en la pantalla. | S |
+| ⬜ **B6** | **Corridas de agentes en vivo** (Mani, 01/10): extender la pantalla de Corridas que ya existe con las de Virlo. Mientras corre: barra con `stage`, `progress_pct` y `eta_seconds` de `GET /agents/:id` (gratis). Al terminar: el reporte de `GET /agents/:id/runs` (videos que entraron, descartados por intención / idioma / excluidas, y cuánto trajo cada keyword), cuánto Data Intelligence falta (`intelligence_status` ready vs pending, que sigue llegando hasta 45 min después y a veces nunca) y qué llegó al Feed por proyecto. Avisos de corrida pobre de [04 §4](./04-operacion-y-costos.md) (≤ 20 videos, > 70 % descartado por intención). | A4 (para tener corridas reales), B3 (comparte la fila del libro) | Una corrida real se ve avanzar en la pantalla y, al terminar, su reporte coincide con el de la API de Virlo. | M |
 
 #### §B0 · Las temáticas de la Fase 0 (01/10)
 
@@ -115,7 +116,8 @@ ADR-102 ✅ ─┤        │        │        ├── A4 ── A5 ──┐
    B0 ── A2 ─────────┤             (B2 necesita B1)   │
    (API key) ────────┘   B1 (arranca sobre T1) ───────┤
                          B3 (necesita A4) ────────────┤
-                         B4 (necesita T0) ────────────┘
+                         B4 (necesita T0) ────────────┤
+                         B6 (necesita A4, B3) ────────┘
 ```
 
 **Arranque en paralelo, día 1:**
