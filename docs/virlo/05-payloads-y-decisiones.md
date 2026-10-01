@@ -158,3 +158,38 @@ a mano. `PostingCadenceResponseDto` da el ritmo de publicación, que hoy calcula
 - Los enums pueden sumar valores nuevos: el código tiene que aceptar valores desconocidos.
 - `intent_match.reasoning` a veces es un string de máquina: no se muestra sin revisarlo.
 - Los videos que Virlo marca con menores se quitan de todas las listas sin avisar.
+
+## 8. Lo que entregó la sonda (A2, 01/10) y qué se usa
+
+Las secciones de arriba se escribieron leyendo la doc. Esta sale de **respuestas reales**: seis
+agentes con Data Intelligence, 4.029 videos únicos ([04 §3.1](./04-operacion-y-costos.md), y el
+informe [Sonda de Virlo](https://claude.ai/artifact/W87qcpyknV8Zdpz1EhiRBx)). Donde lo medido
+contradice lo de arriba, gana esto.
+
+| Lo que trae Virlo | Para qué nos sirve | Estado | Ticket |
+|---|---|---|---|
+| Videos: link, vistas, likes, comentarios, compartidos, fecha | El candidato del Feed y los pisos | **Se usa** | A1, A4 |
+| `duration` (vino en 4.029 de 4.029) | Saber si un transcript quedó cortado (ADR-095); hoy solo 1 de 150 filas de `videos_meta` la tiene | **Se usa** | A1, A4 |
+| `transcript` | El guion. En TikTok y YouTube es el caption de la plataforma, **idéntico al de Supadata** (20 de 20) | **Se usa** | A4 |
+| `intent_match.matches` | Primer filtro, antes del asignador (D-4b) | **Se usa** | A4 |
+| `author.username` / `followers` | Virality Score (vistas ÷ seguidores) al lado de las vistas (D-11) | **Se usa** | B4 |
+| Reporte de la corrida (`GET /agents/:id/runs`), con `keyword_breakdown` | Corridas en vivo y avisos de corrida pobre | En el plan | B6 |
+| `stage`, `progress_pct`, `eta_seconds` (`GET /agents/:id`) | La barra de progreso mientras corre | En el plan | B6 |
+| `intelligence.language_detected`, `is_silent`, `transcript_word_count`, `is_repost`, `is_compilation`, `content_format`, `is_educational`, `has_face_visible` | Filtros y avisos gratis antes de pagar Supadata o Claude; `is_repost` tapa parte del hueco del dedup (re-subidas con otro id) | En el plan | A4 |
+| `creators/outliers` | Sugerir referentes nuevos: cuentas chicas con videos enormes (en T1, las 5 son de IG con 1.425 a 20.823 seguidores) | Idea | — |
+| `analysis/latest`, `trends/latest` | Ideas de temas para media (en T1: "técnicas somáticas y nervio vago", 18 videos) | Idea | — |
+| Carruseles (`slideshows`, 139 a 586 por agente) | Nada: el pipeline es de video | No se usa | — |
+| Sonidos, hashtags, ganchos, el resto de los 79 campos | Nada por ahora | No se usa | — |
+
+**Lo que la doc no decía y la sonda sí:**
+
+- **`intent_match.reasoning` no es una frase**: son puntajes internos (`subject=0.69 stuffing=0.17`).
+  No sirve para mostrarle al equipo por qué se descartó; la razón legible la da el asignador (A3).
+- **Los transcripts `platform` casi nunca traen `segments`**; los `transcribed` sí. La cobertura en
+  segundos de ADR-095 solo se puede calcular en los segundos.
+- **Hay transcripts basura** de 10 a 18 caracteres: el chequeo es por largo, no por presencia.
+- **El reporte dice más videos de los que se pueden leer** (T1: 1.477 en `videos_linked`, 794 por
+  `GET videos`). Abierto, para preguntarle a Virlo.
+- **Data Intelligence se estanca**: entre el 12 y el 33 % de los videos de 500k+ queda `pending` y
+  no se movió en la hora siguiente.
+
