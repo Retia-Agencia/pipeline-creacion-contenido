@@ -3,7 +3,7 @@
 *Escrito el 2026-09-28. Revisa los commits `27101f3` y `7b4a5a1` (Alejo, 28/09, 13:17 y 13:49):
 [plan-migracion-virlo.md](../agents/plan-migracion-virlo.md),
 [ADR-101](../adr/ADR-101-virlo-entra-en-sombra.md), la migración
-[`046`](../../core/schema/046_proveedor_virlo.sql) (sin aplicar), `sonda-virlo.mjs`,
+`046_proveedor_virlo.sql` (borrada en T0 de docs/virlo/07; queda en git, commit d1de681) (sin aplicar), `sonda-virlo.mjs`,
 `normalizar-virlo.mjs`, `test-virlo.mjs` (verde al 28/09), `comparar-proveedores.mjs` y el ajuste
 nuevo del cockpit. Nada de eso está en producción.*
 

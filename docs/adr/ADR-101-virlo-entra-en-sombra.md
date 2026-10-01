@@ -4,7 +4,7 @@
 > [plan-migracion-virlo.md](../agents/plan-migracion-virlo.md), que todavía no existen porque falta
 > la API key. **Enmienda [ADR-098](./ADR-098-el-proveedor-no-es-el-problema-la-cadencia-si.md)**, que
 > decidió "Apify se queda".
-> **Toca `core/`**: migración [`046`](../../core/schema/046_proveedor_virlo.sql) (clave de ajuste,
+> **Toca `core/`**: migración `046_proveedor_virlo.sql` (borrada en T0 de docs/virlo/07; queda en git, commit d1de681) (clave de ajuste,
 > `pool_crudo.proveedor`, vistas de marca de agua filtradas a Apify, `videos_meta.fuente`, tarifas).
 > No toca el contrato `run-plan.md`: el ajuste viaja por `ajustes[]`, como cualquier otro.
 

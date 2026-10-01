@@ -29,11 +29,11 @@ tercio del medio eran cierres viejos anidados uno dentro de otro bajo un encabez
 
 | buscás | está en |
 |---|---|
-| **el estado de hoy** | el §ARRANCÁ POR ACÁ de acá abajo (cierre 163) |
+| **el estado de hoy** | el §ARRANCÁ POR ACÁ de acá abajo (cierre 164) |
 | **🔴 la prioridad: el refactor a Virlo** | [docs/virlo/07-refactor-tickets.md](../virlo/07-refactor-tickets.md) — los tickets en dos carriles; decisiones en [00-plan](../virlo/00-plan.md) y [ADR-102](../adr/ADR-102-la-busqueda-pasa-a-virlo-por-tematica.md) |
 | **el refactor del motor** | 🧭 [plan-refactor-motor.md](./plan-refactor-motor.md) — el punto de partida único |
 | **los mensajes al equipo de redes** | [plan-refactor-motor §9](./plan-refactor-motor.md) — **1 y 2 enviados el 12/09**, el 3 escrito y pendiente |
-| **los cierres 145 a 163** | acá abajo, completos |
+| **los cierres 145 a 164** | acá abajo, completos |
 | **los cierres 70 a 144** | [handoff-archivo-2026-06_09.md](./handoff-archivo-2026-06_09.md) |
 | **el refactor Voces→Proyectos** | 🗄️ terminado y archivado el 2026-09-12: [docs/archivo/refactor-voces-proyectos.md](../archivo/refactor-voces-proyectos.md) |
 
@@ -41,7 +41,52 @@ tercio del medio eran cierres viejos anidados uno dentro de otro bajo un encabez
 N`), **nunca anidado dentro del anterior**. Así fue como nacieron las 5.736 líneas de blockquotes
 dentro de blockquotes que se acaban de archivar.
 
-## 🚦 ARRANCÁ POR ACÁ — CIERRE 163 (2026-10-01): grill de Virlo, el centro pasa a ser el Agente, y el refactor en tickets
+## 🚦 ARRANCÁ POR ACÁ — CIERRE 164 (2026-10-01): T0 escrita (la `046` nueva) y las temáticas de prueba
+
+> Arranca el refactor de [docs/virlo/07](../virlo/07-refactor-tickets.md). Mani tomó el **Carril B**
+> (T0 + B0). **Nada se aplicó a la base, nada se empujó a n8n, no se gastó en Virlo.**
+
+### ✅ Hecho
+
+- **T0 🔨 · [`046_agentes_virlo.sql`](../../core/schema/046_agentes_virlo.sql) escrita y SIN APLICAR.**
+  Reemplaza a la `046_proveedor_virlo.sql` de ADR-101, que se borró del repo (queda en git,
+  `d1de681`; los tres docs que la linkeaban ahora la citan en texto). Crea `app.agentes`,
+  `app.agentes_virlo`, `app.agentes_proyectos`, `app.virlo_corridas` (el libro de D-10) y agrega
+  `proyectos.plataformas`, `youtube` al enum, y `origen` + `agente_id` en candidatos **y descartes**
+  (+ `fuente_transcript` en candidatos). La implementó Codex y se revisó contra el diseño: la primera
+  versión volvió con 4 fallas (ids sin default, `instance_id` sin FK, trigger con `<>` que dejaba
+  pasar un `client_id` null, 3 links rotos) y se corrigieron. `npm run validate` verde.
+- **B0 ✅ · tres temáticas de prueba** en [07 §B0](../virlo/07-refactor-tickets.md), escritas por
+  nosotros desde los proyectos live (no por Majo, decisión de Mani para no demorar).
+
+### 🔑 Decisiones de diseño de la `046` (con su porqué, en el header del SQL)
+
+- **El agente es por cockpit (`instance_id`)**, porque todo lo que produce (candidatos, runs,
+  descartes) ya lo es. Los proyectos son por empresa (`client_id`), así que el cruce se cuida con un
+  **trigger** (RLS no frena al `service_role`) y el agente/hijas con **FK compuesta** `(id, instance_id)`,
+  el patrón de la `031`.
+- **`keywords` es jsonb por idioma**: sirve igual para `mezclar` (se manda la unión) y `separar`.
+- **`cadencia` sin check**: el vocabulario es de Virlo. **`activo` default false**: crear no gasta.
+- **`virlo_run_id` único** = la idempotencia del webhook, que puede llegar dos veces.
+- **`youtube` es opt-in por proyecto** (default `{instagram,tiktok}`): hoy nada cambia.
+- **Fuera, a propósito:** tarifas de Virlo (el libro guarda el costo real) y `pool_crudo.proveedor`.
+
+### ⚠️ Lo que quedó abierto
+
+- 🔴 **Media todavía no sabe crear temáticas.** Las de B0 son **solo de prueba y no salen a
+  producción**; la pregunta *"¿media sabe operar un agente?"* la contestan B1 y el piloto.
+- **Solo 1 de 6 voces está activa** (María José). Los proyectos de Vieira, Francisco, Milena, Rosario
+  y Nicolás dicen `activo` pero su voz no. No pesa en la Fase 0; **sí antes del piloto**.
+- El cockpit y el motor siguen funcionando igual: la `046` es aditiva y n8n no se toca.
+
+### 🔴 Lo que sigue
+
+1. **Aplicar la `046`** en el SQL Editor y correr su §Verificación → T0 ✅ y su renglón en AGENTS.md.
+2. **A2, la sonda**: la API key ya está en el `.env`; pasar las keywords de B0 por `suggest-keywords`
+   (gratis), ver el saldo y correr los agentes de una vez (~1,50 USD c/u, del crédito).
+3. **Carril A** (T1, A1) sigue libre.
+
+## 🔒 CIERRE 163 (2026-10-01): grill de Virlo, el centro pasa a ser el Agente, y el refactor en tickets
 
 > `/grill-with-docs` sobre [00 §3](../virlo/00-plan.md). **Nada se aplicó, nada se empujó, no se
 > gastó.** Docs: el plan (estado **DECIDIDO**), el glosario, AGENTS.md.

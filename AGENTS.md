@@ -402,15 +402,10 @@ se cita, y varios gobiernan código vivo.
   `desde` y 200 reels a re-medir (el tope). Motor empujado el mismo día, `n8n:diff` verde en los 5.
   ✅ **Y ya corrió:** 5 corridas del motor del 16 al 23/09, todas con `marca_de_agua: true`, una voz
   por vez. Lo que midieron está en el cierre 159 del handoff.
-  ⬜ **La [`046`](core/schema/046_proveedor_virlo.sql) (ADR-101, reemplazada) está ESCRITA y SIN APLICAR** (28/09).
-  ⛔ **NO SE APLICA: se reescribe** en el ticket **T0** de
-  [docs/virlo/07](docs/virlo/07-refactor-tickets.md) para el modelo de ADR-102 (agentes por temática).
-  Lo de abajo describe la versión vieja.
-  Agrega el ajuste `Proveedor de scraping` (0 apify · 1 sombra · 2 virlo) y `pool_crudo.proveedor`, y
-  🩸 **filtra las tres vistas de la marca de agua a `proveedor = 'apify'`**: sin eso, un reel que ve Virlo en
-  sombra corre la marca de agua de la cuenta y Apify deja de comprarlo. Orden: `046` → deploy de la
-  app (el CATALOGO ya conoce la clave) → `n8n:push` de `Armar plan de corrida`. Plan:
-  [plan-migracion-virlo.md](docs/agents/plan-migracion-virlo.md).
+  🔨 **La [`046`](core/schema/046_agentes_virlo.sql) (ADR-102, T0) está ESCRITA y SIN APLICAR.**
+  Crea agentes por temática, sus vínculos con Virlo y proyectos, el libro de corridas, y el origen
+  de candidatos y descartes. ⚠️ El valor `youtube` del enum se agrega arriba y no se usa en la misma
+  migración: PostgreSQL exige un commit antes de poder usar un valor nuevo.
   ✅ **La [`043`](core/schema/043_ajustes_actualizado_en.sql) (ADR-097) está APLICADA** (verificado el
   15/09 en el catálogo: trigger `ajustes_sella_actualizado_en` sobre `app.ajustes`; escrita el 11/09). Le pone a `app.ajustes` el trigger `before update` que sella `actualizado_en`, y
   re-sella las dos filas que quedaron mintiendo. 🩸 **Existe por una columna que miente en verde:**
