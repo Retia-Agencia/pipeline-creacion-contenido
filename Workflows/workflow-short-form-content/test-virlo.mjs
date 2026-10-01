@@ -83,5 +83,22 @@ check('una fecha que ya trae zona se respeta', fechaUtc('2026-09-20T14:00:00-05:
 check('fecha rota → null, no Invalid Date', fechaUtc('ayer') === null && fechaUtc(null) === null);
 check('sin duración → null, no 0', filaPoolCrudoVirlo({ ...VIRLO, duration: undefined }, { handle: 'a', medido_en: 'x', job_id: 'j', instance_id: 'i' }).duracion_seg === null);
 
+console.log('── muestra del playground (forma real, valores de muestra; 01/10)');
+const PG = JSON.parse(readFileSync(join(aqui, 'fixtures/virlo/playground/agent-videos-transcript.json'), 'utf8')).data.videos;
+const pgTT = PG.find((v) => v.platform === 'tiktok');
+const pgYT = PG.find((v) => v.platform === 'youtube');
+const nTT = normalizarVideoVirlo(pgTT, {}, 'tiktok');
+check('TikTok: id uuid → external_id de la url', nTT.external_id === '7412345678901234567', nTT.external_id);
+check('TikTok: el creador sale de `author` sin pasarlo aparte', nTT.username === 'fitcoachjen' && nTT.seguidores === 48200, JSON.stringify(nTT));
+check('TikTok: duración en segundos y fecha UTC', nTT.duracion_video === 34 && nTT.fecha_publicacion === '2026-09-21');
+check('TikTok: idioma desde intelligence.language_detected', normalizarVideoVirlo({ ...pgTT, intelligence: { language_detected: 'es' } }, {}, 'tiktok').idioma_nativo === 'es');
+check('es video aunque no traiga is_video ni content_type', esVideoVirlo(pgTT) && esVideoVirlo(pgYT));
+const nYT = normalizarVideoVirlo(pgYT, {}, 'youtube');
+check('YouTube: `@` y `#` se limpian', nYT.username === 'proteinpantry' && nYT.hashtags === 'shorts, mealprep, highprotein', JSON.stringify(nYT));
+// D-8 abierta: YouTube no tiene external_id propio todavía. Vacío es lo correcto (no inventa).
+check('YouTube: sin regla de id todavía → vacío, no un id falso', nYT.external_id === '');
+check('transcript: `transcribed` trae segments, `platform` no (ADR-095 no puede medir cobertura sin tiempos)',
+  pgTT.transcript.source === 'transcribed' && Array.isArray(pgTT.transcript.segments) && pgYT.transcript.source === 'platform' && pgYT.transcript.segments === null);
+
 console.log(fail ? `\n${fail} test(s) en rojo` : '\nTodo en verde');
 process.exit(fail ? 1 : 0);

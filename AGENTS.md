@@ -76,7 +76,7 @@ en §Agent skills; acá solo se ubican.
   (merges + chequeador de links) que Mani mandó a **su propia sesión dedicada y desechable**.
   **Si vas a tocar el motor, empezá acá.**
 - 🧭 [docs/virlo/00-plan.md](docs/virlo/00-plan.md) — **la migración a Virlo, en 5 partes** (28/09,
-  **PROPUESTA**: Mani confirma D-1 a D-7 en su §3). Reunión + API entera (01), arquitectura (02),
+  **PROPUESTA**: Mani confirma D-1 a D-9 en su §3). Reunión + API entera (01), arquitectura (02),
   revisión del plan de Alejo (03), operación y costos (04), payloads campo por campo (05). Su tesis:
   **Virlo no es un Apify más caro, cambia el eje de búsqueda** (del roster al tema, que es lo único que
   ataca el techo de costos §4.1.1). **Un agente por voz**, no por proyecto (Mani, 28/09). n8n deja de

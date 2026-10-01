@@ -1,13 +1,13 @@
 // normalizar-virlo.mjs — lleva un video de Virlo a la forma interna que ya producen `Normalizar IG`
 // y `Normalizar TT`, y a una fila de `app.pool_crudo`. Fase 2 de docs/agents/plan-migracion-virlo.md.
 //
-// ⚠️ PROVISORIO: está escrito contra la forma que muestra la doc de Virlo (28/09), sin una sola
-// respuesta real. Lo que falta confirmar lo contesta `sonda-virlo.mjs lookup --apply`, y sus
-// fixtures (fixtures/virlo/) reemplazan a los inventados de test-virlo.mjs:
-//   · qué es `id` (media id numérico, shortcode o uuid de Virlo) → por eso el id se deriva de la url
-//     cuando no tiene pinta de media id;
-//   · dónde viene el creador (username, seguidores, bio) → por eso entra como argumento aparte;
-//   · si `duration` viene en segundos y en todos los reels.
+// ⚠️ PROVISORIO: escrito contra la doc de Virlo (28/09) y la muestra del playground (01/10,
+// fixtures/virlo/playground/), sin una sola respuesta real. La muestra contestó:
+//   · `id` del video de un agente es un uuid de Virlo ⇒ el id se deriva de la url;
+//   · el creador viene dentro del video (`author.username`, `author.followers`, sin bio);
+//   · `duration` en segundos enteros, o null si la plataforma no la dio.
+// Lo que sigue abierto lo contesta la sonda con plata (`sonda-virlo.mjs agent --di --apply`): un
+// reel de Instagram real, y si `language_detected` llega en `intelligence`.
 //
 // Cuando se cablee en el motor, este código entra como COPIA TEXTUAL en el Code node y
 // test-nodos.mjs lo pina contra este archivo, igual que `Preparar pool crudo` con
@@ -95,7 +95,8 @@ export function normalizarVideoVirlo(video, creador = {}, plataforma = 'instagra
     engagement_rate: seguidores > 0 ? ((likes + comentarios) / seguidores * 100).toFixed(2) : '0',
     fecha_publicacion: fecha(video.publish_date),
   };
-  if (plataforma === 'tiktok') salida.idioma_nativo = String(video.language ?? '');
+  // `language` no aparece en la muestra del agente; con Data Intelligence viene `language_detected`.
+  if (plataforma === 'tiktok') salida.idioma_nativo = String(video.language ?? video.intelligence?.language_detected ?? '');
   return salida;
 }
 

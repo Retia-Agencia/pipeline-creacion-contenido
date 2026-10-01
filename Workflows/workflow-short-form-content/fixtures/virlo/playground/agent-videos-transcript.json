@@ -1,0 +1,121 @@
+{
+  "_fuente": "dev.virlo.ai/docs/playground · Content Research Agents → Agent videos · GET /v1/agents/:id/videos?include_transcript=true · leído 2026-10-01. Datos de MUESTRA de Virlo (no reales): misma forma que la respuesta real, valores inventados por ellos. Sin Instagram en la muestra.",
+  "data": {
+    "agent_id": "00000000-0000-4000-8000-000000000000",
+    "agent_name": "Protein Recipes",
+    "total": 283,
+    "limit": 50,
+    "offset": 0,
+    "videos": [
+      {
+        "id": "e7c2a1b4-9f3d-4e88-8a12-5b6c7d8e9f01",
+        "url": "https://www.tiktok.com/@fitcoachjen/video/7412345678901234567",
+        "description": "3-ingredient protein brownies that actually taste good",
+        "platform": "tiktok",
+        "views": 2140000,
+        "likes": 312000,
+        "shares": 41200,
+        "comments": 8900,
+        "bookmarks": 128000,
+        "publish_date": "2026-09-21T18:22:00",
+        "duration": 34,
+        "author": {
+          "country": "US",
+          "username": "fitcoachjen",
+          "verified": false,
+          "followers": 48200,
+          "avatar_url": "https://auth.virlo.ai/storage/v1/object/public/avatars/5e1c9a.jpg"
+        },
+        "hashtags": ["proteinrecipe", "highprotein", "healthydessert"],
+        "thumbnail_url": "https://auth.virlo.ai/storage/v1/object/public/thumbnails/9b0f2d.jpg",
+        "keyword_found_by": "high protein recipe",
+        "is_duet": false,
+        "is_stitch": false,
+        "upload_region": "US",
+        "upload_region_source": "tiktok_region",
+        "intelligence": {
+          "primary_topic": "high-protein dessert recipe",
+          "content_format": "cooking_recipe",
+          "hook_type": "tutorial_promise"
+        },
+        "intent_match": {
+          "matches": true,
+          "reasoning": "The caption and hashtags describe a high-protein dessert recipe, which fits the intent."
+        },
+        "sound": {
+          "id": "2d7c9a41-5e3b-4f8a-b6c1-0e9f8d7a6b53",
+          "title": "original sound - fitcoachjen",
+          "duration": 58,
+          "cover_url": "5e1c9a.jpg",
+          "owner_handle": "fitcoachjen",
+          "owner_nickname": "Jen",
+          "is_original": true,
+          "is_commerce_music": true,
+          "usage_count": 212,
+          "platform": "tiktok"
+        },
+        "intelligence_status": "ready",
+        "transcript": {
+          "text": "Three ingredients, no flour, and each brownie has twelve grams of protein. Mash one banana, whisk in two eggs and a scoop of chocolate protein, then bake for eighteen minutes.",
+          "segments": [
+            { "start": 0, "end": 3.1, "text": "Three ingredients, no flour, and each brownie" },
+            { "start": 3.1, "end": 5.4, "text": "has twelve grams of protein." },
+            { "start": 5.4, "end": 9.8, "text": "Mash one banana, whisk in two eggs and a scoop of chocolate protein," },
+            { "start": 9.8, "end": 12.2, "text": "then bake for eighteen minutes." }
+          ],
+          "source": "transcribed"
+        }
+      },
+      {
+        "id": "3b9d7e21-6c4a-4f0e-9d58-2a1b7c6e4f90",
+        "url": "https://www.youtube.com/shorts/Qx7pR2mLk9A",
+        "description": "Protein meal prep for the whole week in 20 minutes #shorts",
+        "platform": "youtube",
+        "views": 486000,
+        "likes": 21400,
+        "shares": null,
+        "comments": 610,
+        "bookmarks": 0,
+        "publish_date": "2026-09-22T15:05:31",
+        "duration": 47,
+        "author": {
+          "country": "GB",
+          "username": "@proteinpantry",
+          "verified": false,
+          "followers": 5510,
+          "avatar_url": "https://auth.virlo.ai/storage/v1/object/public/avatars/2a7f11.jpg"
+        },
+        "hashtags": ["#shorts", "#mealprep", "#highprotein"],
+        "thumbnail_url": "https://auth.virlo.ai/storage/v1/object/public/thumbnails/41c8e7.jpg",
+        "keyword_found_by": "protein meal prep",
+        "is_duet": null,
+        "is_stitch": null,
+        "upload_region": "GB",
+        "upload_region_source": "youtube_channel_country",
+        "intelligence": null,
+        "intent_match": {
+          "matches": true,
+          "reasoning": "A step-by-step high-protein meal prep video, which fits the intent."
+        },
+        "sound": {
+          "id": "6a1f0c3e-8b2d-4e7a-9f15-3c4d5e6f7a80",
+          "title": "Original Sound",
+          "duration": null,
+          "cover_url": "41c8e7.jpg",
+          "owner_handle": "proteinpantry",
+          "owner_nickname": "@proteinpantry",
+          "is_original": true,
+          "is_commerce_music": null,
+          "usage_count": null,
+          "platform": "youtube"
+        },
+        "intelligence_status": "pending",
+        "transcript": {
+          "text": "five high protein lunches for the week, all under five hundred calories, starting with the chicken rice bowl",
+          "segments": null,
+          "source": "platform"
+        }
+      }
+    ]
+  }
+}

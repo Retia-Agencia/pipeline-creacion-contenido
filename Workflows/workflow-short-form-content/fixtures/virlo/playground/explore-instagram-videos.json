@@ -1,0 +1,51 @@
+{
+  "_fuente": "dev.virlo.ai/docs/playground · By platform → Instagram videos (Explore data, NO es la forma de un agente) · leído 2026-10-01. Datos de MUESTRA: 2 de 10 filas (la primera, y la primera con transcript_raw; 3 de 10 lo traen). Ojo: los shortcodes y los external_id son inventados y NO se corresponden entre sí, así que no sirven para probar shortcode → media id.",
+  "data": [
+    {
+      "id": "56da3956-6f59-4c0b-aaff-66ca1334634f",
+      "url": "https://www.instagram.com/reel/z6b11ho7ern/",
+      "publish_date": "2026-09-29T18:43:18",
+      "views": 10840728,
+      "number_of_likes": 514566,
+      "number_of_shares": 0,
+      "number_of_comments": 16713,
+      "description": "Viral breaking-news content! #fyp",
+      "thumbnail_url": "https://auth.virlo.ai/storage/v1/object/public/thumbnails/3d8831ad-0ed7-46ea-8a98-a062a7cee210.jpg",
+      "hashtags": ["breakingnews", "fyp", "foryou"],
+      "type": "instagram",
+      "niche": "breaking-news",
+      "author_id": "e649e9ad-cf24-4410-9408-7733374ef39a",
+      "bookmarks": 14883,
+      "external_id": "8090958409081542",
+      "region": "AU",
+      "duration": 43,
+      "transcript_raw": null,
+      "is_eligible_for_commission": null,
+      "is_duet": null,
+      "is_stitch": null
+    },
+    {
+      "id": "ffd6a5ae-44f3-4c75-9699-f2dbebae3a8d",
+      "url": "https://www.instagram.com/reel/p1mirw79b4/",
+      "publish_date": "2026-10-01T02:58:39",
+      "views": 8752206,
+      "number_of_likes": 208574,
+      "number_of_shares": 0,
+      "number_of_comments": 6050,
+      "description": "Viral anime content! #fyp",
+      "thumbnail_url": "https://auth.virlo.ai/storage/v1/object/public/thumbnails/88685854-be8f-4b94-8323-0ca93d3a5545.jpg",
+      "hashtags": ["anime", "fyp", "foryou"],
+      "type": "instagram",
+      "niche": "anime",
+      "author_id": "6266fafb-87d8-4a9d-becd-62c9b87d628e",
+      "bookmarks": 18691,
+      "external_id": "8419514632879452",
+      "region": "AU",
+      "duration": 32,
+      "transcript_raw": "Sample transcript text from the video audio...",
+      "is_eligible_for_commission": null,
+      "is_duet": null,
+      "is_stitch": null
+    }
+  ]
+}

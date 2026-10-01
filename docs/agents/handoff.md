@@ -29,11 +29,11 @@ tercio del medio eran cierres viejos anidados uno dentro de otro bajo un encabez
 
 | buscás | está en |
 |---|---|
-| **el estado de hoy** | el §ARRANCÁ POR ACÁ de acá abajo (cierre 161) |
+| **el estado de hoy** | el §ARRANCÁ POR ACÁ de acá abajo (cierre 162) |
 | **la migración a Virlo** | 🧭 [docs/virlo/00-plan.md](../virlo/00-plan.md) — plan en 6 partes, **propuesta** pendiente de confirmar |
 | **el refactor del motor** | 🧭 [plan-refactor-motor.md](./plan-refactor-motor.md) — el punto de partida único |
 | **los mensajes al equipo de redes** | [plan-refactor-motor §9](./plan-refactor-motor.md) — **1 y 2 enviados el 12/09**, el 3 escrito y pendiente |
-| **los cierres 145 a 161** | acá abajo, completos |
+| **los cierres 145 a 162** | acá abajo, completos |
 | **los cierres 70 a 144** | [handoff-archivo-2026-06_09.md](./handoff-archivo-2026-06_09.md) |
 | **el refactor Voces→Proyectos** | 🗄️ terminado y archivado el 2026-09-12: [docs/archivo/refactor-voces-proyectos.md](../archivo/refactor-voces-proyectos.md) |
 
@@ -41,7 +41,41 @@ tercio del medio eran cierres viejos anidados uno dentro de otro bajo un encabez
 N`), **nunca anidado dentro del anterior**. Así fue como nacieron las 5.736 líneas de blockquotes
 dentro de blockquotes que se acaban de archivar.
 
-## 🚦 ARRANCÁ POR ACÁ — CIERRE 161 (2026-10-01): Virlo contestó, y el transcript sí viene en la API
+## 🚦 ARRANCÁ POR ACÁ — CIERRE 162 (2026-10-01): la doc de Virlo re-leída, y fixtures del playground
+
+> Paso 2 del cierre 161. **Nada se aplicó, nada se empujó, no se gastó.** Docs, dos fixtures y tests.
+
+### 📏 Lo que se encontró
+
+- **La doc no cambió más de lo que ya sabíamos.** `diff` de la copia del 28/09 contra la del 01/10:
+  son solo las ~25 líneas de transcript y duración. Lo leído el 28/09 en las otras secciones de
+  prioridad 1 sigue valiendo ([06 §3](../virlo/06-mapa-doc-virlo.md)). *El "re-leer" se volvió un
+  diff: más barato y más fuerte que leer 5.000 líneas de nuevo.*
+- **Autopilot aplica solo, no propone**, y viene prendido en todo agente recurrente ⇒ nace **D-9**
+  ([00 §3](../virlo/00-plan.md)): prendido en una voz piloto, apagado en la otra, para que la Fase 3
+  no mezcle "Virlo trae mejor" con "autopilot movió las keywords".
+- **`intent_match: false` casi nunca recibe la revisión completa**, y en Instagram la revisión es la
+  que transcribe ⇒ si nuestro gate aprueba algo que Virlo juzgó fuera de la intención, ese
+  transcript lo paga Supadata (anotado en D-2; la Fase 0 cuenta cuántos).
+- **Playground** (gratis, la muestra la arma la página, no el servidor):
+  [fixtures/virlo/playground/](../../Workflows/workflow-short-form-content/fixtures/virlo/playground/).
+  La de *Agent videos* trae TikTok + YouTube y **ningún reel de Instagram**: el creador viene en
+  `author` (sin bio), `id` es uuid y no hay `external_id`. La de *Instagram videos* (explorar) sí
+  trae `external_id`, con shortcodes inventados que no sirven para probar el id.
+- `normalizar-virlo.mjs`: header actualizado con lo que contestó la muestra, e idioma de TikTok desde
+  `intelligence.language_detected`. `test-virlo.mjs` suma 8 checks contra el fixture, **todo en
+  verde**; YouTube queda con `external_id` vacío a propósito hasta cerrar D-8.
+
+### Lo que sigue, en orden
+
+1. Respuesta de Andrés (crédito de 50 USD, agente solo Instagram) — sin cambios desde el 161.
+2. **El `/grill-with-docs` sobre [00 §3](../virlo/00-plan.md), ahora D-1 a D-9**, con esto en la
+   mesa. Antes, Alejo; P-YT al equipo de media.
+3. API key → Fase 0. **Su primer trabajo es lo que el playground no pudo dar: un reel de Instagram
+   real** (¿trae `external_id`? ¿`language_detected`?), guardado en `fixtures/virlo/`.
+4. Lo pendiente del cierre 159 sigue vivo.
+
+## 🔒 CIERRE 161 (2026-10-01): Virlo contestó, y el transcript sí viene en la API
 
 > Andrés (Virlo) respondió el correo del 28/09. Se cruzaron las seis respuestas contra el plan y contra
 > la doc viva, y se guardó la doc de Virlo sección por sección. **Nada se aplicó, nada se empujó, no se
