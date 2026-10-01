@@ -1,8 +1,10 @@
 # Plan — migración suave a Virlo (en sombra primero)
 
 > ⚠️ **Revisado el 2026-09-28 en [docs/virlo/03-revision-plan-alejo.md](../virlo/03-revision-plan-alejo.md).**
-> El plan propuesto que lo reemplaza, cuando Mani lo confirme, es [docs/virlo/00-plan.md](../virlo/00-plan.md):
-> agentes por voz como carril principal en vez de replicar el roster. Este doc queda como antecedente.
+> **Reemplazado el 2026-10-01** por [docs/virlo/00-plan.md](../virlo/00-plan.md) (decidido),
+> [ADR-102](../adr/ADR-102-la-busqueda-pasa-a-virlo-por-tematica.md) y los tickets de
+> [docs/virlo/07](../virlo/07-refactor-tickets.md): agentes por temática en vez de replicar el roster.
+> Este doc es **antecedente**.
 
 *Escrito el 2026-09-28, después de la llamada con Virlo (Nick) de ese día. Es el dueño de la
 migración: si cambia algo, cambia acá primero. La dirección viene de Mani, 25/09 (handoff: el

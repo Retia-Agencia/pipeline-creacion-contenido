@@ -31,6 +31,13 @@ un **histórico exportable a Excel**.
 > [ADR-024](./docs/adr/ADR-024-enmienda-adr016-n-por-proyecto.md)). El on-demand se **suma**; no retira
 > al cron. Es el único punto del norte que este refactor mueve, y va con ADR.
 
+> 🔴 **Enmienda 2026-10-01 (la búsqueda pasa a Virlo, [ADR-102](./docs/adr/ADR-102-la-busqueda-pasa-a-virlo-por-tematica.md)):**
+> "busca videos **de referentes**" pasa a ser "busca videos **por temática**": el equipo de media crea
+> agentes de Virlo por tema, que traen videos de cualquier cuenta, y Claude asigna cada uno a un solo
+> proyecto. Lo demás del norte se queda (ordenar, transcribir/traducir al español, elegir en el
+> cockpit, aprender, histórico). Mueve el norte porque el techo medido es el roster (costos §4.1.1).
+> **Es la prioridad del repo:** tickets en [docs/virlo/07](./docs/virlo/07-refactor-tickets.md).
+
 > 🧭 **Nota del 2026-09-12, y hay que leerla con precisión porque es fácil sacarle más de lo que
 > dice.** El renglón de abajo registra que el jefe confirmó el flag viral **como marca y no como
 > exclusión** (*"~700K marca high-end, **no excluye**"*). Eso es `umbral_viral`, que mide

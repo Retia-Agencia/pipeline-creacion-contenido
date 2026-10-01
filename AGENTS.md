@@ -6,6 +6,14 @@ está hecho para que sumar un flujo o un cliente sea clonar y configurar, no con
 
 ## Mapa de docs
 
+> 🔴 **PRIORIDAD MÁXIMA (desde el 2026-10-01): el refactor que pasa la búsqueda a Virlo.**
+> Norte: *Virlo es el nuevo buscador de contenido; el equipo de media crea temáticas, Virlo trae, Claude
+> asigna a los proyectos, el Feed recibe.* Los tickets, en dos carriles paralelos con sus dependencias:
+> **[docs/virlo/07-refactor-tickets.md](docs/virlo/07-refactor-tickets.md)**. Decisiones:
+> [docs/virlo/00-plan.md §3](docs/virlo/00-plan.md) y
+> [ADR-102](docs/adr/ADR-102-la-busqueda-pasa-a-virlo-por-tematica.md). **Si no sabes por dónde empezar,
+> empieza ahí.**
+
 Dónde vive cada cosa, para revisar, cambiar o no perderse. El **cómo usar** las 4 docs de trabajo está
 en §Agent skills; acá solo se ubican.
 
@@ -75,11 +83,16 @@ en §Agent skills; acá solo se ubican.
   de `docs/` (§10), **§11 con todo lo que quedó abierto** y **§12, la consolidación de `docs/`**
   (merges + chequeador de links) que Mani mandó a **su propia sesión dedicada y desechable**.
   **Si vas a tocar el motor, empezá acá.**
-- 🧭 [docs/virlo/00-plan.md](docs/virlo/00-plan.md) — **la migración a Virlo, en 5 partes** (28/09,
-  **PROPUESTA**: Mani confirma D-1 a D-9 en su §3). Reunión + API entera (01), arquitectura (02),
+- 🔴 [docs/virlo/07-refactor-tickets.md](docs/virlo/07-refactor-tickets.md) — **el refactor en
+  tickets** (01/10, prioridad máxima): tronco común (la `046` reescrita, los tipos) y dos carriles
+  paralelos, **A · motor Virlo** (cliente, Fase 0, asignador, ingesta) y **B · cockpit de media**
+  (agentes, sincronización, libro de gasto, Feed), con dependencias declaradas. La Etapa 2 (operación
+  de media, PreWave/HUB) va después del piloto.
+- 🧭 [docs/virlo/00-plan.md](docs/virlo/00-plan.md) — **la migración a Virlo, en 7 partes** (28/09,
+  **DECIDIDO** en el grill del 01/10: D-1 a D-11, D-2 se cierra con la Fase 0). Reunión + API entera (01), arquitectura (02),
   revisión del plan de Alejo (03), operación y costos (04), payloads campo por campo (05). Su tesis:
   **Virlo no es un Apify más caro, cambia el eje de búsqueda** (del roster al tema, que es lo único que
-  ataca el techo de costos §4.1.1). **Un agente por voz**, no por proyecto (Mani, 28/09). n8n deja de
+  ataca el techo de costos §4.1.1). **Un agente por temática**, que crea y opera el equipo de media y alimenta proyectos de cualquier voz; Claude asigna cada video a un solo proyecto (grill del 01/10, D-1 a D-11 cerradas salvo D-2). n8n deja de
   ser necesario para el carril nuevo. **Virlo respondió el 01/10** ([01 §1.4](docs/virlo/01-reunion-y-api.md)):
   el transcript **sí** viene en la API (gratis; en IG solo con Data Intelligence), así que **Supadata
   pasa a respaldo**; la duración también viene; la mitad de lo que trae un agente es YouTube; el
@@ -87,8 +100,8 @@ en §Agent skills; acá solo se ubican.
   [06-mapa-doc-virlo.md](docs/virlo/06-mapa-doc-virlo.md). *La doc se mueve: se re-mide antes de citarla.*
   **Si vas a tocar algo de Virlo, empieza acá.**
 - 🔀 [docs/agents/plan-migracion-virlo.md](docs/agents/plan-migracion-virlo.md) — ⚠️ **revisado en
-  [docs/virlo/03](docs/virlo/03-revision-plan-alejo.md); pasa a antecedente cuando Mani confirme el
-  plan de `docs/virlo/`.** **Apify + Supadata →
+  [docs/virlo/03](docs/virlo/03-revision-plan-alejo.md); ANTECEDENTE desde el 01/10** (lo reemplazan
+  `docs/virlo/` y ADR-102). **Apify + Supadata →
   Virlo, en sombra primero** (28/09). Un ajuste `Proveedor de scraping` (0 apify · 1 sombra · 2 virlo)
   y nada se borra hasta que Virlo gane con datos. ⚠️ **Virlo no documenta transcripts** (la llamada
   dijo que sí): Supadata no se toca hasta que la sonda de la Fase 0 lo pruebe. Enmienda ADR-098.
@@ -170,7 +183,7 @@ se cita, y varios gobiernan código vivo.
   paleta (no para usarla). Se llena, se traduce a `globals.css`, y las pantallas cambian solas.
 
 **Decisiones**
-- [docs/adr/](docs/adr/) — ADRs 001–100 (100 archivos), una decisión por archivo con su porqué ([índice](docs/adr/README.md)).
+- [docs/adr/](docs/adr/) — ADRs 001–102 (102 archivos), una decisión por archivo con su porqué ([índice](docs/adr/README.md)).
   💸 **Si la pregunta es *"¿nos cambiamos de proveedor de scraping?"*, la contesta
   [ADR-098](docs/adr/ADR-098-el-proveedor-no-es-el-problema-la-cadencia-si.md): no.** El costo no es
   una propiedad del proveedor sino del régimen de uso — el mismo actor cuesta 23,83 USD o 4,45
@@ -389,9 +402,10 @@ se cita, y varios gobiernan código vivo.
   `desde` y 200 reels a re-medir (el tope). Motor empujado el mismo día, `n8n:diff` verde en los 5.
   ✅ **Y ya corrió:** 5 corridas del motor del 16 al 23/09, todas con `marca_de_agua: true`, una voz
   por vez. Lo que midieron está en el cierre 159 del handoff.
-  ⬜ **La [`046`](core/schema/046_proveedor_virlo.sql) (ADR-101, propuesta) está ESCRITA y SIN APLICAR** (28/09).
-  ⛔ **No aplicar hasta cerrar D-1 y D-3 de [docs/virlo/00-plan.md](docs/virlo/00-plan.md)**: con un
-  agente por voz en tabla propia, su §3 sobra y hay que rehacerla ([docs/virlo/03 §4](docs/virlo/03-revision-plan-alejo.md)).
+  ⬜ **La [`046`](core/schema/046_proveedor_virlo.sql) (ADR-101, reemplazada) está ESCRITA y SIN APLICAR** (28/09).
+  ⛔ **NO SE APLICA: se reescribe** en el ticket **T0** de
+  [docs/virlo/07](docs/virlo/07-refactor-tickets.md) para el modelo de ADR-102 (agentes por temática).
+  Lo de abajo describe la versión vieja.
   Agrega el ajuste `Proveedor de scraping` (0 apify · 1 sombra · 2 virlo) y `pool_crudo.proveedor`, y
   🩸 **filtra las tres vistas de la marca de agua a `proveedor = 'apify'`**: sin eso, un reel que ve Virlo en
   sombra corre la marca de agua de la cuenta y Apify deja de comprarlo. Orden: `046` → deploy de la
@@ -523,7 +537,7 @@ Este repo está preparado para ingeniería con agentes. Leé esto antes de traba
 - **Dev-doc** ([docs/agents/dev-doc.md](docs/agents/dev-doc.md)) — referencia técnica nodo-por-nodo de
   los tres workflows (orden de ejecución, qué tabla de Postgres lee/escribe cada nodo, esquema Supabase y
   trazabilidad de campos). Leela antes de tocar un `workflow.json`; la fuente de verdad sigue siendo el JSON.
-- **ADRs** ([docs/adr/](docs/adr/)) — decisiones de arquitectura con su porqué (ADR-001..100). *El número sale de `ls docs/adr`, no de acá: este renglón dijo 083 con 84 archivos en disco, y 094 con 97.*
+- **ADRs** ([docs/adr/](docs/adr/)) — decisiones de arquitectura con su porqué (ADR-001..102). *El número sale de `ls docs/adr`, no de acá: este renglón dijo 083 con 84 archivos en disco, y 094 con 97.*
   Leé los relevantes antes de cambiar un área ya decidida; no las re-litigues.
 
 El **qué/por qué** del producto y el diseño viven en [ROADMAP.md](ROADMAP.md) (norte + checklist del

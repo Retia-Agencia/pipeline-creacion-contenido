@@ -1,6 +1,6 @@
 # Plan · Migrar la búsqueda de contenido a Virlo
 
-> **Estado: PROPUESTA** (2026-09-28), pendiente de que Mani confirme las decisiones de §3.
+> **Estado: DECIDIDO** (grill del 2026-10-01; propuesta del 28/09). D-2 se cierra con la Fase 0.
 > Al confirmarse, este plan es el dueño de la migración y
 > [plan-migracion-virlo.md](../agents/plan-migracion-virlo.md) (Alejo, 28/09) pasa a antecedente.
 > Hasta entonces **no se aplica nada, no se empuja nada y no se gasta nada.**
@@ -26,6 +26,7 @@
 | 4 | [04-operacion-y-costos.md](./04-operacion-y-costos.md) | Modelo de costo por corrida, escenarios mensuales, rendimiento predicho, cómo se vigila el saldo, rollback, secretos. |
 | 5 | [05-payloads-y-decisiones.md](./05-payloads-y-decisiones.md) | Qué trae cada respuesta de la API, campo por campo, y qué decisiones habilita: filtros antes de pagar, encaje con la voz, Feed, aprendizaje, salud de la corrida. |
 | 6 | [06-mapa-doc-virlo.md](./06-mapa-doc-virlo.md) | La doc de Virlo (`dev.virlo.ai/docs`) sección por sección: qué ofrece, para qué nos sirve, qué se propone integrar, y la fecha de cada lectura. La doc se mueve: se re-mide antes de citarla. |
+| 7 | [07-refactor-tickets.md](./07-refactor-tickets.md) | 🔴 **El plan de trabajo**: los tickets en dos carriles paralelos (motor Virlo · cockpit de media) con sus dependencias, y la Etapa 2 (operación de media). **Es el que se ejecuta.** |
 
 ---
 
@@ -51,9 +52,9 @@ gratis, [01 §1.4](./01-reunion-y-api.md).)*
 | **Supadata** | **Pasa a respaldo** (D-2, 01/10): el transcript viene de Virlo y Supadata cubre lo que llega vacío, más las pantallas de URL suelta (Transcribir, Colecciones). |
 | **n8n** | **Deja de ser necesario para el carril nuevo.** El motor viejo sigue corriendo Apify como sombra y rollback hasta el corte. Apagarlo entero es otra decisión. |
 | **Haiku** | Traduce siempre. El gate se mide contra el de Virlo. |
-| **Virlo** | El carril principal de búsqueda: **un agente por voz**, con keywords que salen de sus proyectos. |
+| **Virlo** | El carril principal de búsqueda: **un agente por temática**, que media crea en el cockpit y asocia a proyectos de cualquier voz (D-1). |
 
-**Plata:** con un agente por voz y una corrida semanal, **13 USD/mes (estándar) o 39 USD (con Data
+**Plata** *(estimado del 28/09, con un agente por voz; con agentes por temática el número depende de cuántas cree media, y la plata dejó de ser la limitante, D-10)*: con un agente por voz y una corrida semanal, **13 USD/mes (estándar) o 39 USD (con Data
 Intelligence)** para las 6 voces a precio de lista, **10 o 36 USD** con el precio que ofreció Virlo
 (0,40 / 1,40); con más corridas solo en las voces que se queden cortas, hasta ~50-180 USD, contra
 ~100 USD/mes hoy. **Por aprobado: ~0,06-0,17 USD contra 1,5-16 USD hoy.** Todo eso es predicción
@@ -69,23 +70,38 @@ hasta la Fase 0, que **sale gratis**: Virlo carga 50 USD de crédito para el pil
 4. Sumar al pipeline lo aprendido de PreWave (**frente aparte**; acá solo se anota el encaje,
    [02 §7](./02-arquitectura.md)).
 
-## 3. Lo que Mani tiene que confirmar
+## 3. Decisiones
 
-| # | Decisión | Propuesta | Por qué | Alternativa |
+> **Cerradas por Mani en un `/grill-with-docs` el 2026-10-01**, salvo D-2, que se cierra con los
+> números de la Fase 0. 🧭 **El cambio grande: el centro deja de ser la voz y pasa a ser el Agente
+> (una temática).** Lo crea y lo opera el equipo de media desde el cockpit; los proyectos de
+> cualquier voz se le asocian, y Claude asigna cada video a uno de ellos. Términos en
+> [context.md](../agents/context.md) (*Agente*, *Asignación*).
+
+| # | Decisión | Cerrada | Por qué | Descartado |
 |---|---|---|---|---|
-| **D-1** | ¿Qué carril es el principal, y con qué grano? | **Agentes (A), uno por voz** ✅ *dirección de Mani, 28/09*. Los proyectos pasan a ser **cajones** donde se reparte lo que trae el agente de la voz, y sus N dicen cómo repartir, no cuánto buscar. Se suman corridas (hasta diaria) o un segundo agente **solo si la voz se queda corta**. Tracking de referentes (B) solo para un puñado de cuentas. | Un agente por proyecto compraría varias veces los mismos videos (los proyectos de una voz se pisan) y sobregastaría. El B tiene el mismo techo que hoy y cuesta 3-15× Apify ([02 §2](./02-arquitectura.md)). ⚠️ El riesgo es que **falte**, no que sobre: ~280 videos por corrida son ~9-11 aprobados con el piso de 500k, contra ~46/semana que pide una voz ([04 §3](./04-operacion-y-costos.md)). | Un agente por proyecto · replicar el roster en Virlo (el plan de Alejo). |
-| **D-2** | ¿Supadata se va? | **Pasa a respaldo** *(cambiada el 01/10 por la respuesta de Virlo)*. La ingesta lee el transcript de Virlo (`include_transcript=true`, gratis). `source: transcribed` trae tiempos ⇒ la regla de cobertura de ADR-095 corre igual (`cobertura` = último `segments.end`, `duración` = `duration`). `source: platform` no trae tiempos: se acepta como completo y la Fase 0 lo mide contra Supadata. `null` con `intelligence_status: pending` se relee a las ~6 h; `null` con el video sin voz (`is_silent`, `transcript_word_count = 0`) se descarta sin pagar; cualquier otro `null` va a Supadata. ⚠️ *(01/10, doc de Data Intelligence)*: un video con `intent_match: false` casi nunca recibe la revisión completa, y en Instagram la revisión es lo que transcribe. Si nuestro gate aprueba un reel que Virlo juzgó fuera de la intención, ese transcript lo paga Supadata: la Fase 0 cuenta cuántos. | Virlo ya transcribió para filtrar por intención: pagarlo dos veces es el desperdicio. TT/YT traen texto en ~85 %; IG en ~40 % con Data Intelligence, y casi todo el resto no tiene voz ([01 §1.4](./01-reunion-y-api.md)). El ahorro en plata es chico (Supadata es la línea más barata); lo que se gana es **un componente menos en el camino principal**, que es el dolor que se le contó a Virlo. | Supadata para todo y Virlo solo para comparar. |
-| **D-3** | ¿Dónde vive la ingesta del carril nuevo? | **(c) En el cockpit**: `/api/virlo/webhook` + ejecución durable. | El carril es empujado por webhook y ya no necesita orquestador; construirlo en n8n para después sacarlo es trabajo doble; el motor de Apify queda intacto como sombra ([02 §5.2](./02-arquitectura.md)). | (a) rama en el motor · (b) workflow chico de n8n. |
-| **D-4** | ¿El gate de Haiku sigue? | **Se mide, no se decide.** Corren los dos en la sombra. | `intent_match` juzga con una frase; el gate con los criterios completos ([02 §6](./02-arquitectura.md)). | |
-| **D-5** | ¿En qué idiomas busca cada voz? | `english_only: false`, **ninguna keyword en español**, y lo que se cuele se descarta gratis con `language_detected = es` antes de transcribir. **Un agente por voz con keywords mezcladas** (EN + PT + FR) por defecto; pasar a un agente por idioma **solo en la voz donde la Fase 0 muestre que la mezcla rinde peor**. | Virlo confirmó (01/10) que mezclar funciona: cada keyword busca en su idioma y no traducen. Andrés recomienda uno por idioma (reportes en un idioma, resultados más limpios), pero eso multiplica el costo por la cantidad de idiomas. El reporte en un solo idioma le importa al lado tracker (PreWave), no al Feed. **Vara, escrita antes de medir:** si la mezcla da ≥ 80 % de la aprobación del agente de un solo idioma, se queda la mezcla. | Un agente por idioma (lo que recomienda Virlo). Qué idiomas, lo decide el equipo de media. |
-| **D-6** | ¿Cómo es la sombra? | **Visible**: los candidatos de Virlo entran al Feed real marcados con su origen, en **1 o 2 voces piloto**. | La métrica (ADR-089) necesita que el equipo apruebe. Una sombra invisible mide volumen, no calidad. | Sombra invisible (solo registro). |
-| **D-7** | ¿Data Intelligence? | **Sí, obligatoria** *(01/10)*. | **Sin ella no hay transcript de Instagram** (IG no publica transcripts y Virlo solo transcribe en agentes con Data Intelligence). Además: filtros antes de pagar, encaje con la voz, aprendizaje por característica ([05 §2](./05-payloads-y-decisiones.md)). Se mide que llegue a tiempo y en ~94 % de los videos. | Estándar (un tercio del costo), solo si el equipo decide no usar Instagram. |
-| **D-8** | ¿En qué plataformas busca el agente? | **Las tres** (default), y se filtra al leer. | Virlo cobra por corrida y filtrar por `platforms` al leer es gratis: sacar YouTube del agente no abarata nada, y por lo que dijo Andrés cada keyword se busca en cada plataforma por separado, así que tampoco sube la cuota de Instagram (**preguntado a Andrés el 01/10**; si no contesta, lo mide la Fase 0). Lo que sí hay que decidir es si **un Short de YouTube cuenta como referente** (P-YT, §5). | `platforms: ["instagram","tiktok"]` si el equipo descarta YouTube y la Fase 0 muestra que no cambia el volumen de IG. |
-| **D-9** | ¿Autopilot prendido en el piloto? *(01/10)* | **Prendido en una voz piloto y apagado en la otra** (D-6 ya pide 1-2 voces). | Autopilot **aplica solo, no propone** ([06 §2.2](./06-mapa-doc-virlo.md)): viene prendido en todo agente recurrente y cambia keywords después de cada corrida. Prendido en las dos, la Fase 3 no puede separar "Virlo trae mejor" de "autopilot movió las keywords"; partido, la diferencia entre las dos voces *es* la medición. Nunca borra nuestras keywords ni cobra más, así que el riesgo es de medición, no de plata. La Fase 0 usa agentes de una corrida y no lo tiene. | Prendido en todas (lo que vende Virlo) · apagado en todas (medición limpia, se pierde lo que más promete). |
+| **D-1** | ¿Con qué grano busca Virlo? | **Un agente por temática** ✅. Lo crea media desde el cockpit, con su intención y 7 a 12 keywords en el formato de la doc de Virlo (visible en la pantalla, para que se entienda cómo va a buscar), y le asocia proyectos **de cualquier voz**, que se prenden y apagan ahí. Tracking de referentes (B) solo para un puñado de cuentas. | Un agente rinde con keywords que son sinónimos de **una** idea: Virlo midió en ~11.000 corridas que 7-12 keywords de un mismo tema son lo que menos se descarta por fuera de tema. Una voz con 7 proyectos (Francisco) son 7 ideas: con un agente por voz quedaban 1-2 keywords por proyecto o una intención difusa. *(Hasta el 01/10 decía "uno por voz", dirección del 28/09.)* | Uno por voz · uno por proyecto · replicar el roster (Alejo). |
+| **D-1a** | ¿A cuántos proyectos va un video? | **A uno solo** ✅ (Majo, 01/10), aunque encaje en proyectos de dos voces. | Dos voces de la agencia no graban el mismo guion, y `grabado` es por video, no por voz. | Uno por voz · todos los que pasen. |
+| **D-1b** | ¿Cómo se reparte? | **En proporción al N** de cada proyecto ✅; si no alcanza, el faltante se muestra. | Mantiene D1 del 11/09 (el N es piso) y la métrica de [ADR-089](../adr/ADR-089-una-sola-metrica-aprobados-contra-lo-pedido.md) intactas. El faltante es la señal de cuándo subir corridas. | Parejo sin N · N en el agente. |
+| **D-2** | ¿Supadata se va? | **Pasa a respaldo** *(se cierra con la Fase 0)*. La ingesta lee el transcript de Virlo (`include_transcript=true`, gratis). `source: transcribed` trae tiempos ⇒ la regla de cobertura de ADR-095 corre igual (`cobertura` = último `segments.end`, `duración` = `duration`). `source: platform` no trae tiempos: se acepta como completo y la Fase 0 lo mide contra Supadata. `null` con `intelligence_status: pending` se relee a las ~6 h; `null` con el video sin voz (`is_silent`, `transcript_word_count = 0`) se descarta sin pagar; cualquier otro `null` va a Supadata. Los `intent_match: false` ya no llegan acá (D-4b), así que Supadata no paga por ellos. | Virlo ya transcribió para filtrar por intención: pagarlo dos veces es el desperdicio. TT/YT traen texto en ~85 %; IG en ~40 % con Data Intelligence ([01 §1.4](./01-reunion-y-api.md)). Lo que se gana es **un componente menos en el camino principal**. | Supadata para todo. |
+| **D-3** | ¿Dónde vive el carril Virlo? | **Todo en el cockpit** ✅: crear y operar agentes, gasto y saldo, `/api/virlo/webhook` + ejecución durable, asignación y Feed. El motor de n8n sigue con Apify **sin un cambio**, como sombra y rollback. **Apagar n8n entero** (motor, descubrimiento, archivado, dispatcher, error handler) es posible después del corte y es otra decisión, con su ADR. | Virlo agenda, filtra y avisa: n8n ya no aporta orquestación. Si media opera los agentes desde el cockpit, el cockpit ya habla con Virlo; la ingesta en n8n lo partiría en dos ([02 §5.2](./02-arquitectura.md)). | Workflow de n8n nuevo · rama en el motor. |
+| **D-4** | ¿Quién juzga? | **Claude asigna** ✅: una llamada por video que ve el video (caption + transcript traducido) y los proyectos del agente que aceptan su plataforma, con sus criterios, y responde a cuál va **o "ninguno"** con su razón. Los "ninguno" van a descartes, visibles y rescatables. Reemplaza al gate. | Es la pregunta comparativa de [plan-refactor-motor §3bis](../agents/plan-refactor-motor.md): N puntajes por par no son comparables entre proyectos. Y cuesta menos (hoy ~1,9 llamadas por video). "Ninguno" mantiene la precisión de ADR-089 y los contraejemplos (D2 del 11/09). | Router puro · asignar marcando "encaje bajo". |
+| **D-4b** | ¿Y `intent_match: false`? | **Se descarta antes de Claude, visible** ✅ ("fuera de la intención (Virlo)"), sin transcribir. En la Fase 0 una muestra sí pasa por Claude para medir la concordancia. | El filtro por tema es trabajo del agente; si falla, se arregla la intención. Esos videos casi nunca traen la revisión completa, y en IG sin ella no hay transcript. | Todo pasa por Claude · descarte sin registro. |
+| **D-5** | ¿En qué idiomas busca? | **Inglés por defecto** ✅. Al crear el agente, media puede sumar idiomas de dos maneras: **mezclar** (un agente, keywords en varios idiomas, `english_only: false`) o **separar** (el cockpit crea un agente de Virlo por idioma y junta lo que traen). La pantalla dice que **cada idioma separado es su propia corrida y gasta**. | Virlo confirmó que mezclar funciona y recomienda separar. El argumento del plan para mezclar era el costo, y la plata dejó de ser la limitante (D-10). La Fase 0 mide las dos. | Solo mezcla · solo un agente por idioma a mano. |
+| **D-6** | ¿Cómo es la sombra? | **Visible y a ciegas** ✅: los candidatos de Virlo entran al Feed real mezclados con los de Apify; el origen se guarda en cada fila y se ve en las métricas, **no en la tarjeta**. Se destapa al terminar el piloto. | ADR-089 necesita que el equipo apruebe, y una etiqueta "Virlo" sesga la calificación. | Con etiqueta · sombra invisible. |
+| **D-7** | ¿Data Intelligence? | **Obligatoria** ✅. | Sin ella no hay transcript de Instagram ni `intent_match`. El único argumento en contra era la plata. | |
+| **D-8** | ¿En qué plataformas? | **El agente busca en las tres; cada proyecto elige cuáles acepta** ✅. La asignación solo lleva un video a un proyecto que acepte su plataforma. | Virlo cobra por corrida, no por plataforma: quitar YouTube del agente no abarata nada. Así P-YT la contesta cada proyecto y no una regla global. ⚠️ YouTube necesita su regla de `external_id` (hoy `normalizar-virlo.mjs` lo deja vacío a propósito). | Lo elige el agente · global sin YouTube. |
+| **D-9** | ¿Autopilot? | **Opción por agente, prendido por defecto** ✅, y el cockpit muestra qué keywords agregó y por qué (su `activity`). En el piloto, un agente con y otro sin. | Autopilot aplica solo, no propone ([06 §2.2](./06-mapa-doc-virlo.md)): nadie debería ver keywords que no escribió sin saber de dónde salen. Nunca borra las del equipo ni cobra más. | Siempre apagado · siempre prendido sin opción. |
+| **D-10** | ¿Quién gasta, y con qué tope? | **Media crea y opera sin tope** ✅ (Mani, 01/10: *"la plata no es limitante ahora, solo se recarga"*). Lo obligatorio es el **registro**: cada acción sobre un agente en `app.eventos` (quién, qué), el costo de cada corrida, y el saldo leído después de cada corrida. **Recarga automática prendida en Virlo**, y el cockpit avisa (y reactiva con un clic) si ve un agente pausado por saldo. | Virlo **no tiene API del historial de gastos** (solo el saldo, y el detalle en su dashboard), así que el libro lo llevamos nosotros. 🩸 Si el saldo llega a cero, Virlo pausa los agentes **y recargar no los reactiva**: sin auto-recarga y aviso, todo queda apagado en silencio. | Aprobación para activar · solo admin crea. |
+| **D-11** | ¿Dónde vive el umbral de vistas? | **Ajuste por agente, default 500k** ✅, y el Feed muestra el **Virality Score** de Virlo al lado de las vistas. | El 500k es instrucción del jefe y esa conversación no la cierra un dev ([plan-refactor-motor](../agents/plan-refactor-motor.md)); esto la deja medible: qué se aprueba con cada vara. 500k es el top 3 % en IG y el 15 % en TikTok. | Global · por plataforma. |
 
 ---
 
 ## 4. Fases
+
+> 🔴 **Las fases se ejecutan como tickets en [07](./07-refactor-tickets.md)** (Fase 0 = A2 + B0;
+> Fase 1 = ADR-102 ✅ + T0; Fase 2 = A1, A3-A5, B1-B5; Fase 3 = V-11; Fase 5 = V-12). Acá queda el
+> porqué y las predicciones; el estado de cada cosa se marca allá.
 
 Cada fase tiene su **verificación**: sin ella la fase no está cerrada.
 
@@ -96,18 +112,19 @@ Cada fase tiene su **verificación**: sin ella la fase no está cerrada.
 2. ✅ **Crédito pedido** (Mani, 01/10) para la cuenta `administrativa@retiagrowth.com`. Falta: la
    **API key** del pipeline (al `.env` y al gestor) y **ver el crédito cargado** con
    `GET /account/balance` antes de crear el primer agente.
-3. **Sonda de agentes** con `sonda-virlo.mjs agent` (extendido): **4 agentes de una corrida con Data
-   Intelligence** (~6 USD), **uno por voz**, con keywords que salen de sus proyectos:
-   - 2 voces en inglés: una de psicología (María José Sánchez) y una de trading (Juan Pablo Vieira).
-   - La misma voz de psicología con **keywords mezcladas EN + PT + FR** (D-5).
-   - La misma voz de psicología **solo en portugués**, para comparar contra la mezclada.
-   La intención se escribe **en el formato que recomienda Virlo** (*[Goal] [content type] about
-   [niche], not [exclusion]*), con variaciones para elegir (decisión de Mani, 28/09), y las keywords
-   se pasan por `suggest-keywords` (gratis).
-4. De cada corrida se toman los videos con `min_views=500000` e `intent_match=true`, se leen **con
+3. **Sonda de agentes** con `sonda-virlo.mjs agent` (extendido), **agentes de una corrida con Data
+   Intelligence** (~1,50 USD cada uno, del crédito gratis). **Las temáticas las escribe Majo** (D-1),
+   con la intención en el formato de la doc de Virlo (*[Goal] [content type] about [niche], not
+   [exclusion]*) y las keywords pasadas por `suggest-keywords` (gratis); nosotros revisamos. Esto
+   prueba lo que el modelo da por hecho: **que media sabe operar un agente.**
+   - 2-3 temáticas en inglés: al menos una de psicología y una de trading.
+   - Una de ellas repetida **mezclando idiomas** (EN + PT + FR) y **separada** (un agente por
+     idioma), para D-5.
+4. De cada corrida se toman los videos con `min_views=500000`. Los `intent_match=true` se leen **con
    `include_transcript=true`** (Supadata solo para los `null` y para comparar ~20 transcripts
-   `platform` contra el suyo), se pasan por el gate actual (fuera de n8n, con el arnés de `test-nodos.mjs`) y **se
-   le dan al equipo para calificar**, sin decirle de dónde vienen.
+   `platform` contra el suyo), y una muestra de los `false` también, para medir D-4b. Todos pasan
+   por la **asignación de Claude** contra los proyectos que la temática alimentaría (prototipo fuera
+   del sistema), y **se le dan al equipo para calificar**, sin decirle de dónde vienen.
 
 **Predicciones (escritas antes de medir):**
 
@@ -133,11 +150,13 @@ los supuestos, y un veredicto de **sigue / no sigue** contra la fila en negrita.
 
 ### Fase 1 · Decisiones escritas
 
-1. Cerrar D-1 a D-9 con los números de la Fase 0.
-2. Reescribir **ADR-101**: *el eje vuelve a ser el tema, con intención*. Enmienda
+1. Cerrar D-2 con los números de la Fase 0, y revisar D-5 con lo que midió (mezclar vs separar).
+2. ✅ **[ADR-102](../adr/ADR-102-la-busqueda-pasa-a-virlo-por-tematica.md)** (01/10, reemplaza a ADR-101): *el eje vuelve a ser el tema, con intención*. Enmienda
    [ADR-019](../adr/ADR-019-remocion-total-eje-keyword.md) y [ADR-098](../adr/ADR-098-el-proveedor-no-es-el-problema-la-cadencia-si.md).
-3. Reescribir la **`046`** para lo que se decidió: `app.agentes_virlo` (voz, `agent_id`,
-   idioma, intención, keywords, excluidas, cadencia, Data Intelligence, activo),
+3. Reescribir la **`046`** para lo que se decidió: el **Agente** (temática, intención, keywords,
+   excluidas, idiomas y modo mezclar/separar, cadencia, autopilot, umbral, activo), los `agent_id` de
+   Virlo que tiene debajo (uno por idioma si se separa), su asociación con **proyectos de cualquier
+   voz**, las **plataformas que acepta cada proyecto** (D-8), el **libro de gasto** (D-10),
    `candidatos.origen` (`apify` | `virlo`), tarifas de Virlo, y **de dónde salió cada transcript**
    (`virlo_platform` | `virlo_transcribed` | `supadata`, D-2): sin eso no se puede medir si el de
    Virlo rinde igual. Lo de `pool_crudo.proveedor` y las
@@ -152,13 +171,12 @@ los supuestos, y un veredicto de **sigue / no sigue** contra la fila en negrita.
 
 1. **Ingesta** donde diga D-3: recibir el webhook (header secreto + idempotencia por corrida), leer
    videos con `min_views`, normalizar con `external_id` desde la URL, deduplicar contra
-   `processed_items` y el Feed, tomar el transcript de Virlo (Supadata de respaldo, D-2), traducir, gate (si D-4 lo deja),
-   **repartir en los proyectos de la voz** (cada video a un solo proyecto, hasta su N), escribir
+   `processed_items` y el Feed, tomar el transcript de Virlo (Supadata de respaldo, D-2), traducir, descartar los `intent_match: false` (D-4b),
+   **asignar con Claude** entre los proyectos del agente (cada video a un solo proyecto, en proporción al N, o "ninguno", D-4), escribir
    `candidatos` + `runs` con el **mismo contrato** que hoy.
-2. **Agentes recurrentes** para las voces piloto (1 por semana; más solo si se quedan cortas).
-3. **Pre-flight y vigilancia del saldo** ([04 §4](./04-operacion-y-costos.md)).
-4. **En el cockpit:** la voz muestra su agente (intención, keywords, idiomas, última corrida,
-   salud) y el Feed muestra el origen de cada candidato.
+2. **La pantalla de Agentes** para media: crear, editar, asociar proyectos, activar y pausar, con el formato de intención de Virlo visible y `suggest-keywords` (D-1), autopilot y sus cambios (D-9), idiomas con su costo (D-5).
+3. **Libro de gasto y saldo** (D-10): eventos, costo por corrida, saldo después de cada corrida, aviso de agente pausado por saldo.
+4. **En el Feed:** el origen se guarda pero no se muestra durante el piloto (D-6); el Virality Score sí (D-11).
 
 **Verificación:** tests del dominio de la ingesta con fixtures reales de la Fase 0 (`npm test`),
 `typecheck`, `build`; una corrida real de punta a punta que deje candidatos en el Feed con

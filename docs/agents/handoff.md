@@ -29,11 +29,11 @@ tercio del medio eran cierres viejos anidados uno dentro de otro bajo un encabez
 
 | buscás | está en |
 |---|---|
-| **el estado de hoy** | el §ARRANCÁ POR ACÁ de acá abajo (cierre 162) |
-| **la migración a Virlo** | 🧭 [docs/virlo/00-plan.md](../virlo/00-plan.md) — plan en 6 partes, **propuesta** pendiente de confirmar |
+| **el estado de hoy** | el §ARRANCÁ POR ACÁ de acá abajo (cierre 163) |
+| **🔴 la prioridad: el refactor a Virlo** | [docs/virlo/07-refactor-tickets.md](../virlo/07-refactor-tickets.md) — los tickets en dos carriles; decisiones en [00-plan](../virlo/00-plan.md) y [ADR-102](../adr/ADR-102-la-busqueda-pasa-a-virlo-por-tematica.md) |
 | **el refactor del motor** | 🧭 [plan-refactor-motor.md](./plan-refactor-motor.md) — el punto de partida único |
 | **los mensajes al equipo de redes** | [plan-refactor-motor §9](./plan-refactor-motor.md) — **1 y 2 enviados el 12/09**, el 3 escrito y pendiente |
-| **los cierres 145 a 162** | acá abajo, completos |
+| **los cierres 145 a 163** | acá abajo, completos |
 | **los cierres 70 a 144** | [handoff-archivo-2026-06_09.md](./handoff-archivo-2026-06_09.md) |
 | **el refactor Voces→Proyectos** | 🗄️ terminado y archivado el 2026-09-12: [docs/archivo/refactor-voces-proyectos.md](../archivo/refactor-voces-proyectos.md) |
 
@@ -41,7 +41,59 @@ tercio del medio eran cierres viejos anidados uno dentro de otro bajo un encabez
 N`), **nunca anidado dentro del anterior**. Así fue como nacieron las 5.736 líneas de blockquotes
 dentro de blockquotes que se acaban de archivar.
 
-## 🚦 ARRANCÁ POR ACÁ — CIERRE 162 (2026-10-01): la doc de Virlo re-leída, y fixtures del playground
+## 🚦 ARRANCÁ POR ACÁ — CIERRE 163 (2026-10-01): grill de Virlo, el centro pasa a ser el Agente, y el refactor en tickets
+
+> `/grill-with-docs` sobre [00 §3](../virlo/00-plan.md). **Nada se aplicó, nada se empujó, no se
+> gastó.** Docs: el plan (estado **DECIDIDO**), el glosario, AGENTS.md.
+
+### 🧭 Lo que cambió
+
+**El agente deja de ser "uno por voz" y pasa a ser "uno por temática"** (idea de Mani en el grill).
+Media lo crea y lo opera desde el cockpit, le asocia proyectos **de cualquier voz**, y **Claude asigna**
+cada video a **un solo proyecto** (confirmado por Majo), en proporción al N, o a "ninguno". El porqué:
+un agente rinde con 7-12 keywords de **una** idea (medido por Virlo en ~11.000 corridas), y una voz con
+7 proyectos son 7 ideas. Glosario: *Agente* redefinido, *Asignación* nueva,
+*Proyecto* con nota (deja de buscar).
+
+### ✅ Cerrado (D-1 a D-11, [00 §3](../virlo/00-plan.md))
+
+- **D-3: todo el carril Virlo en el cockpit.** n8n sigue con Apify sin cambios hasta el corte;
+  apagarlo entero es posible después y va con su ADR.
+- **D-4: Claude asigna** (una llamada por video, comparando proyectos: el §3bis de
+  plan-refactor-motor). Reemplaza al gate. **D-4b:** `intent_match: false` se descarta antes, visible.
+- **D-5:** inglés por defecto; mezclar o separar idiomas, con el costo de cada idioma visible.
+- **D-6:** sombra visible y a ciegas (origen guardado, no mostrado). **D-7:** Data Intelligence
+  obligatoria. **D-8:** el agente busca en las 3 plataformas, cada proyecto elige cuáles acepta.
+  **D-9:** autopilot por agente, prendido, con sus cambios visibles.
+- **D-10: sin tope de gasto** (Mani: *"la plata no es limitante, solo se recarga"*). Obligatorio: el
+  libro de gasto propio (Virlo no tiene API de historial) y **auto-recarga**, porque si el saldo
+  toca cero Virlo pausa los agentes y recargar **no** los reactiva.
+- **D-11:** umbral de vistas por agente, default 500k, con el Virality Score al lado.
+- **D-2 sigue abierta**: se cierra con los números de la Fase 0.
+
+### 🔴 Lo que sigue: el refactor es la PRIORIDAD MÁXIMA, y está en tickets
+
+**[docs/virlo/07-refactor-tickets.md](../virlo/07-refactor-tickets.md)** es el plan que se ejecuta:
+tronco común (**T0** la `046` reescrita · **T1** los tipos) y dos carriles paralelos para las dos
+personas, **A · motor Virlo** (A1 cliente + normalizador TS · A2 Fase 0 · A3 asignador · A4 ingesta
+por webhook · A5 relectura) y **B · cockpit de media** (B0 temáticas con Majo · B1 pantalla de
+Agentes · B2 sincronizar con Virlo · B3 libro de gasto · B4 Feed · B5 autopilot visible). Los dos
+puntos de espera: A4 necesita T0, B3 necesita A4. **A2 es la compuerta**: si la Fase 0 dice "no
+sigue", se para todo. Después: V-11 piloto y V-12 corte. La Etapa 2 (operación de media,
+PreWave/HUB) va cuando el piloto diga "sigue".
+
+Escrito en esta sesión: **[ADR-102](../adr/ADR-102-la-busqueda-pasa-a-virlo-por-tematica.md)**
+(aceptada, reemplaza a ADR-101), la **enmienda al norte** en ROADMAP §1 ("busca de referentes" →
+"busca por temática"), y la prioridad arriba del mapa de AGENTS.md.
+
+**Para arrancar mañana:**
+1. **Mani:** API key + ver el crédito cargado (destraba A2). Hablarlo con Alejo (su plan replicaba
+   el roster) y repartir los carriles.
+2. **Persona A:** T1 → A1, con los fixtures del playground (no necesita la key).
+3. **Persona B:** T0, y B0 con Majo en paralelo.
+4. Lo pendiente del cierre 159 sigue vivo, pero va **después** de esto.
+
+## 🔒 CIERRE 162 (2026-10-01): la doc de Virlo re-leída, y fixtures del playground
 
 > Paso 2 del cierre 161. **Nada se aplicó, nada se empujó, no se gastó.** Docs, dos fixtures y tests.
 

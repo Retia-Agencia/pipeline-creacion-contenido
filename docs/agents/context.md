@@ -16,6 +16,8 @@ Una temática aislada de búsqueda (ej: Comunicación, Ventas). Cada proyecto ra
 embudo. Un mismo video puede aparecer en más de un proyecto solo cuando **comparten el referente** que
 lo trajo, y solo si pasa el juicio de relevancia de cada uno (ADR-013, ADR-015). Un Proyecto tiene
 **una sola Voz**; una Voz puede servir a varios Proyectos.
+*(En evaluación con Virlo: el Proyecto deja de buscar. La búsqueda es del Agente, y el Proyecto pasa a
+ser un destino de la Asignación, con su N y sus criterios.)*
 
 **Voz**:
 El personaje o marca para quien se cura contenido. Organiza la selección y el histórico, y le da al
@@ -37,9 +39,17 @@ la tabla `Referentes propuestos`; el equipo la marca aprobado/descartado y los a
 solos a `Referentes`. Un handle propuesto no se re-propone (descartar es definitivo).
 
 **Agente (Virlo)** *(en evaluación, [docs/virlo](../virlo/00-plan.md))*:
-Una búsqueda por tema que corre en Virlo para **una voz**: una intención de una frase y 7 a 12
-keywords que salen de los proyectos de esa voz. Trae videos de cualquier cuenta, no de un roster. No
-confundir con un agente de IA de este repo.
+Una búsqueda por **temática** que corre en Virlo: una intención de una frase y 7 a 12 keywords. La
+crea el equipo de media, y tiene **asociados los proyectos** que alimenta, de cualquier voz. Trae
+videos de cualquier cuenta, no de un roster. Lo que trae se **asigna** a sus proyectos (ver
+Asignación). No confundir con un agente de IA de este repo.
+*(Hasta el 01/10 era "uno por voz": se cambió porque una voz con varios proyectos son varias ideas, y
+un agente rinde con keywords de una sola idea.)*
+
+**Asignación** *(en evaluación)*:
+Elegir a qué proyecto del Agente va cada video que trajo. **Un video va a un solo proyecto**
+(confirmado por Majo, 01/10), aunque encaje en proyectos de dos voces. Se reparte **en proporción al
+N** de cada proyecto; si no alcanza, el faltante se muestra, no se esconde.
 
 **Intención (intent)** *(en evaluación)*:
 La frase que le dice al Agente qué videos quedarse y cuáles descartar. Se escribe en el formato que

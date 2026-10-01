@@ -1,6 +1,6 @@
 # ADR-101 — Virlo entra en sombra
 
-> **Estado:** **Propuesta** (2026-09-28). Se acepta con los números de la Fase 0 de
+> **Estado:** **Reemplazada por [ADR-102](./ADR-102-la-busqueda-pasa-a-virlo-por-tematica.md)** (2026-10-01): Virlo no replica el roster, busca por temática. Era: **Propuesta** (2026-09-28). Se acepta con los números de la Fase 0 de
 > [plan-migracion-virlo.md](../agents/plan-migracion-virlo.md), que todavía no existen porque falta
 > la API key. **Enmienda [ADR-098](./ADR-098-el-proveedor-no-es-el-problema-la-cadencia-si.md)**, que
 > decidió "Apify se queda".
