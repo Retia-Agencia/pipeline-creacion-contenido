@@ -147,8 +147,8 @@ proyecto lo puso el prototipo del asignador
 ([`asignar-fase0.mjs`](../../Workflows/workflow-short-form-content/asignar-fase0.mjs), `claude-opus-5-5`
 con los criterios de `app.proyectos`): **25 con proyecto y 30 "ninguno"**, así que la hoja mide a la
 vez a Virlo y al asignador (A3). Los transcripts faltantes se pidieron a Supadata: 5 llamadas,
-2 rescatados. La clave (agente, plataforma, idioma, `intent_match` de cada fila) queda en
-`fixtures/virlo/crudo/fase0-hoja.json`, para cruzar después.
+2 rescatados. La clave (agente, plataforma, idioma, `intent_match` de cada fila) queda en git, en
+[`fixtures/virlo/real/fase0-hoja-clave.json`](../../Workflows/workflow-short-form-content/fixtures/virlo/real/fase0-hoja-clave.json), para cruzar después.
 
 **Dedup, medido:** de los 2.781 videos únicos de IG y TikTok que trajeron los seis agentes, **0**
 estaban en `processed_items` ni en `candidatos`, y 3 en `pool_crudo`: hoy Virlo y el roster de

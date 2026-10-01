@@ -89,7 +89,7 @@ en §Agent skills; acá solo se ubican.
   (agentes, sincronización, libro de gasto, Feed), con dependencias declaradas. La Etapa 2 (operación
   de media, PreWave/HUB) va después del piloto.
 - 🧭 [docs/virlo/00-plan.md](docs/virlo/00-plan.md) — **la migración a Virlo, en 7 partes** (28/09,
-  **DECIDIDO** en el grill del 01/10: D-1 a D-11, D-2 se cierra con la Fase 0). Reunión + API entera (01), arquitectura (02),
+  **DECIDIDO** en el grill del 01/10: D-1 a D-11, más D-12 (ningún filtro en el código); D-2 se cierra con la Fase 0, medida en 04 §3.1). Reunión + API entera (01), arquitectura (02),
   revisión del plan de Alejo (03), operación y costos (04), payloads campo por campo (05). Su tesis:
   **Virlo no es un Apify más caro, cambia el eje de búsqueda** (del roster al tema, que es lo único que
   ataca el techo de costos §4.1.1). **Un agente por temática**, que crea y opera el equipo de media y alimenta proyectos de cualquier voz; Claude asigna cada video a un solo proyecto (grill del 01/10, D-1 a D-11 cerradas salvo D-2). n8n deja de

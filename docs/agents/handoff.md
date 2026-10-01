@@ -29,11 +29,11 @@ tercio del medio eran cierres viejos anidados uno dentro de otro bajo un encabez
 
 | buscás | está en |
 |---|---|
-| **el estado de hoy** | el §ARRANCÁ POR ACÁ de acá abajo (cierre 164) |
+| **el estado de hoy** | el §ARRANCÁ POR ACÁ de acá abajo (cierre 165) |
 | **🔴 la prioridad: el refactor a Virlo** | [docs/virlo/07-refactor-tickets.md](../virlo/07-refactor-tickets.md) — los tickets en dos carriles; decisiones en [00-plan](../virlo/00-plan.md) y [ADR-102](../adr/ADR-102-la-busqueda-pasa-a-virlo-por-tematica.md) |
 | **el refactor del motor** | 🧭 [plan-refactor-motor.md](./plan-refactor-motor.md) — el punto de partida único |
 | **los mensajes al equipo de redes** | [plan-refactor-motor §9](./plan-refactor-motor.md) — **1 y 2 enviados el 12/09**, el 3 escrito y pendiente |
-| **los cierres 145 a 164** | acá abajo, completos |
+| **los cierres 145 a 165** | acá abajo, completos |
 | **los cierres 70 a 144** | [handoff-archivo-2026-06_09.md](./handoff-archivo-2026-06_09.md) |
 | **el refactor Voces→Proyectos** | 🗄️ terminado y archivado el 2026-09-12: [docs/archivo/refactor-voces-proyectos.md](../archivo/refactor-voces-proyectos.md) |
 
@@ -41,7 +41,92 @@ tercio del medio eran cierres viejos anidados uno dentro de otro bajo un encabez
 N`), **nunca anidado dentro del anterior**. Así fue como nacieron las 5.736 líneas de blockquotes
 dentro de blockquotes que se acaban de archivar.
 
-## 🚦 ARRANCÁ POR ACÁ — CIERRE 164 (2026-10-01): T0 aplicada (la `046` nueva) y las temáticas de prueba
+## 🚦 ARRANCÁ POR ACÁ — CIERRE 165 (2026-10-01): A2, la sonda de Virlo corrida y medida; falta la calificación de Majo
+
+> Se corrió la Fase 0 entera. **Gastó 9,00 USD del crédito de Virlo (saldo 41) y unos centavos de
+> Supadata y Claude. No se tocó n8n, no se escribió en Supabase, no se aplicó ninguna migración.**
+> El informe para leer en 5 minutos: [Sonda de Virlo](https://claude.ai/artifact/W87qcpyknV8Zdpz1EhiRBx)
+> (artifact privado de Mani). Los números con su detalle: [04 §3.1](../virlo/04-operacion-y-costos.md).
+
+### ⏭️ Lo primero al retomar
+
+**Cerrar el veredicto de A2 cuando Majo termine la hoja.** Es la compuerta del refactor (si aprueba
+< 10 %, se para todo; ≥ 25 %, sigue).
+
+1. La hoja: [*Calificación de videos nuevos (prueba, 01/10)*](https://docs.google.com/spreadsheets/d/1l7seZqfJKloCRgE709v6Yi1nF7jQhtTsVBhP8xO38vc/edit)
+   (cuenta `manuel.mejia@30x.com`, Mani ya se la pasó a Majo). Se lee con la herramienta de Google
+   Sheets del MCP `google-workspace`, pestaña *Calificar*, columnas E (¿sirve?) y F (¿para cuál?).
+2. La clave para cruzar está **en git**: [`fixtures/virlo/real/fase0-hoja-clave.json`](../../Workflows/workflow-short-form-content/fixtures/virlo/real/fase0-hoja-clave.json)
+   (por `n`: agente, plataforma, idioma, `intent_match`, proyecto que sugirió el asignador).
+3. Calcular: aprobación total (la fila en negrita) · por agente · por plataforma (¿YouTube sirve?) ·
+   `intent_match` true contra false (¿el filtro de Virlo acierta?) · **acierto del asignador**
+   ("Sí, para ese proyecto" contra "Sí, pero para otro", y los "ninguno" que sí servían).
+4. Escribir el resultado en [04 §3.1](../virlo/04-operacion-y-costos.md) y pasar A2 a ✅ o ⛔ en
+   [07](../virlo/07-refactor-tickets.md).
+
+### ✅ Hecho
+
+- **A2 🟡 · seis agentes de una corrida con Data Intelligence** sobre las temáticas de B0: T1, T2 y
+  T3 cuatro veces (EN, PT, FR y mezclada). Se repite con [`fixtures/virlo/sonda-2026-10-01.sh`](../../Workflows/workflow-short-form-content/fixtures/virlo/sonda-2026-10-01.sh).
+  Ids de los agentes (para releerlos gratis con `sonda-virlo.mjs leer-agent <id>`):
+  t1 `dbcc5bab-c0ea-4094-ae76-94502e3a9179` · t2 `9bbefd83-bbe4-4b3e-8a06-d2300599a09f` ·
+  t3-en `82c47a49-b61c-4de0-969d-5a78340488c7` · t3-pt `00d49a6f-3606-4700-868c-635e20b11dfc` ·
+  t3-fr `7239c81b-5ef8-4edd-b3d0-1a951e8c71dc` · t3-mezcla `2157de08-6ec5-4593-824b-894c5a10f85a`.
+  Terminaron todos (`completed`, sin próxima corrida). No se borraron: no gastan y guardan el historial.
+- **[`sonda-virlo.mjs`](../../Workflows/workflow-short-form-content/sonda-virlo.mjs) arreglada contra la doc de hoy**:
+  paginaba con `offset` (Virlo da 400; es `page`), dejaba YouTube afuera, leía `intent_match` como
+  booleano (es `{matches, reasoning}`) y dividía `X-Cost` por 100 (viene en dólares). Modos nuevos:
+  `saldo` y `sugerir`.
+- **Fixtures reales** en [`fixtures/virlo/real/`](../../Workflows/workflow-short-form-content/fixtures/virlo/real/)
+  para los tests de A1 (un video por caso: IG con y sin transcript, TikTok, YouTube viejo,
+  `intent_match` false, `pending`). Las respuestas enteras (24 MB) quedaron en `fixtures/virlo/crudo/`,
+  **gitignored y solo en la máquina de Mani**; se regeneran gratis con `leer-agent`.
+- **Prototipo del asignador** (D-4, adelanto de A3): [`asignar-fase0.mjs`](../../Workflows/workflow-short-form-content/asignar-fase0.mjs),
+  `claude-opus-5-5` con los criterios de `app.proyectos` (leídos en solo lectura). Sobre 55 videos:
+  25 con proyecto, 30 "ninguno". Supadata solo para los que no traían transcript (5 llamadas, 2 rescates).
+- **Plan al día:** [05 §8](../virlo/05-payloads-y-decisiones.md) (lo que entregó Virlo y qué se usa),
+  **D-12** en [00 §3](../virlo/00-plan.md) y **B6** en [07](../virlo/07-refactor-tickets.md).
+
+### 🔑 Decisiones (Mani, 01/10)
+
+- **D-12: ningún filtro del carril Virlo va en el código.** Todo es un ajuste del cockpit, partido
+  como ya lo parte `app.ajustes.visibilidad` (`equipo` = media, `dev` = dev). **Días de recencia y
+  umbral de vistas son de media y por agente** (en el motor de Apify la recencia es `dev`; en Virlo
+  no). Virlo no recibe vistas ni fechas al crear el agente: son filtros al leer, gratis.
+- **B6: Corridas de agentes en vivo** (progreso, reporte por keyword, Data Intelligence que falta).
+- **Un agente por idioma** (D-5, medido): el mezclado trajo 740 videos contra 2.039 de los tres
+  separados, y fue el que más descartó.
+
+### 📏 Lo que se midió (lo que más pesa)
+
+- 658 a 822 videos por corrida. Con el estándar de hoy (**400k y 50 días**): 12 a 26 por corrida,
+  **3 a 16** que calzan con la intención, 0,09 a 0,50 USD cada uno.
+- Pasa 500k el **7,7 %** de lo que trae Virlo, contra el 2,7 % del roster de Apify.
+- **La recencia recorta más que el piso**: con 50 días queda el 44 %. YouTube trae videos de hasta 2020.
+- Transcripts: TikTok y YouTube 82 a 100 %, **idénticos a Supadata** (20 de 20). Instagram 4 de 19.
+- Data Intelligence se estanca: 12 a 33 % de los 500k+ queda `pending` para siempre.
+- **Dedup: 0 de 2.781** videos de IG y TikTok estaban ya en el sistema. Virlo encontró 3 de los 78 referentes.
+
+### ⚠️ Gotchas
+
+- `X-Cost` viene en **dólares**; los créditos van en `X-Credits-Used`.
+- `GET /agents/:id/videos` pagina con `page`, y el reporte (`videos_linked`) dice más de lo que se
+  puede leer (T1: 1.477 contra 794). Abierto, para preguntarle a Virlo.
+- `intent_match.reasoning` son puntajes internos (`subject=0.69 stuffing=0.17`), no una frase.
+- El hook de secretos marcó como "secreto" el hash del nombre de archivo de un avatar de Virlo: falso positivo.
+- La aprobación de la hoja mide con el piso de 500k del plan, no con el de 400k de los ajustes.
+
+### 🔴 Lo que sigue (además del veredicto)
+
+1. **Preguntas para media**: ¿cuántos días de recencia para Virlo? ¿un Short de YouTube sirve? (P-YT)
+2. **Agente de prueba solo-Instagram** (D-8): Instagram quedó en 1 a 8 % de los 500k+. 0,50 a 1,50 USD.
+3. **Preguntarle a Virlo** por la diferencia entre `videos_linked` y lo que se puede leer.
+4. **Carril A libre:** T1 y A1 (ya hay fixtures reales). Las voces inactivas (solo María José está
+   activa) siguen pendientes antes del piloto.
+
+Sugerido para la próxima sesión: `/tdd` para A1 (el normalizador contra `fixtures/virlo/real/`).
+
+## 🔒 CIERRE 164 (2026-10-01): T0 aplicada (la `046` nueva) y las temáticas de prueba
 
 > Arranca el refactor de [docs/virlo/07](../virlo/07-refactor-tickets.md). Mani tomó el **Carril B**
 > (T0 + B0). **Se aplicó la `046`; nada se empujó a n8n, no se gastó en Virlo.**

@@ -1,7 +1,7 @@
 # Parte 7 · El refactor: Virlo como buscador, en tickets y en dos carriles
 
 > 🔴 **PRIORIDAD MÁXIMA del repo desde el 2026-10-01** (Mani). Es el refactor que toca hacer ya.
-> Decisiones: [00 §3](./00-plan.md) (D-1 a D-11) y [ADR-102](../adr/ADR-102-la-busqueda-pasa-a-virlo-por-tematica.md).
+> Decisiones: [00 §3](./00-plan.md) (D-1 a D-12) y [ADR-102](../adr/ADR-102-la-busqueda-pasa-a-virlo-por-tematica.md).
 > Este doc es el dueño de **qué se construye, en qué orden y quién puede ir en paralelo**. El estado
 > de cada ticket se marca acá (`⬜` → `🔨` → `✅`) y la sesión que lo mueve lo anota en el handoff.
 
