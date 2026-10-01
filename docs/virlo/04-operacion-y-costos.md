@@ -138,11 +138,22 @@ llegar entre el 13 % y el 33 % de Data Intelligence** en los videos de 500k+, as
 **Veredicto: técnicamente SIGUE; la compuerta todavía no se puede cerrar.** Todo lo que puede romper
 el modelo por el lado de Virlo aguantó: alcanza el volumen, sale barato, trae los transcripts de
 TT/YT y el id de Instagram se deriva bien (`external_id` de los seis reels de muestra, por la regla
-de `normalizar-virlo.mjs`). La fila en negrita la contesta el equipo:
-**`fixtures/virlo/crudo/calificacion-ciega.csv`** (105 videos de 500k+, 15 con `intent_match` true y
-5 false por agente, sin repetidos, mezclados y **sin decir de dónde vienen**). La clave
-(`calificacion-clave.json`, al lado) dice de qué agente, plataforma, idioma y `intent_match` es cada
-fila, para cruzar después.
+de `normalizar-virlo.mjs`). La fila en negrita la contesta el equipo, en la hoja
+[*Calificación de videos nuevos (prueba, 01/10)*](https://docs.google.com/spreadsheets/d/1l7seZqfJKloCRgE709v6Yi1nF7jQhtTsVBhP8xO38vc/edit)
+(cuenta de 30x): **55 videos de 500k+** (8 con `intent_match` true y 2 false por agente, sin
+repetidos, mezclados y **sin decir de dónde vienen**). Pestaña *Calificar* para ir rápido (proyecto
+sugerido, de qué trata, un desplegable); pestaña *Detalle* con el transcript y el porqué. El
+proyecto lo puso el prototipo del asignador
+([`asignar-fase0.mjs`](../../Workflows/workflow-short-form-content/asignar-fase0.mjs), `claude-opus-5-5`
+con los criterios de `app.proyectos`): **25 con proyecto y 30 "ninguno"**, así que la hoja mide a la
+vez a Virlo y al asignador (A3). Los transcripts faltantes se pidieron a Supadata: 5 llamadas,
+2 rescatados. La clave (agente, plataforma, idioma, `intent_match` de cada fila) queda en
+`fixtures/virlo/crudo/fase0-hoja.json`, para cruzar después.
+
+**Dedup, medido:** de los 2.781 videos únicos de IG y TikTok que trajeron los seis agentes, **0**
+estaban en `processed_items` ni en `candidatos`, y 3 en `pool_crudo`: hoy Virlo y el roster de
+Apify traen material que no se pisa. Entre agentes sí: el mezclado comparte 220 videos con el
+de solo inglés.
 
 ## 4. Cómo se vigila
 
