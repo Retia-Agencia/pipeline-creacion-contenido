@@ -196,8 +196,13 @@ se cita, y varios gobiernan código vivo.
 - [core/contracts/ingesta-registro.md](core/contracts/ingesta-registro.md) — cómo un workflow reporta runs/outputs a Supabase.
 - [core/contracts/run-plan.md](core/contracts/run-plan.md) — cómo el motor **pregunta qué correr** a la fachada del cockpit (`GET /api/engine/run-plan`, ADR-028): hermano de *lectura* de ingesta-registro.
   **La regla que gobierna los dos desde D7 (ADR-035):** *n8n lee su config por la fachada, escribe sus resultados por PostgREST.*
-- [core/schema/](core/schema/) — migraciones SQL de Supabase. **Se aplican a mano en el SQL Editor, en
-  orden**; el modelo vivo son las migraciones, no su descripción en prosa. Al 2026-08-20 están
+- [core/schema/](core/schema/) — migraciones SQL de Supabase. **Se aplican en orden, y solo cuando
+  Mani lo pide en el chat** (regla del 2026-10-01): o él a mano en el SQL Editor, o el agente con
+  `psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -1 -f core/schema/NNN_*.sql` (`-1` = una sola
+  transacción: si algo falla no queda nada a medias). 🔒 **`SUPABASE_DB_URL` entra como `postgres`,
+  el dueño de la base**: un agente **nunca** aplica una migración ni corre DDL o escrituras por su
+  cuenta, aunque la tenga a mano; leer (con `set default_transaction_read_only = on`) sí. Las pruebas
+  de una migración van dentro de `begin … rollback`. el modelo vivo son las migraciones, no su descripción en prosa. Al 2026-08-20 están
   **aplicadas las 001–029**, medidas contra prod **por su efecto** (PostgREST + `pg_policies`), no por
   haberse corrido: *una migración con gate humano no se da por aplicada porque se haya ejecutado,
   sino cuando se mide su efecto.*
@@ -402,7 +407,13 @@ se cita, y varios gobiernan código vivo.
   `desde` y 200 reels a re-medir (el tope). Motor empujado el mismo día, `n8n:diff` verde en los 5.
   ✅ **Y ya corrió:** 5 corridas del motor del 16 al 23/09, todas con `marca_de_agua: true`, una voz
   por vez. Lo que midieron está en el cierre 159 del handoff.
-  🔨 **La [`046`](core/schema/046_agentes_virlo.sql) (ADR-102, T0) está ESCRITA y SIN APLICAR.**
+  ✅ **La [`046`](core/schema/046_agentes_virlo.sql) (ADR-102, T0) está APLICADA** (por el agente con
+  `psql`, a pedido de Mani, 01/10; la primera por ese camino). Medida por su efecto: enum
+  `{instagram,tiktok,youtube}` · las 4 tablas con RLS y policy `tenant` · PostgREST 200 en las 4 ·
+  `virlo_corridas` sin `DELETE` para `authenticated` · las 59 filas de candidatos y 154 de descartes
+  en `origen = 'apify'` y los 28 proyectos en `{instagram,tiktok}` · y, dentro de `begin … rollback`,
+  el trigger rechaza un proyecto de otra empresa, la FK compuesta da `23503`, el `virlo_run_id`
+  repetido `23505` y una intención de 501 caracteres `23514`. Quedaron 0 filas de prueba.
   Crea agentes por temática, sus vínculos con Virlo y proyectos, el libro de corridas, y el origen
   de candidatos y descartes. ⚠️ El valor `youtube` del enum se agrega arriba y no se usa en la misma
   migración: PostgreSQL exige un commit antes de poder usar un valor nuevo.

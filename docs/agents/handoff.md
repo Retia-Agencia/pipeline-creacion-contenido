@@ -41,14 +41,14 @@ tercio del medio eran cierres viejos anidados uno dentro de otro bajo un encabez
 N`), **nunca anidado dentro del anterior**. Así fue como nacieron las 5.736 líneas de blockquotes
 dentro de blockquotes que se acaban de archivar.
 
-## 🚦 ARRANCÁ POR ACÁ — CIERRE 164 (2026-10-01): T0 escrita (la `046` nueva) y las temáticas de prueba
+## 🚦 ARRANCÁ POR ACÁ — CIERRE 164 (2026-10-01): T0 aplicada (la `046` nueva) y las temáticas de prueba
 
 > Arranca el refactor de [docs/virlo/07](../virlo/07-refactor-tickets.md). Mani tomó el **Carril B**
-> (T0 + B0). **Nada se aplicó a la base, nada se empujó a n8n, no se gastó en Virlo.**
+> (T0 + B0). **Se aplicó la `046`; nada se empujó a n8n, no se gastó en Virlo.**
 
 ### ✅ Hecho
 
-- **T0 🔨 · [`046_agentes_virlo.sql`](../../core/schema/046_agentes_virlo.sql) escrita y SIN APLICAR.**
+- **T0 ✅ · [`046_agentes_virlo.sql`](../../core/schema/046_agentes_virlo.sql) escrita, APLICADA y medida** (ver AGENTS.md §Contratos).
   Reemplaza a la `046_proveedor_virlo.sql` de ADR-101, que se borró del repo (queda en git,
   `d1de681`; los tres docs que la linkeaban ahora la citan en texto). Crea `app.agentes`,
   `app.agentes_virlo`, `app.agentes_proyectos`, `app.virlo_corridas` (el libro de D-10) y agrega
@@ -81,7 +81,9 @@ dentro de blockquotes que se acaban de archivar.
 
 ### 🔴 Lo que sigue
 
-1. **Aplicar la `046`** en el SQL Editor y correr su §Verificación → T0 ✅ y su renglón en AGENTS.md.
+1. ✅ ~~Aplicar la `046`~~: hecho. 🔑 **Regla nueva:** existe `SUPABASE_DB_URL` en el `.env` (entra como
+   `postgres`) y el agente aplica migraciones con `psql -1`, **solo cuando Mani lo pide en el chat**
+   (AGENTS.md §core/schema). Las pruebas van en `begin … rollback`.
 2. **A2, la sonda**: la API key ya está en el `.env`; pasar las keywords de B0 por `suggest-keywords`
    (gratis), ver el saldo y correr los agentes de una vez (~1,50 USD c/u, del crédito).
 3. **Carril A** (T1, A1) sigue libre.
