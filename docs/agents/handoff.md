@@ -51,7 +51,11 @@ dentro de blockquotes que se acaban de archivar.
 ### ⏭️ Lo primero al retomar
 
 1. **Recargar créditos de Anthropic** (Mani). Sin eso el gate, el pre-trim y la traducción no corren.
-2. **C1 (hecho por Codex y revisado: PASS, sin commit todavía)**: worktree `.claude/worktrees/motor-bugs`,
+2. **C1 ✅ en el live (17/10, commit `534aafc`, `n8n:push --apply` de 7 nodos; snapshot
+   `.n8n-snapshots/motor-2026-10-17T23-40-00-008Z.json`)**. Falta solo `alwaysOutputData` (abajo).
+   `n8n:diff` deja además un drift viejo en `Armar plan de corrida`: el ajuste `proveedor_scraping` de
+   ADR-101 (commit `7b4a5a1`, 28/09) nunca se empujó. ADR-101 está reemplazada y ADR-103 no usa ese
+   interruptor: **no empujarlo**; se borra del repo cuando se toque ese nodo. Antes decía:: worktree `.claude/worktrees/motor-bugs`,
    rama `fix/motor-gate-sin-creditos`. Tests, audit y validate en verde; dry-run de `n8n:push` limpio
    en 7 nodos (Pre-trim, Traducir, Gate, Armar candidato, Preparar procesados, Resumen, Cerrar run).
    ⚠️ **`n8n:push` no lleva `alwaysOutputData`** (es propiedad del nodo, no un `parameter`): el dry-run
