@@ -41,7 +41,61 @@ tercio del medio eran cierres viejos anidados uno dentro de otro bajo un encabez
 N`), **nunca anidado dentro del anterior**. Así fue como nacieron las 5.736 líneas de blockquotes
 dentro de blockquotes que se acaban de archivar.
 
-## 🚦 ARRANCÁ POR ACÁ — CIERRE 165 (2026-10-01): A2, la sonda de Virlo corrida y medida; falta la calificación de Majo
+## 🚦 ARRANCÁ POR ACÁ — CIERRE 166 (2026-10-17): Claude sin créditos, la recencia botaba lo mejor, y Apify se queda
+
+> Retomada después de dos semanas quieto. Se midieron las 6 corridas del motor del 09 al 15/10 (n8n
+> 206–217, con datos), los saldos y los chats del equipo. **No se aplicó migración, no se escribió en
+> Supabase y no se empujó nada a n8n** (el arreglo C1 está en una rama, sin `n8n:push`).
+> Reporte entero: `~/Downloads/reporte-corridas-motor-2026-10-09_15.md` (máquina de Mani).
+
+### ⏭️ Lo primero al retomar
+
+1. **Recargar créditos de Anthropic** (Mani). Sin eso el gate, el pre-trim y la traducción no corren.
+2. **C1 (hecho por Codex y revisado: PASS, sin commit todavía)**: worktree `.claude/worktrees/motor-bugs`,
+   rama `fix/motor-gate-sin-creditos`. Tests, audit y validate en verde; dry-run de `n8n:push` limpio
+   en 7 nodos (Pre-trim, Traducir, Gate, Armar candidato, Preparar procesados, Resumen, Cerrar run).
+   ⚠️ **`n8n:push` no lleva `alwaysOutputData`** (es propiedad del nodo, no un `parameter`): el dry-run
+   dice "Asignar proyecto+voz sin cambios". Hay que prenderlo a mano en el editor de n8n (*Settings →
+   Always Output Data* del nodo) o el arreglo del run vacío no llega al live.
+3. **C2** (la edad no descarta) es el siguiente arreglo del motor: chico y es el que más contenido rescata.
+4. Reunión de contenido el martes 21/10: piso de vistas para jóvenes (C3), TikTok en el roster (C7).
+
+### 📏 Lo que se midió
+
+- **Saldos (17/10):** Apify 3,73 de 29 USD del ciclo (10/10–09/11) · Supadata 107 de 30.000 ·
+  Virlo 41 USD · **Anthropic en cero** (`400 · credit balance is too low`).
+- **Vieira recibió 17 de 70 videos, ninguno juzgado.** El gate devolvió `relevancia_score = null` en
+  los 30 que llegaron, `Armar candidato` los contó como aprobados (fail-open de ADR-010) y salieron
+  sin traducir (en inglés, 2 en noruego). Las corridas cerraron `ok`. **Los 17 del Feed no se juzgaron.**
+- **La recencia botaba lo mejor del roster:** 138 de 159 observaciones de 400k+ tenían más de 50
+  días; son **45 reels fijados** (`isPinned`), re-comprados en cada corrida, 40 nunca vistos, hasta
+  13,7 M de vistas. *El "descarta el 90 %" que parecía era la misma tanda de fijados contada 6 veces.*
+- **Comprar lo nuevo choca con el piso:** edad mediana de lo comprado 4–15 días; 90 jóvenes entre
+  100k y 400k; la re-medición tocó 14.
+- **Corridas repetidas el mismo día:** 3 "sin novedades", 0,76 USD de Apify por nada.
+- **La corrida del 05/10 en `fallo` no falló:** el cron con 0 referentes; `Asignar` dio 0 items y el
+  run quedó abierto hasta el barrido de zombies.
+- Los 41 referentes de Vieira son de Instagram (cero TikTok).
+
+### 🔑 Decisiones (Mani, 17/10) → [ADR-103](../adr/ADR-103-apify-vigila-el-roster-virlo-busca-y-la-edad-no-descarta.md)
+
+- **No se migra todo a Virlo:** Apify vigila el roster (handles conocidos), Virlo busca por tema. Sin
+  corte (V-12 retirado). Misma puerta al Feed. Virlo propone referentes.
+- **La recencia no descarta.** La edad pasa a ser una etiqueta de rendimiento (vistas por día de
+  vida), sin filtrar; los cortes salen de `pool_crudo`.
+- **A2 sigue** sin esperar la hoja (Majo no la llenó).
+- **Claude caído retiene** en vez de entregar sin juzgar.
+- **Costo por voz:** no se sabe hoy; se re-mide después del refactor (C6).
+- Modelos gratis (NVIDIA, Gemini) en vez de Haiku: **descartado como arreglo principal**; recargar
+  cuesta poco y cambiar el modelo obliga a recalibrar el gate.
+
+### 🔴 Lo que sigue
+
+Los tickets del **Carril C** en [07](../virlo/07-refactor-tickets.md) (C1–C7), más los carriles A y B
+de Virlo, que no se movieron. El token de Google de `manuel.mejia@30x.com` está revocado:
+`gws_account_add` del MCP `google-workspace` y Mani entra con la cuenta.
+
+## 🔒 CIERRE 165 (2026-10-01): A2, la sonda de Virlo corrida y medida; falta la calificación de Majo
 
 > Se corrió la Fase 0 entera. **Gastó 9,00 USD del crédito de Virlo (saldo 41) y unos centavos de
 > Supadata y Claude. No se tocó n8n, no se escribió en Supabase, no se aplicó ninguna migración.**

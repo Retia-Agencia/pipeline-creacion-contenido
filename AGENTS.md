@@ -8,7 +8,9 @@ está hecho para que sumar un flujo o un cliente sea clonar y configurar, no con
 
 > 🔴 **PRIORIDAD MÁXIMA (desde el 2026-10-01): el refactor que pasa la búsqueda a Virlo.**
 > Norte: *Virlo es el nuevo buscador de contenido; el equipo de media crea temáticas, Virlo trae, Claude
-> asigna a los proyectos, el Feed recibe.* Los tickets, en dos carriles paralelos con sus dependencias:
+> asigna a los proyectos, el Feed recibe.* **Y Apify sigue vigilando el roster** (17/10,
+> [ADR-103](docs/adr/ADR-103-apify-vigila-el-roster-virlo-busca-y-la-edad-no-descarta.md): no hay corte,
+> la recencia deja de descartar y la edad pasa a ser una etiqueta; sus tickets son el **Carril C**). Los tickets, en dos carriles paralelos con sus dependencias:
 > **[docs/virlo/07-refactor-tickets.md](docs/virlo/07-refactor-tickets.md)**. Decisiones:
 > [docs/virlo/00-plan.md §3](docs/virlo/00-plan.md) y
 > [ADR-102](docs/adr/ADR-102-la-busqueda-pasa-a-virlo-por-tematica.md). **Si no sabes por dónde empezar,
@@ -183,7 +185,7 @@ se cita, y varios gobiernan código vivo.
   paleta (no para usarla). Se llena, se traduce a `globals.css`, y las pantallas cambian solas.
 
 **Decisiones**
-- [docs/adr/](docs/adr/) — ADRs 001–102 (102 archivos), una decisión por archivo con su porqué ([índice](docs/adr/README.md)).
+- [docs/adr/](docs/adr/) — ADRs 001–103 (103 archivos), una decisión por archivo con su porqué ([índice](docs/adr/README.md)).
   💸 **Si la pregunta es *"¿nos cambiamos de proveedor de scraping?"*, la contesta
   [ADR-098](docs/adr/ADR-098-el-proveedor-no-es-el-problema-la-cadencia-si.md): no.** El costo no es
   una propiedad del proveedor sino del régimen de uso — el mismo actor cuesta 23,83 USD o 4,45
@@ -543,7 +545,7 @@ Este repo está preparado para ingeniería con agentes. Leé esto antes de traba
 - **Dev-doc** ([docs/agents/dev-doc.md](docs/agents/dev-doc.md)) — referencia técnica nodo-por-nodo de
   los tres workflows (orden de ejecución, qué tabla de Postgres lee/escribe cada nodo, esquema Supabase y
   trazabilidad de campos). Leela antes de tocar un `workflow.json`; la fuente de verdad sigue siendo el JSON.
-- **ADRs** ([docs/adr/](docs/adr/)) — decisiones de arquitectura con su porqué (ADR-001..102). *El número sale de `ls docs/adr`, no de acá: este renglón dijo 083 con 84 archivos en disco, y 094 con 97.*
+- **ADRs** ([docs/adr/](docs/adr/)) — decisiones de arquitectura con su porqué (ADR-001..103). *El número sale de `ls docs/adr`, no de acá: este renglón dijo 083 con 84 archivos en disco, y 094 con 97.*
   Leé los relevantes antes de cambiar un área ya decidida; no las re-litigues.
 
 El **qué/por qué** del producto y el diseño viven en [ROADMAP.md](ROADMAP.md) (norte + checklist del
