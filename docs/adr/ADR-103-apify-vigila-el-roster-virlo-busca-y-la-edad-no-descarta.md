@@ -23,6 +23,9 @@ Medido el 17/10 sobre las 6 corridas del motor del 09 al 15/10 (voz Juan Pablo V
    distintos, todos reels fijados** (`isPinned`), re-comprados en cada corrida: el perfil de cada
    referente los devuelve aunque la compra pida solo lo nuevo. 40 de los 45 el equipo nunca los vio,
    y van hasta 13,7 M de vistas. Mani: *"si el video tiene más de 400k NUNCA se debería descartar"*.
+   **La guardia solo cortaba fijados**: de todo lo que llegó con más de 50 días, el 100 % era fijado,
+   porque el filtro de compra de Apify (`onlyPostsNewerThan`) frena todo lo demás y no puede frenar los
+   fijados (lo dice su doc). Los fijados son el 21 % del gasto de Apify de esas corridas (ticket C8).
 3. **Comprar solo lo nuevo (ADR-100) y exigirle 400k chocan**: lo comprado tiene una edad mediana
    de 4 a 15 días, y un reel de una semana casi nunca tiene 400k. 90 jóvenes iban entre 100k y 400k.
 4. **Repetir la corrida el mismo día no trae nada** (3 de 4 el 15/10, "sin novedades") y cuesta igual.

@@ -48,6 +48,22 @@ dentro de blockquotes que se acaban de archivar.
 > Supabase y no se empujó nada a n8n** (el arreglo C1 está en una rama, sin `n8n:push`).
 > Reporte entero: `~/Downloads/reporte-corridas-motor-2026-10-09_15.md` (máquina de Mani).
 
+### 🗺️ Cómo atacar lo que sigue, sesión por sesión (Mani, 17/10)
+
+Cada sesión es corta y cierra con algo medido. El orden importa: **S1 rescata contenido ya, S2 trae
+números a la reunión, y S3 en adelante es el refactor.**
+
+| # | Sesión | Qué hace | Cómo | Cierra cuando |
+|---|---|---|---|---|
+| **S0** | Mani, 5 min (sin agente) | Recargar Anthropic · prender *Always Output Data* en `Asignar proyecto+voz` · re-autorizar Google 30x (`gws_account_add`) | A mano | `n8n:diff` sin el drift de `alwaysOutputData` |
+| **S1** | **C2 + C8** · el motor deja de botar y marca los fijados | Borrar la guardia de recencia de `Asignar`; marcar `es_fijado` en el normalizado (`isPinned`) y llevarlo a `pool_crudo` si cabe sin migración | `/delegate` (Codex) con los tests de `test-nodos.mjs`; `n8n:push` | Una corrida de Vieira (~1 USD, **confirmar antes**) deja entrar los fijados nuevos y la siguiente no los repite |
+| **S2** | **C3, la medición** (antes del martes) | Distribución de vistas por día de vida en `app.pool_crudo` (por plataforma y franja de edad), propuesta de 4 cortes | Solo lectura (`psql` read-only), sin construir | Una tabla con los cortes propuestos para llevar a la reunión |
+| — | **Reunión del martes 21/10** | Piso para videos jóvenes (¿la etiqueta deja entrar bajo 400k?) · TikTok en el roster (C7) · cadencia por voz (C4) | Llevar el reporte de corridas + la tabla de S2 | Decisiones escritas en ADR-103 (D5, D7) |
+| **S3** | **C3, construir** | Guardar la etiqueta en el candidato y mostrarla en el Feed | `/delegate`; si pide columna, migración `047` con su ADR (core/) | Un candidato nuevo con su etiqueta en el Feed |
+| **S4** | **C4** · aviso de corrida repetida | El botón ▶ avisa si la voz ya corrió hoy | `/delegate` en `apps/dashboard` | El aviso aparece en el navegador |
+| **S5+** | **Carriles A y B de Virlo** | T1 → A1 (`/tdd` contra `fixtures/virlo/real/`) → A3 → A4; B1 en paralelo | Una sesión por ticket, como dice 07 | Lo que diga cada ticket |
+| **último** | **C6** · costos | Costo por voz con los dos carriles (la pregunta de Josefina) | Lectura + `costos.md` | Tabla con números medidos |
+
 ### ⏭️ Lo primero al retomar
 
 1. **Recargar créditos de Anthropic** (Mani). Sin eso el gate, el pre-trim y la traducción no corren.
@@ -80,6 +96,14 @@ dentro de blockquotes que se acaban de archivar.
 - **La corrida del 05/10 en `fallo` no falló:** el cron con 0 referentes; `Asignar` dio 0 items y el
   run quedó abierto hasta el barrido de zombies.
 - Los 41 referentes de Vieira son de Instagram (cero TikTok).
+- **Los fijados, medidos (17/10):** son el **21 % de lo que se le paga a Apify** (276 de 1.308 items,
+  ~0,66 de 3,12 USD) y **78 reels distintos** re-comprados en cada corrida; en las corridas "sin
+  novedades" llegan al 31–61 %. **Todos** los videos de más de 50 días que llegaron eran fijados (0 no
+  fijados): el filtro de fecha de Apify funciona para todo **menos** los fijados, y su doc lo dice
+  (*"Pinned posts may still appear even with this filter set"*). **No hay opción para saltarlos**: el
+  actor cobra 0,0023 USD por item. ⇒ La guardia de recencia del motor **solo** cortaba fijados: era la
+  que tiraba justo lo que el filtro de compra no podía frenar. Abierto: si los fijados **ocupan cupo**
+  de `resultsLimit` (25 por cuenta) y desplazan videos nuevos; se mide en C8.
 
 ### 🔑 Decisiones (Mani, 17/10) → [ADR-103](../adr/ADR-103-apify-vigila-el-roster-virlo-busca-y-la-edad-no-descarta.md)
 
