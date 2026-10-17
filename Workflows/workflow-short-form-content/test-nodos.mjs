@@ -1199,7 +1199,7 @@ const runTraducir = async (items, { presupuesto = 0, concurrencia, delayMs = 5, 
     enVuelo++; maxEnVuelo = Math.max(maxEnVuelo, enVuelo);
     await new Promise((r) => setTimeout(r, delayMs));
     enVuelo--;
-    if (falla) throw new Error('anthropic caída (mock)');
+    if (falla) throw (falla instanceof Error ? falla : new Error('anthropic caída (mock)'));
     return respuesta || { content: [{ text: 'traducido' }] };
   } } };
   const $ = (n) => {
@@ -1250,6 +1250,11 @@ await (async () => {
     check('y deja de ser silencioso: lo dice en el log', logs.some((l) => /ERROR id=f1/.test(l)), JSON.stringify(logs));
   }
   {
+    const credito = new Error('Your credit balance is too low to access the Anthropic API');
+    const { out } = await runTraducir([xvid('credito')], { falla: credito });
+    check('saldo agotado en traducción viaja como _claude_sin_creditos', out[0]._claude_sin_creditos === true, JSON.stringify(out[0]));
+  }
+  {
     // presupuesto agotado: budget ínfimo + llamadas lentas ⇒ no se ARRANCAN traducciones nuevas.
     // La diferencia con Transcribir: acá el video SIGUE VIVO, solo que sin traducir.
     const items = []; for (let i = 0; i < 40; i++) items.push(xvid('p' + i));
@@ -1281,7 +1286,7 @@ const runPretrim = async ({ items = [], projects = {}, cfg = {}, delayMs = 0, de
     enVuelo++; maxEnVuelo = Math.max(maxEnVuelo, enVuelo);
     if (delayMs) await new Promise((r) => setTimeout(r, delayMs));
     enVuelo--;
-    if (falla) throw new Error('haiku caído (mock)');
+    if (falla) throw (falla instanceof Error ? falla : new Error('haiku caído (mock)'));
     if (respuesta !== undefined) return respuesta;
     const usr = (((opts.body || {}).messages || [])[0] || {}).content || '';
     let ids = [];
@@ -1341,6 +1346,11 @@ await (async () => {
     check('🔴 Haiku caído: pasa todo (fail-open intacto)', out.length === 30, out.length + ' de 30');
     check('🔊 pero los items quedan marcados _pretrim_fallo', out.every((o) => o._pretrim_fallo === true), 'alguno sin marcar');
     check('y el nodo lo grita en el log', logs.some((l) => l.includes('chunks sin juicio')), JSON.stringify(logs));
+  }
+  {
+    const credito = new Error('Your credit balance is too low to access the Anthropic API');
+    const { out } = await runPretrim({ items: muchos(2), projects: P1, falla: credito });
+    check('saldo agotado en pre-trim viaja como _claude_sin_creditos', out.every((o) => o._claude_sin_creditos === true), JSON.stringify(out));
   }
   {
     // El caso que da nombre al arreglo: respuesta TRUNCADA. No es un error, es un JSON cortado —
@@ -1744,7 +1754,8 @@ const runGate = async ({ items = [], projects = {}, cfg = {}, haikuFalla = false
     enVuelo++; maxEnVuelo = Math.max(maxEnVuelo, enVuelo);
     if (delayMs) await new Promise((r) => setTimeout(r, delayMs));
     enVuelo--;
-    if (haikuFalla) throw new Error('haiku caído (mock)');
+    const debeFallar = typeof haikuFalla === 'function' ? haikuFalla(llamadas.length, opts) : haikuFalla;
+    if (debeFallar) throw (debeFallar instanceof Error ? debeFallar : new Error('haiku caído (mock)'));
     const usr = (((opts.body || {}).messages || [])[0] || {}).content || '';
     let ids = [];
     try { ids = JSON.parse(usr.slice(usr.indexOf('VIDEOS:\n') + 8)).map((v) => v.id); } catch (e) {}
@@ -1861,13 +1872,13 @@ await (async () => {
   }
   {
     // La única parte donde la métrica sigue mandando, y es correcta: sin juicio no hay relevancia.
-    const { out } = await runGate({
-      items: [gvid('sin-juicio', 'P1', { heat_score: 0.42 })],
-      projects: { P1: { nombre: 'P1', criterios: 'x' } }, haikuFalla: true,
+    const items = []; for (let i = 0; i < 26; i++) items.push(gvid('sin-juicio-' + i, 'P1', { heat_score: i === 0 ? 0.42 : 0.5 }));
+    const { out } = await runGate({ items,
+      projects: { P1: { nombre: 'P1', criterios: 'x' } }, haikuFalla: (n) => n === 1,
     });
-    const k = out.find((o) => o.external_id === 'sin-juicio');
-    check('lo que se quedó sin juicio sigue ordenando por su percentil métrico (fail-open, ADR-044)',
-      k && k.relevancia_score === null && k.heat_score === 1, JSON.stringify([k && k.relevancia_score, k && k.heat_score]));
+    const k = out.find((o) => o.external_id === 'sin-juicio-0');
+    check('en falla PARCIAL, lo que quedó sin juicio sigue fail-open por su métrica',
+      k && k.relevancia_score === null && k._gate_caido !== true, JSON.stringify(k));
   }
   {
     // El knob sigue siendo knob: el cockpit lo puede bajar sin deploy si esto sale mal.
@@ -1896,9 +1907,23 @@ await (async () => {
     check('y pasa si el juicio es relevante (no _descarte)', out.some((o) => o.external_id === 'b' && !o._descarte), JSON.stringify(out.map((o) => [o.external_id, !!o._descarte])));
   }
   {
-    const { out } = await runGate({ items: [gvid('c')], projects: { P1: { nombre: 'P1', criterios: 'trading' } }, haikuFalla: true });
-    const d = out.find((o) => o.external_id === 'c' && !o._descarte);
-    check('Haiku caído: el con-guion pasa igual, sin score (fail-open del juicio intacto)', !!d && d.relevancia_score == null, JSON.stringify(d && d.relevancia_score));
+    const items = []; for (let i = 0; i < 30; i++) items.push(gvid('credito-' + i));
+    const credito = new Error('Your credit balance is too low to access the Anthropic API');
+    const { out } = await runGate({ items, projects: { P1: { nombre: 'P1', criterios: 'trading' } }, haikuFalla: credito });
+    check('caída TOTAL: todos los items salen _gate_caido', out.length === 30 && out.every((o) => o._gate_caido === true), out.length + ' items');
+    check('y conservan la causa de saldo agotado', out.every((o) => o._claude_sin_creditos === true), JSON.stringify(out[0]));
+    const corte = await runCorte(out, { projects: { P1: { nombre: 'P1', n: 30 } }, top_n: 30 });
+    check('Armar candidato entrega 0 ante gate caído', corte.out.length === 1 && corte.out[0]._centinela === true && corte.out[0]._entregado === false, JSON.stringify(corte.out));
+    const batch = runPreparar({ videos: [pvid('hold', { _gate_caido: true })], runId: 'run-hold' });
+    check('Preparar procesados no quema items retenidos', batch.length === 0, JSON.stringify(batch));
+  }
+  {
+    const items = []; for (let i = 0; i < 30; i++) items.push(gvid('parcial-' + i));
+    const { out } = await runGate({ items, projects: { P1: { nombre: 'P1', criterios: 'trading' } }, haikuFalla: (n) => n === 1 });
+    check('falla PARCIAL: ningún item se marca _gate_caido', out.every((o) => o._gate_caido !== true), JSON.stringify(out.filter((o) => o._gate_caido)));
+    check('falla PARCIAL: el chunk fallido sigue fail-open y el otro queda juzgado',
+      out.filter((o) => o.relevancia_score == null).length === 25 && out.filter((o) => o.relevancia_score != null).length === 5,
+      JSON.stringify(out.map((o) => o.relevancia_score).reduce((a, x) => { a[x == null ? 'null' : 'score']++; return a; }, { null: 0, score: 0 })));
   }
   {
     const { out, llamadas } = await runGate({ items: [gvid('d'), gvid('e')], projects: { P1: { nombre: 'P1' } } }); // sin criterios
@@ -2441,22 +2466,25 @@ seccion('Centinela — los consumidores de aguas abajo lo ignoran');
 
 // `Resumen del run` es el que convierte la corrida en número. Si cuenta el centinela, la corrida
 // cierra diciendo que entregó 1 video que no existe, y `aprobados / N pedido` (ADR-089) miente.
-const runResumen = ({ candidatos = [], gate = [], traducidos = [], transcritos = [], plan = {}, procesados = [{}] } = {}) => {
+const runResumenCompleto = ({ candidatos = [], gate = [], traducidos = [], transcritos = [], pretrim = traducidos, asignados = traducidos, plan = {}, procesados = [{}] } = {}) => {
   const wrap = (a) => ({ all: () => a.map((j) => ({ json: j })), first: () => ({ json: a[0] || {} }) });
   const $ = (n) => {
     if (n === 'Armar candidato') return wrap(candidatos);
     if (n === 'Gate de relevancia') return wrap(gate);
     if (n === 'Traducir (Claude Haiku)') return wrap(traducidos);
     if (n === 'Transcribir (Supadata)') return wrap(transcritos);
-    if (n === 'Asignar proyecto+voz' || n === 'Pre-trim relevancia' || n === 'Heat-score v1' || n === 'Merge scrapes') return wrap(traducidos);
+    if (n === 'Asignar proyecto+voz') return wrap(asignados);
+    if (n === 'Pre-trim relevancia') return wrap(pretrim);
+    if (n === 'Heat-score v1' || n === 'Merge scrapes') return wrap(traducidos);
     if (n === 'POST processed_items') return wrap(procesados);
     if (n === 'Armar plan de corrida') return { first: () => ({ json: plan }) };
     if (n === 'Config') return { first: () => ({ json: {} }) };
     throw new Error('nodo no mockeado: ' + n);
   };
   const out = new Function('$', 'console', jsCode('Resumen del run'))($, { log: () => {} });
-  return out[0].json.metricas;
+  return out[0].json;
 };
+const runResumen = (args = {}) => runResumenCompleto(args).metricas;
 
 seccion('Centinela — Resumen del run cierra con el embudo, no con una entrega fantasma');
 {
@@ -2481,6 +2509,42 @@ seccion('Centinela — Resumen del run cierra con el embudo, no con una entrega 
   });
   check('una corrida que SÍ entrega no queda marcada sin_entregas', ok.sin_entregas === false && ok.outputs === 1, JSON.stringify({ s: ok.sin_entregas, o: ok.outputs }));
 }
+
+seccion('ADR-103 — Resumen nombra la caída de Claude y cuenta filas de pre-trim');
+{
+  const marcados = [
+    { external_id: 'mismo', proyecto_id: 'P1', _pretrim_fallo: true, _claude_sin_creditos: true },
+    { external_id: 'mismo', proyecto_id: 'P2', _pretrim_fallo: true, _claude_sin_creditos: true },
+    { external_id: 'otro', proyecto_id: 'P1', _pretrim_fallo: false },
+  ];
+  const gate = marcados.slice(0, 2).map((x) => Object.assign({}, x, { _gate_caido: true }));
+  const r = runResumenCompleto({
+    candidatos: [{ _centinela: true, _entregado: false, _gate_caido: true }],
+    gate, traducidos: marcados, transcritos: marcados, pretrim: marcados, asignados: marcados,
+    plan: { projects: { P1: { nombre: 'P1', n: 2 }, P2: { nombre: 'P2', n: 2 } } },
+  });
+  const esperado = "Claude sin creditos (Anthropic respondio 'credit balance is too low'): el gate, el pre-trim y la traduccion no corrieron. No se entrego nada; recargar en console.anthropic.com.";
+  check('gate caído cierra el run en estado fallo', r.estado === 'fallo' && r.metricas.gate_caido === true, JSON.stringify(r));
+  const cerrar = w.nodes.find((n) => n.name === 'Cerrar run en el registro');
+  check('Cerrar run persiste el estado calculado por Resumen', cerrar.parameters.jsonBody.includes("$json.estado || 'ok'"), cerrar.parameters.jsonBody);
+  check('el aviso de saldo agotado es exactamente el decidido', r.metricas.avisos.includes(esperado), JSON.stringify(r.metricas.avisos));
+  check('pretrim_sin_juicio cuenta ITEMS, incluso con external_id repetido', r.metricas.pretrim_sin_juicio === 2, String(r.metricas.pretrim_sin_juicio));
+}
+
+seccion('Asignación vacía — la cadena sigue viva y cierra como sin novedades');
+await (async () => {
+  const asignar = w.nodes.find((n) => n.name === 'Asignar proyecto+voz');
+  const ifNuevos = w.nodes.find((n) => n.name === 'IF — hay videos nuevos');
+  const cierre = w.nodes.find((n) => n.name === 'Cerrar run (sin novedades)');
+  check('Asignar proyecto+voz usa alwaysOutputData', asignar.alwaysOutputData === true, String(asignar.alwaysOutputData));
+  check('el IF conserva su condición original: un external_id vacío toma la rama FALSE', ifNuevos.parameters.conditions.conditions[0].leftValue === "={{ $json.external_id || '' }}", ifNuevos.parameters.conditions.conditions[0].leftValue);
+  check('la rama vacía conserva metricas.sin_novedades = true', cierre.parameters.jsonBody.includes('sin_novedades: true'), cierre.parameters.jsonBody);
+  const pretrim = await runPretrim({ items: [{}] });
+  check('Pre-trim conserva el item vacío para que la cadena no muera', pretrim.out.length === 1 && !pretrim.out[0].external_id, JSON.stringify(pretrim.out));
+  const heat = runHeat({ items: pretrim.out });
+  check('Heat-score conserva un item con external_id vacío hasta el IF', heat.out.length === 1 && !heat.out[0].external_id, JSON.stringify(heat.out));
+  check('el item vacío no dispara HTTP pago en Pre-trim ni Heat-score', pretrim.llamadas.length === 0 && !jsCode('Heat-score v1').includes('httpRequest'), `pretrim=${pretrim.llamadas.length}`);
+})();
 
 // ════════════════════════════════════════════════════════════════════════════
 // Preparar pool crudo — lo que se PAGÓ a Apify, IDÉNTICO al backfill (ADR-099, handoff #1)
