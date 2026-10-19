@@ -29,11 +29,11 @@ tercio del medio eran cierres viejos anidados uno dentro de otro bajo un encabez
 
 | buscás | está en |
 |---|---|
-| **el estado de hoy** | el §ARRANCÁ POR ACÁ de acá abajo (cierre 165) |
+| **el estado de hoy** | el §ARRANCÁ POR ACÁ de acá abajo (cierre 167) |
 | **🔴 la prioridad: el refactor a Virlo** | [docs/virlo/07-refactor-tickets.md](../virlo/07-refactor-tickets.md) — los tickets en dos carriles; decisiones en [00-plan](../virlo/00-plan.md) y [ADR-102](../adr/ADR-102-la-busqueda-pasa-a-virlo-por-tematica.md) |
 | **el refactor del motor** | 🧭 [plan-refactor-motor.md](./plan-refactor-motor.md) — el punto de partida único |
 | **los mensajes al equipo de redes** | [plan-refactor-motor §9](./plan-refactor-motor.md) — **1 y 2 enviados el 12/09**, el 3 escrito y pendiente |
-| **los cierres 145 a 165** | acá abajo, completos |
+| **los cierres 145 a 167** | acá abajo, completos |
 | **los cierres 70 a 144** | [handoff-archivo-2026-06_09.md](./handoff-archivo-2026-06_09.md) |
 | **el refactor Voces→Proyectos** | 🗄️ terminado y archivado el 2026-09-12: [docs/archivo/refactor-voces-proyectos.md](../archivo/refactor-voces-proyectos.md) |
 
@@ -41,7 +41,39 @@ tercio del medio eran cierres viejos anidados uno dentro de otro bajo un encabez
 N`), **nunca anidado dentro del anterior**. Así fue como nacieron las 5.736 líneas de blockquotes
 dentro de blockquotes que se acaban de archivar.
 
-## 🚦 ARRANCÁ POR ACÁ — CIERRE 166 (2026-10-17): Claude sin créditos, la recencia botaba lo mejor, y Apify se queda
+## 🚦 ARRANCÁ POR ACÁ — CIERRE 167 (2026-10-18): la etiqueta de rendimiento medida y decidida (S2 ✅)
+
+> Sesión de solo lectura sobre `app.pool_crudo` (`psql` read-only). **No se escribió en Supabase, no
+> se tocó n8n y no se construyó nada.** El plan de sesiones sigue siendo la tabla del cierre 166, más
+> abajo; **S2 está hecha** y C9 entra después de S3.
+
+### 📏 Lo que se midió (18/10) → [plan-refactor-motor §1.5](./plan-refactor-motor.md)
+
+- 34.906 observaciones de `pool_crudo`, **solo Instagram** (cero TikTok). Consulta:
+  [`docs/experimentos/2026-10-18-etiqueta-rendimiento.sql`](../experimentos/2026-10-18-etiqueta-rendimiento.sql).
+- **Vistas por día de vida cae ~4× por franja de edad** (mediana 6.853/d en < 7 días, 246/d en > 50).
+- **Fijados probables:** 136 reels de 55 cuentas (el motor los compró con > 50 días). `es_fijado`
+  sigue sin existir (C8).
+- Del 16/09 al 15/10 el motor compró 1.904 reels nuevos: 240 pasaban el piso de 500k, 1.105 son
+  *muy bueno* o *bueno*.
+
+### 🔑 Decisiones (Mani, 18/10) → [ADR-104](../adr/ADR-104-la-etiqueta-decide-que-se-muestra-el-piso-deja-de-filtrar.md)
+
+- **Vara única:** *muy bueno* ≥ 20k/d · *bueno* ≥ 5k · *medio* ≥ 1k · *bajo*. **"Contra su edad"**
+  va al lado como insight y no decide.
+- **Pasan todos al gate**; el Feed muestra solo *muy bueno* y *bueno*; el resto queda en **backlog**.
+  El corte va después del gate (~8× más videos al gate; se mide en C9 y C6).
+- Nombres: los de ADR-103. **TikTok fuera** (solo usan Instagram).
+
+### 🔴 Lo que sigue
+
+1. **Reunión del martes 21/10:** presentar ADR-104 D3 al jefe (apaga su piso de 500k como filtro).
+   Llevar §1.5 y el reporte de corridas. Si no lo aprueba, C9 no se construye y la etiqueta solo
+   ordena.
+2. **S1 (C2 + C8)** sigue pendiente, y C3 depende de C2.
+3. **S3 = C3** (construir la etiqueta), después **C9** (apagar el piso) con lo abierto de ADR-104.
+
+## 🔒 CIERRE 166 (2026-10-17): Claude sin créditos, la recencia botaba lo mejor, y Apify se queda
 
 > Retomada después de dos semanas quieto. Se midieron las 6 corridas del motor del 09 al 15/10 (n8n
 > 206–217, con datos), los saldos y los chats del equipo. **No se aplicó migración, no se escribió en
@@ -57,8 +89,8 @@ números a la reunión, y S3 en adelante es el refactor.**
 |---|---|---|---|---|
 | **S0** | Mani, 5 min (sin agente) | Recargar Anthropic · prender *Always Output Data* en `Asignar proyecto+voz` · re-autorizar Google 30x (`gws_account_add`) | A mano | `n8n:diff` sin el drift de `alwaysOutputData` |
 | **S1** | **C2 + C8** · el motor deja de botar y marca los fijados | Borrar la guardia de recencia de `Asignar`; marcar `es_fijado` en el normalizado (`isPinned`) y llevarlo a `pool_crudo` si cabe sin migración | `/delegate` (Codex) con los tests de `test-nodos.mjs`; `n8n:push` | Una corrida de Vieira (~1 USD, **confirmar antes**) deja entrar los fijados nuevos y la siguiente no los repite |
-| **S2** | **C3, la medición** (antes del martes) | Distribución de vistas por día de vida en `app.pool_crudo` (por plataforma y franja de edad), propuesta de 4 cortes | Solo lectura (`psql` read-only), sin construir | Una tabla con los cortes propuestos para llevar a la reunión |
-| — | **Reunión del martes 21/10** | Piso para videos jóvenes (¿la etiqueta deja entrar bajo 400k?) · TikTok en el roster (C7) · cadencia por voz (C4) | Llevar el reporte de corridas + la tabla de S2 | Decisiones escritas en ADR-103 (D5, D7) |
+| ✅ **S2** | **C3, la medición** (hecha el 18/10, cierre 167) | Distribución de vistas por día de vida en `app.pool_crudo` (por plataforma y franja de edad), propuesta de 4 cortes | Solo lectura (`psql` read-only), sin construir | Una tabla con los cortes propuestos para llevar a la reunión |
+| — | **Reunión del martes 21/10** | ~~Piso para videos jóvenes~~ → visto bueno del jefe a ADR-104 D3 (cierre 167) · TikTok en el roster (C7) · cadencia por voz (C4) | Llevar el reporte de corridas + plan-refactor-motor §1.5 | Decisiones escritas en ADR-103 (D7) y ADR-104 |
 | **S3** | **C3, construir** | Guardar la etiqueta en el candidato y mostrarla en el Feed | `/delegate`; si pide columna, migración `047` con su ADR (core/) | Un candidato nuevo con su etiqueta en el Feed |
 | **S4** | **C4** · aviso de corrida repetida | El botón ▶ avisa si la voz ya corrió hoy | `/delegate` en `apps/dashboard` | El aviso aparece en el navegador |
 | **S5+** | **Carriles A y B de Virlo** | T1 → A1 (`/tdd` contra `fixtures/virlo/real/`) → A3 → A4; B1 en paralelo | Una sesión por ticket, como dice 07 | Lo que diga cada ticket |

@@ -114,6 +114,20 @@ historia se guarda por handle en texto y no por FK; una Voz o un Proyecto, solo 
 Candidatos ni Descartes colgando. La frase que rechaza el borrado dice **cuánta** historia hay y
 ofrece apagar.
 
+**Etiqueta de rendimiento**:
+La calificación de un video por sus **vistas por día de vida** (vistas / días desde que se publicó),
+con una vara única para todas las edades: *muy bueno · bueno · medio · bajo* (ADR-104). Decide qué
+muestra el Feed; no descarta.
+
+**Contra su edad**:
+El lugar de un video entre los de su misma franja de edad (*top 10 % de su edad*, etc.). Se muestra al
+lado de la Etiqueta de rendimiento como dato, y no decide nada (ADR-104 D2).
+
+**Backlog**:
+Los candidatos juzgados que el Feed no muestra porque su Etiqueta de rendimiento es *medio* o *bajo*.
+Quedan guardados para rescatarlos si hacen falta (ADR-104 D3). No es `app.pool_crudo`: eso es lo que
+se le compró a Apify, juzgado o no.
+
 **Heat-score**:
 El número con que el motor ordena los candidatos de caliente a frío. Combina la relevancia/calidad
 del contenido (juicio semántico contra los criterios del Proyecto ⊕ la Voz) con su desempeño objetivo

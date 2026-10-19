@@ -308,6 +308,89 @@ controles maduros casi no se movieron (880.654 → 881.157; 294.568 → 294.428)
 por tramo (mediana 5 a 22 días), así que la columna %/día es una normalización lineal y cruda. Sirve
 para decidir el corte de "joven", no para construir `avance(edad)` con decimales.
 
+### §1.5 · 📏 La etiqueta de rendimiento (C3, ADR-103 D5), medida el 18/10
+
+**Fuente:** `app.pool_crudo` al **2026-10-18**, solo lectura, cero USD: 34.906 observaciones
+(32.243 del backfill 17/08–14/09 + 2.663 del motor 16/09–15/10). **Solo hay Instagram**: cero filas
+de TikTok, así que los cortes de abajo no valen para TikTok hasta medirlo.
+Consulta entera: [`docs/experimentos/2026-10-18-etiqueta-rendimiento.sql`](../experimentos/2026-10-18-etiqueta-rendimiento.sql).
+
+**Método:** `vpd = vistas / max(días de vida, 1)`. Una fila por (reel, franja), la última observación
+del reel en esa franja, para que un reel re-comprado 20 veces no pese 20. **Fijados:** `es_fijado`
+no existe todavía (C8), así que se marca **fijado probable** al reel que el **motor** compró con más
+de 50 días (desde el 16/09 el filtro de fecha de Apify frena todo menos los fijados, handoff 17/10).
+Da **136 reels de 55 cuentas**, más que los 78 del handoff porque ese conteo era solo de Vieira; hasta
+9 pueden ser del borde de la ventana (50–60 días). Van aparte.
+
+**Vistas por día de vida (Instagram, sin fijados):**
+
+| franja | n | p25 | p50 | p75 | p90 | p97 | vistas p50 |
+|---|---|---|---|---|---|---|---|
+| < 7 d | 2.202 | 1.477 | 6.853 | 22.124 | 68.928 | 237.508 | 20.522 |
+| 7–14 d | 1.684 | 722 | 3.553 | 15.254 | 39.291 | 102.460 | 37.702 |
+| 14–50 d | 3.570 | 285 | 1.427 | 6.085 | 19.873 | 51.468 | 39.752 |
+| > 50 d | 6.361 | 33 | 246 | 1.326 | 4.719 | 13.573 | 29.216 |
+| *fijados (14 d +)* | *145* | *991* | *2.842* | *8.853* | *24.908* | *56.799* | *~1,4 M* |
+
+✅ **Decidido (Mani, 18/10): la etiqueta es una vara única**, igual para todas las edades. La
+comparación contra los videos de su misma edad **no reemplaza la etiqueta: va al lado, como insight**.
+
+**La etiqueta (vara única).** Cortes = p50 · p75 · p90 de todos los reels sin fijados (963 · 5.257 ·
+20.484), redondeados:
+
+| etiqueta | umbral | reels | < 7 d | 7–14 d | 14–50 d | > 50 d | fijados | jóvenes 100k–400k (< 7 d) |
+|---|---|---|---|---|---|---|---|---|
+| **muy bueno** | ≥ 20.000/d | 1.411 (10,2 %) | 600 | 343 | 353 | 115 | 19 | **257**: 10 de 195 re-medidos cruzaron 500k (5 %) |
+| **bueno** | ≥ 5.000/d | 2.130 (15,4 %) | 626 | 376 | 648 | 480 | 33 | **17**: 0 de 10 cruzaron |
+| **medio** | ≥ 1.000/d | 3.305 (23,9 %) | 525 | 485 | 1.048 | 1.247 | 55 | 0 |
+| **bajo** | < 1.000/d | 6.971 (50,5 %) | 451 | 480 | 1.521 | 4.519 | 38 | 0 |
+
+🔑 **Lo que la vara única hace, y por eso existe el insight:** vistas por día no es neutral a la edad
+(la mediana cae ~4× de una franja a la siguiente: un reel junta casi todo al principio y el
+denominador sigue creciendo). Con la vara única el **27 %** de los reels de < 7 días sale *muy bueno*
+y el **71 %** de los de > 50 días sale *bajo*, y **casi todos los jóvenes de 100k–400k (257 de 274)
+salen *muy bueno***. La etiqueta dice "rinde mucho hoy", que es justo lo que es.
+
+**El insight (contra su edad).** Al lado de la etiqueta, el lugar del reel entre los de su misma
+edad (*top 10 % de su edad*, etc.). Cortes por franja, de la tabla de percentiles de arriba:
+
+| contra su edad | < 7 d | 7–14 d | 14–50 d | > 50 d | jóvenes 100k–400k (< 7 d) |
+|---|---|---|---|---|---|
+| top 10 % | ≥ 70.000/d | ≥ 40.000/d | ≥ 20.000/d | ≥ 5.000/d | 70: 6 de 54 cruzaron (11 %) |
+| top 25 % | ≥ 22.000/d | ≥ 15.000/d | ≥ 6.000/d | ≥ 1.300/d | 174: 4 de 132 cruzaron (3 %) |
+| top 50 % | ≥ 7.000/d | ≥ 3.500/d | ≥ 1.500/d | ≥ 250/d | 30: 0 de 19 |
+| mitad de abajo | resto | resto | resto | resto | 0 |
+
+**Lecturas:**
+
+1. **Las dos lecturas se complementan.** La vara única separa a los jóvenes de 100k–400k del resto
+   del pool (257 son *muy bueno*), pero no entre ellos. El insight sí los separa: dentro de los 257,
+   los que además son *top 10 % de su edad* cruzan 500k más seguido (11 % contra 3 %). Poca muestra
+   (10 cruces en 205 re-medidos): es una señal, no una prueba.
+2. **Un reel viejo *muy bueno* es raro y valioso**: 115 de 6.361. El insight es el que avisa cuando
+   un viejo *medio* está en realidad en el top de su edad (el caso de los que reviven, §1.4).
+3. **Cuántos jóvenes dejaría entrar cada respuesta a la pregunta 2**, sobre dos meses de datos y 334
+   cuentas: *muy bueno* = 257; *muy bueno* + *top 10 % de su edad* = 70. La regla de §1.4 (re-medir
+   los < 7 d de 100k–400k) ya cubre a los 274 sin tocar el piso.
+4. **Los fijados quedan repartidos** (19 · 33 · 55 · 38 sobre 145): con vara única su vpd se diluye
+   por la edad, aunque contra su edad salen arriba (50 en el top 10 %).
+
+⚠️ **Sesgos:** el pool viene del roster, no de Instagram entero, así que *top 10 % de su edad* es "top 10 % de
+nuestros referentes". Los cortes son los percentiles de **hoy** y se re-miden cuando entre Virlo o
+TikTok. El número 274 no es el 75 de §1.4: allá era la primera compra de reels con 2+ mediciones del
+backfill; acá entra cualquier observación de < 7 días hasta el 15/10.
+
+**🗳️ Las cuatro preguntas, y cómo se cerraron (Mani, 18/10) → [ADR-104](../adr/ADR-104-la-etiqueta-decide-que-se-muestra-el-piso-deja-de-filtrar.md).**
+La 2 toca el piso del jefe y se le presenta el 21/10 para su visto bueno.
+
+1. ~~¿Qué es "bueno"?~~ ✅ **Vara única**, con la comparación contra su edad como insight al lado
+   (Mani, 18/10). Se presenta así en la reunión.
+2. ~~¿La etiqueta deja entrar jóvenes bajo el piso?~~ ✅ **Pasan todos al gate; el Feed muestra solo
+   *muy bueno* y *bueno*, y el resto queda en backlog** (juzgado y guardado, no visible). El corte va
+   **después** del gate: ~8× más videos al gate (1.904 contra 240 del 16/09–15/10). Ticket C9.
+3. ~~Los nombres~~ ✅ *muy bueno · bueno · medio · bajo* se quedan.
+4. ~~TikTok~~ ✅ **Fuera por ahora**: el equipo solo usa Instagram. Cuando entre, se mide aparte.
+
 ---
 
 ## §2 · El diagnóstico

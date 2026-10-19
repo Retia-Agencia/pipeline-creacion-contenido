@@ -2,6 +2,8 @@
 
 > **Estado:** **Aceptada** (Mani, 2026-10-17). D5 (los cortes de la etiqueta) y D7 (el aviso de corrida
 > repetida) quedan con la dirección decidida y el detalle abierto: se cierran en sus tickets.
+> 📏 **D5 la cierra y la enmienda [ADR-104](./ADR-104-la-etiqueta-decide-que-se-muestra-el-piso-deja-de-filtrar.md)** (18/10): cortes de vara única, el Feed
+> muestra solo *muy bueno* y *bueno*, y el piso de vistas deja de filtrar.
 > **Enmienda** [ADR-102](./ADR-102-la-busqueda-pasa-a-virlo-por-tematica.md) D3 (no hay corte: Apify
 > deja de ser sombra y rollback y pasa a ser un carril), [ADR-016](./ADR-016-knobs-de-ejecucion-globales-y-tope-de-costo.md)
 > (`dias_recencia` deja de descartar; queda solo como ventana de compra) y
