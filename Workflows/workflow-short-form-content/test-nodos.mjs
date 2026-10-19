@@ -282,6 +282,16 @@ const runCorte = async (items, plan, cfg = {}, { juicio2 = null, falla2 = false 
 const vid = (id, pid, heat, extra = {}) => Object.assign(
   { external_id: id, proyecto_id: pid, heat_score: heat, username: 'ref1', descripcion: 'v' + id, script: 'txt', url: '', plataforma: 'ig' }, extra);
 
+seccion('C3 — publicado_en llega al candidato sin recortarse');
+{
+  const publicado = '2026-10-18T10:23:45.000Z';
+  const { out } = await runCorte(
+    [vid('con-fecha', 'P1', 0.9, { publicado_en: publicado })],
+    { top_n: 100, projects: { P1: { nombre: 'P1', n: 1 } } },
+  );
+  check('Armar candidato conserva el ISO completo', out[0]?.publicado_en === publicado, JSON.stringify(out[0]));
+}
+
 seccion('C.1 — el techo de gasto sale de Ajustes (ADR-042)');
 {
   // La precedencia que estrena el re-import. Si esto se rompe, la corrida NO falla: transcribe
@@ -2190,16 +2200,17 @@ seccion('Armar candidato — la cobertura llega al Feed (ADR-095, Tarea 5)');
   check('sin cobertura conocida va null, no 0', out[0].cobertura_seg === null, String(out[0].cobertura_seg));
 }
 
-seccion('Preparar candidatos — los tres datos de medición llegan a la fila (ADR-086 + ADR-095)');
+seccion('Preparar candidatos — los datos de medición llegan a la fila (ADR-086 + ADR-095 + C3)');
 {
-  const filas = runPrepCandidatos([cvid('m1', { duracion_seg: 47.8, huella_guion: 'hola como estas', cobertura_seg: 41.5 })]);
-  check('la huella, la duración y la cobertura viajan a PostgREST', filas[0].huella_guion === 'hola como estas' && filas[0].duracion_seg === 47.8 && filas[0].cobertura_seg === 41.5, JSON.stringify([filas[0].huella_guion, filas[0].duracion_seg, filas[0].cobertura_seg]));
+  const publicado = '2026-10-18T10:23:45.000Z';
+  const filas = runPrepCandidatos([cvid('m1', { duracion_seg: 47.8, huella_guion: 'hola como estas', cobertura_seg: 41.5, publicado_en: publicado })]);
+  check('la huella, la duración, la cobertura y publicado_en viajan a PostgREST', filas[0].huella_guion === 'hola como estas' && filas[0].duracion_seg === 47.8 && filas[0].cobertura_seg === 41.5 && filas[0].publicado_en === publicado, JSON.stringify([filas[0].huella_guion, filas[0].duracion_seg, filas[0].cobertura_seg, filas[0].publicado_en]));
 }
 {
   // Sin ellos la fila sale igual: son datos para medir, no pueden tumbar una entrega ya pagada
   // (invariante #1 de PLAN §2.5). Misma forma que `run_id`.
   const filas = runPrepCandidatos([cvid('m2')]);
-  check('sin ellos la fila sale igual, con null (no tumban la entrega)', filas.length === 1 && filas[0].huella_guion === null && filas[0].duracion_seg === null && filas[0].cobertura_seg === null, JSON.stringify([filas[0].huella_guion, filas[0].duracion_seg, filas[0].cobertura_seg]));
+  check('sin ellos la fila sale igual, con null (no tumban la entrega)', filas.length === 1 && filas[0].huella_guion === null && filas[0].duracion_seg === null && filas[0].cobertura_seg === null && filas[0].publicado_en === null, JSON.stringify([filas[0].huella_guion, filas[0].duracion_seg, filas[0].cobertura_seg, filas[0].publicado_en]));
 }
 
 seccion('Preparar descartes — misma regla, misma instancia');
@@ -2365,6 +2376,8 @@ seccion('Normalizar IG — rechazo del proveedor ≠ dataset vacío');
     uno[0].json.engagement_rate === '15.00', JSON.stringify(uno[0].json.engagement_rate));
   check('...y la fecha se sigue recortando a día',
     uno[0].json.fecha_publicacion === '2026-09-01', JSON.stringify(uno[0].json.fecha_publicacion));
+  check('C3 — publicado_en conserva el ISO completo al lado de la fecha vieja',
+    uno[0].json.publicado_en === '2026-09-01T00:00:00.000Z', JSON.stringify(uno[0].json.publicado_en));
 
   const fijados = await correr([Object.assign(reel('fijado'), { isPinned: true }), reel('normal')]);
   check('C8 — un reel fijado queda marcado como es_fijado',
@@ -2396,6 +2409,8 @@ seccion('Normalizar TT — el carril secundario no mata la corrida');
   const bueno = await correr([{ id: '77', webVideoUrl: 'https://tt/77', authorMeta: { name: 'x', fans: 200 }, diggCount: 20, commentCount: 20, createTimeISO: '2026-09-02T10:00:00Z' }]);
   check('el mapeo sobrevivió al cambio a por-lote', bueno.length === 1 && bueno[0].json.external_id === '77', JSON.stringify(bueno));
   check('...y el engagement_rate se sigue calculando igual', bueno[0].json.engagement_rate === '20.00', JSON.stringify(bueno[0].json.engagement_rate));
+  check('C3 — TikTok también normaliza publicado_en como ISO completo',
+    bueno[0].json.publicado_en === '2026-09-02T10:00:00.000Z', JSON.stringify(bueno[0].json.publicado_en));
 }
 
 // ════════════════════════════════════════════════════════════════════════════

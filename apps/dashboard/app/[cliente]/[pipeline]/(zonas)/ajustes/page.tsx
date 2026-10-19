@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Settings, SlidersHorizontal, Users, type LucideIcon } from "lucide-react";
+import { Gauge, Settings, SlidersHorizontal, Users, type LucideIcon } from "lucide-react";
 import { Encabezado } from "@/components/ui/encabezado";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import { exigirTenant } from "@/lib/auth";
 const ICONOS_AJUSTES: Record<PantallaAjustes, LucideIcon> = {
   motor: SlidersHorizontal,
   equipo: Users,
+  rendimiento: Gauge,
 };
 
 // El índice de Ajustes, la 5ª zona (ADR-060). Mismo molde que `curar/page.tsx`, y por la misma
@@ -33,6 +34,11 @@ const COPY: Record<PantallaAjustes, Copy> = {
     titulo: "Equipo",
     descripcion:
       "Quiénes entran a esta empresa y con qué permisos. Invitar manda un mail con el acceso; quitarlo corta la entrada al toque.",
+  },
+  rendimiento: {
+    titulo: "Rendimiento",
+    descripcion:
+      "Las etiquetas que traducen las vistas por día de vida del reel para leer el Feed de un vistazo.",
   },
 };
 

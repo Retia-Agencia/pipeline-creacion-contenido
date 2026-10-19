@@ -13,8 +13,10 @@ import {
 } from "@/domain/feed";
 import type { ConteoProyecto } from "@/domain/entender";
 import { detectarRepetidos, type Gemelo } from "@/domain/repetidos";
+import { contraSuEdad, esInstagram, etiquetaDe, vpd } from "@/domain/rendimiento";
 import type { TenantContext } from "@/domain/tenant";
 import { fechaHora } from "@/lib/fechas";
+import { leerEtiquetasRendimiento } from "@/lib/rendimiento";
 import { scoped } from "@/lib/supabase/scoped";
 import { abortarSiTruncado } from "@/lib/supabase/tope";
 
@@ -55,6 +57,8 @@ const filaCandidato = z.object({
   calificacion: z.string().nullable(),
   estado: z.string(),
   run_id: z.string().nullable(),
+  publicado_en: z.string().nullable(),
+  creado_en: z.string(),
   proyectos: z.object({ nombre: z.string() }).nullable(),
   voces: z.object({ nombre: z.string() }).nullable(),
 });
@@ -64,7 +68,7 @@ const filaCandidato = z.object({
 const COLUMNAS =
   "id, titulo, thumbnail_url, referente, url_referente, heat_score, relevancia_score, " +
   "idioma, views, likes, seguidores, engagement, viral_por_tamano, " +
-  "calificacion, estado, run_id, proyectos(nombre), voces(nombre)";
+  "calificacion, estado, run_id, publicado_en, creado_en, proyectos(nombre), voces(nombre)";
 
 /**
  * El feed **entero** de ESTE cockpit para un filtro, con el proyecto ya resuelto a nombre por la FK.
@@ -96,28 +100,44 @@ export async function leerFeed(
     ctx,
     [...new Set(filas.map((r) => r.run_id).filter((id): id is string => id !== null))],
   );
+  const etiquetasRendimiento = await leerEtiquetasRendimiento(ctx);
 
-  return filas.map((r) => ({
-    id: r.id,
-    titulo: r.titulo,
-    thumbnail: r.thumbnail_url,
-    proyecto: r.proyectos?.nombre ?? "",
-    voz: r.voces?.nombre ?? null,
-    referente: r.referente,
-    urlReferente: r.url_referente,
-    heat: r.heat_score,
-    relevanciaScore: r.relevancia_score,
-    idioma: r.idioma,
-    views: r.views,
-    likes: r.likes,
-    seguidores: r.seguidores,
-    engagement: r.engagement,
-    viralPorTamano: r.viral_por_tamano,
-    calificacion: esCalificacion(r.calificacion) ? r.calificacion : null,
-    estado: (r.estado as Estado) ?? "nuevo",
-    corrida: r.run_id ? (etiquetas.get(r.run_id)?.etiqueta ?? null) : null,
-    corridaInicio: r.run_id ? (etiquetas.get(r.run_id)?.inicio ?? null) : null,
-  } satisfies CandidatoFeed));
+  return filas.map((r) => {
+    const valorVpd = vpd(r.views, r.publicado_en, r.creado_en);
+    const diasDeVida = r.publicado_en
+      ? (new Date(r.creado_en).getTime() - new Date(r.publicado_en).getTime()) / 86_400_000
+      : Number.NaN;
+    const rendimiento = esInstagram(r.url_referente)
+      ? {
+          etiqueta: etiquetaDe(valorVpd, etiquetasRendimiento)?.nombre ?? null,
+          vpd: valorVpd,
+          contraSuEdad: contraSuEdad(valorVpd, diasDeVida),
+        }
+      : null;
+
+    return ({
+      id: r.id,
+      titulo: r.titulo,
+      thumbnail: r.thumbnail_url,
+      proyecto: r.proyectos?.nombre ?? "",
+      voz: r.voces?.nombre ?? null,
+      referente: r.referente,
+      urlReferente: r.url_referente,
+      heat: r.heat_score,
+      relevanciaScore: r.relevancia_score,
+      idioma: r.idioma,
+      views: r.views,
+      likes: r.likes,
+      seguidores: r.seguidores,
+      engagement: r.engagement,
+      viralPorTamano: r.viral_por_tamano,
+      rendimiento,
+      calificacion: esCalificacion(r.calificacion) ? r.calificacion : null,
+      estado: (r.estado as Estado) ?? "nuevo",
+      corrida: r.run_id ? (etiquetas.get(r.run_id)?.etiqueta ?? null) : null,
+      corridaInicio: r.run_id ? (etiquetas.get(r.run_id)?.inicio ?? null) : null,
+    } satisfies CandidatoFeed);
+  });
 }
 
 /**

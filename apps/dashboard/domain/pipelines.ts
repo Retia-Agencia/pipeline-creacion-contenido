@@ -183,7 +183,7 @@ export function implementaPantalla(pipeline: Pipeline, pantalla: PantallaCurar):
 // casos, y el tercero decide si el patrón es real o si son dos cosas que se parecen. Lo que sí se
 // copia es la LECCIÓN — declarar por pipeline lo que existe— porque esa ya se pagó una vez.
 
-export const PANTALLAS_AJUSTES = ["motor", "equipo"] as const;
+export const PANTALLAS_AJUSTES = ["motor", "equipo", "rendimiento"] as const;
 
 export type PantallaAjustes = (typeof PANTALLAS_AJUSTES)[number];
 

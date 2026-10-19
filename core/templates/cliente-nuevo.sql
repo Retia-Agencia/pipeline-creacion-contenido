@@ -62,6 +62,23 @@ select cliente_id, workflow_id, cockpit_slug, cliente_nombre || ' — ' || cockp
 from _alta;
 
 
+-- ───────────────────── §3.1 · La vara inicial de rendimiento ─────────────────────
+insert into app.etiquetas_rendimiento (instance_id, nombre, minimo)
+select nueva.id, semilla.nombre, semilla.minimo
+  from _alta alta
+  join instances nueva
+    on nueva.client_id = alta.cliente_id
+   and nueva.slug      = alta.cockpit_slug
+ cross join (values
+   ('muy bueno', 20000::numeric),
+   ('bueno',       5000::numeric),
+   ('medio',       1000::numeric),
+   ('bajo',           0::numeric)
+ ) as semilla(nombre, minimo)
+ where alta.workflow_id = 'short-form-content'
+on conflict do nothing;
+
+
 -- ────────────────── §4 · Las 18 perillas, copiadas del cockpit modelo ──────────────────
 -- Se COPIAN en vez de listarse acá con sus valores: una lista hardcodeada en este archivo
 -- envejece sola cada vez que alguien agrega un knob o corrige una descripción, y el síntoma
