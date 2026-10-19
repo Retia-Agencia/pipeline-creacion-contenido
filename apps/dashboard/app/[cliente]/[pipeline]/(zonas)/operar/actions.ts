@@ -10,6 +10,7 @@ import {
   proyectosDelPlan,
   type CostoCorridaEstimado,
 } from "@/domain/corrida";
+import { avisoCorridaRepetida, corridaDeHoy } from "@/domain/corrida-repetida";
 import { valorAjuste } from "@/domain/marca-de-agua";
 import { saldoApify, type SaldoApify } from "@/lib/apify";
 import { leerAjustesComoRegistros } from "@/lib/ajustes";
@@ -174,7 +175,13 @@ export async function correrAhora(enRuta: CockpitEnRuta): Promise<ResultadoDispa
  */
 export async function queCostariaCorrer(
   enRuta: CockpitEnRuta,
-): Promise<{ costo: CostoCorridaEstimado; saldo: SaldoApify | null; ultimaBusqueda: string | null } | null> {
+): Promise<{
+  costo: CostoCorridaEstimado;
+  saldo: SaldoApify | null;
+  ultimaBusqueda: string | null;
+  /** C4: texto del aviso si esta voz ya corrió hoy; `null` si no. */
+  avisoRepetida: string | null;
+} | null> {
   const { ctx } = await exigirTenant("operar", enRuta.cliente, enRuta.pipeline);
   try {
     const [config, banco, ajustes, saldo, corridas] = await Promise.all([
@@ -182,7 +189,7 @@ export async function queCostariaCorrer(
       leerBanco(ctx),
       leerAjustesComoRegistros(ctx),
       saldoApify(),
-      ultimasCorridasMotor(ctx, 1),
+      ultimasCorridasMotor(ctx, 20),
     ]);
     const vista = armarVistaOperar(config.voces, config.proyectos, config.resultadosPorCuenta);
     const proyectosQueCorren = proyectosDelPlan(vista);
@@ -197,7 +204,10 @@ export async function queCostariaCorrer(
       ahora,
     );
     const costo = costoDeCorridaConMarca(banco, proyectosQueCorren, config.resultadosPorCuenta, ajustes, datos, ahora);
-    return { costo, saldo, ultimaBusqueda: corridas[0]?.inicio ?? null };
+    const repetida = corridaDeHoy(corridas, ahora);
+    // El costo del aviso es el estimado de esta misma confirmación (costoDeCorridaConMarca), no una cifra fija.
+    const avisoRepetida = repetida ? avisoCorridaRepetida(repetida.inicio, costo.usd, ahora) : null;
+    return { costo, saldo, ultimaBusqueda: corridas[0]?.inicio ?? null, avisoRepetida };
   } catch (e) {
     console.error("[operar] no se pudo estimar el costo de la corrida:", e);
     return null;
