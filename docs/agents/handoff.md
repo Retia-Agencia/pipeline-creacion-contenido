@@ -64,8 +64,10 @@ dentro de blockquotes que se acaban de archivar.
 
 ### ⏭️ Lo que sigue
 
-1. **Ver la pantalla en el navegador** (Ajustes → Rendimiento y una tarjeta del Feed). Nadie la miró
-   todavía: hoy `app.candidatos` tiene 0 filas, así que la etiqueta aparece recién con la próxima
+1. ✅ **Ajustes → Rendimiento verificada en producción** (19/10): carga las 4, crear una etiqueta
+   reacomoda los rangos, borrar pide confirmación, y quedan sus 2 eventos `rendimiento.etiqueta_*`
+   (**son de la verificación, no adopción**: el primer evento de uso real es el 3.º). **Falta ver la
+   tarjeta del Feed**: `app.candidatos` tiene 0 filas, así que la etiqueta aparece con la próxima
    corrida, y los candidatos viejos no tienen `publicado_en`.
 2. La corrida de prueba de Vieira (cierre 167) cierra a la vez S1 y esto.
 3. **C9** espera la reunión del 21/10.
