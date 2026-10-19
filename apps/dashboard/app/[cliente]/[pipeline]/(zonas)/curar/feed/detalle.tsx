@@ -124,6 +124,16 @@ function Contenido({ candidato }: { candidato: CandidatoFeed }) {
           </Badge>
         )}
         {candidato.views !== null && <span className="text-muted-foreground">{miles(candidato.views)} vistas</span>}
+        {candidato.rendimiento?.etiqueta && candidato.rendimiento.vpd !== null && (
+          <>
+            <Badge variant="secondary">{candidato.rendimiento.etiqueta}</Badge>
+            <span className="text-muted-foreground">
+              ~{miles(Math.round(candidato.rendimiento.vpd))}/día
+              {candidato.rendimiento.contraSuEdad &&
+                ` · ${candidato.rendimiento.contraSuEdad} de su edad`}
+            </span>
+          </>
+        )}
         {candidato.likes !== null && <span className="text-muted-foreground">{miles(candidato.likes)} likes</span>}
         {candidato.seguidores !== null && (
           <span className="text-muted-foreground">{miles(candidato.seguidores)} seguidores</span>

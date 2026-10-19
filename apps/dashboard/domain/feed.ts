@@ -92,6 +92,11 @@ export type CandidatoFeed = {
   /** Interacción sobre seguidores. La columna existía desde `009` y no la leía nadie. */
   engagement: number | null;
   viralPorTamano: boolean;
+  rendimiento: {
+    etiqueta: string | null;
+    vpd: number | null;
+    contraSuEdad: string | null;
+  } | null;
   calificacion: Calificacion | null;
   estado: Estado;
   /**
