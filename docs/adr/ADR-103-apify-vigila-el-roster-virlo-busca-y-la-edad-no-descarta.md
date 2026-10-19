@@ -77,3 +77,10 @@ Medido el 17/10 sobre las 6 corridas del motor del 09 al 15/10 (voz Juan Pablo V
 - (−) Dos carriles para mantener en vez de uno. n8n no se apaga mientras el carril de Apify viva ahí.
 - (−) **El costo por voz no se puede calcular hoy**: cambian la compra, el gate y el proveedor. Se
   re-mide en [costos.md](../costos.md) después del refactor (ticket C6 de [07](../virlo/07-refactor-tickets.md)).
+
+## Enmienda 1 — es_fijado en pool_crudo (2026-10-18)
+
+Los fijados son el 21 % del gasto (ticket C8), y sin conservar la marca no se puede medir si ocupan
+cupo de `resultsLimit`. La migración `047_pool_crudo_es_fijado.sql` agrega `es_fijado` sin backfill:
+`true` si Apify marcó `isPinned`, `false` si vino y no está fijado, y `null` si no se sabe (filas
+anteriores o actor sin el campo). `resultsLimit` no cambia hasta medir esta evidencia.

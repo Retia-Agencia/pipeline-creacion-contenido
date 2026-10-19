@@ -2601,11 +2601,13 @@ const IG_REEL = {
   id: '3533826375939613252', shortCode: 'DEKrF2ryWJE', type: 'Video',
   ownerUsername: '@Vieira_Trading', videoViewCount: null, videoPlayCount: 44210,
   likesCount: 1200, commentsCount: 33, followersCount: 55000, videoDuration: 42.5,
+  isPinned: true,
   timestamp: '2026-09-01T10:00:00.000Z', url: 'https://www.instagram.com/reel/DEKrF2ryWJE/',
 };
 const TT_REEL = {
   id: '77', webVideoUrl: 'https://tt/77', authorMeta: { name: 'X', fans: 200 },
   diggCount: 20, commentCount: 20, playCount: 5000, videoMeta: { duration: 31 },
+  isPinned: false,
   createTimeISO: '2026-09-02T10:00:00.000Z',
 };
 
@@ -2617,7 +2619,7 @@ seccion('Preparar pool crudo — la fila IG es IDÉNTICA a la del backfill (ADR-
   // item. Se compara sobre las claves del MAPEO — `medido_en`/`apify_dataset_id`/`run_id`/`origen`
   // difieren a propósito (el motor mide en vivo, el backfill copia un dataset viejo).
   const bf = normalizarItem(IG_REEL, { medido_en: ig.medido_en, apify_run_id: null, apify_dataset_id: ig.apify_dataset_id, origen: 'motor' });
-  const CLAVES_MAPEO = ['plataforma', 'external_id', 'handle', 'publicado_en', 'vistas', 'likes', 'comentarios', 'seguidores', 'duracion_seg'];
+  const CLAVES_MAPEO = ['plataforma', 'external_id', 'handle', 'publicado_en', 'vistas', 'likes', 'comentarios', 'seguidores', 'duracion_seg', 'es_fijado'];
   const distintas = CLAVES_MAPEO.filter((k) => JSON.stringify(ig[k]) !== JSON.stringify(bf[k]));
   check('la fila IG del motor coincide con normalizarItem del backfill en todas las claves de mapeo',
     distintas.length === 0, 'difieren: ' + distintas.map((k) => `${k}: ${JSON.stringify(ig[k])} vs ${JSON.stringify(bf[k])}`).join(', '));
@@ -2626,6 +2628,8 @@ seccion('Preparar pool crudo — la fila IG es IDÉNTICA a la del backfill (ADR-
   check('las vistas caen a videoPlayCount cuando videoViewCount es null (cadena del motor)',
     ig.vistas === 44210, String(ig.vistas));
   check('el handle se normaliza (sin @, minúsculas)', ig.handle === 'vieira_trading', String(ig.handle));
+  check('isPinned true queda como es_fijado true en el motor y en normalizarItem',
+    ig.es_fijado === true && bf.es_fijado === true, `motor=${String(ig.es_fijado)} backfill=${String(bf.es_fijado)}`);
   check('origen = motor', ig.origen === 'motor', String(ig.origen));
   check('run_id de la corrida viaja en la fila', ig.run_id === 'run-7', String(ig.run_id));
   check('instance_id viaja en la fila (nunca hardcodeado: sale del Config/plan)', ig.instance_id === 'inst-42', String(ig.instance_id));
@@ -2644,6 +2648,7 @@ seccion('Preparar pool crudo — TikTok mapea con la misma forma y coerción');
     Object.keys(tt).sort().join(',') === Object.keys(runPoolCrudo([IG_REEL], []).filas[0]).sort().join(','),
     'TT: ' + Object.keys(tt).sort().join(','));
   check('origen = motor también en TT', tt.origen === 'motor', String(tt.origen));
+  check('isPinned false queda como es_fijado false en TikTok', tt.es_fijado === false, String(tt.es_fijado));
 }
 
 seccion('Preparar pool crudo — campos faltantes: null, nunca 0 ni "" (un 0 mentiría)');
@@ -2652,6 +2657,9 @@ seccion('Preparar pool crudo — campos faltantes: null, nunca 0 ni "" (un 0 men
   const f = filas[0];
   check('un scrape a medias guarda null en las métricas, no 0', f.vistas === null && f.seguidores === null && f.likes === null && f.comentarios === null && f.duracion_seg === null, JSON.stringify(f));
   check('sin timestamp, publicado_en es null (no una fecha inventada)', f.publicado_en === null, String(f.publicado_en));
+  check('sin isPinned, es_fijado es null en el motor y en normalizarItem',
+    f.es_fijado === null && normalizarItem({ id: 'p', type: 'Video', url: 'u' }).es_fijado === null,
+    `motor=${String(f.es_fijado)}`);
 }
 {
   // Un 0 explícito de Apify también cae a null (numero() exige > 0), igual que el backfill.

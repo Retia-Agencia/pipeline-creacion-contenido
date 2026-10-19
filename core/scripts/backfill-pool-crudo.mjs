@@ -95,6 +95,7 @@ export function normalizarItem(item, ctx = {}) {
     comentarios: numero(item.commentsCount),
     seguidores,
     duracion_seg: numero(item.videoDuration),
+    es_fijado: typeof item.isPinned === 'boolean' ? item.isPinned : null,
     medido_en: ctx.medido_en ?? null,
     apify_run_id: ctx.apify_run_id ?? null,
     apify_dataset_id: ctx.apify_dataset_id ?? null,
