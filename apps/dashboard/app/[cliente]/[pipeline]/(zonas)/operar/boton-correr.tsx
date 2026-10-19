@@ -74,6 +74,13 @@ export function BotonCorrer({ deshabilitado }: { deshabilitado: boolean }) {
 
   return (
     <div className="space-y-3">
+      {confirmando && estimado?.avisoRepetida && (
+        <Alert>
+          <AlertDescription>
+            <strong>{estimado.avisoRepetida}</strong> Si recargaste créditos o cambiaste ajustes, puede valer la pena.
+          </AlertDescription>
+        </Alert>
+      )}
       {confirmando ? (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm text-muted-foreground">
