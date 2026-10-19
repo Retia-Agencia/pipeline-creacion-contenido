@@ -86,6 +86,17 @@ pronóstico** — sobreestima a propósito (ignora el dedup y el fan-out), y por
 (ADR-043). Es lo que la pantalla muestra al lado del `N`, en vez de la entrega estimada que
 deliberadamente no se calcula.
 
+**Ventana de compra** (`dias_recencia` en el motor, clave *Días de recencia* en `app.ajustes`):
+Cuántos días hacia atrás se le compra a Apify (`onlyPostsNewerThan`) a una cuenta sin marca de agua.
+Controla **costo, no calidad**: desde ADR-103 D4 la edad no descarta, así que un video más viejo que
+la ventana que igual llega (los **fijados**, que el filtro de Apify no frena) pasa al gate. La clave
+de la base no se renombró (es PK con check); el cockpit la muestra como *Ventana de compra (días)*.
+
+**Fijado** (`es_fijado`, del `isPinned` de Apify):
+Reel que la cuenta fijó arriba de su perfil. Apify lo devuelve y lo cobra en cada corrida aunque sea
+viejo (C8: ~21 % del gasto). En `Normalizar IG` es `true`/`false`; en `app.pool_crudo` (migración
+`047`) es `true`/`false`/`null`, y `null` = no se sabe (filas anteriores al 18/10).
+
 **Techo de gasto** (`cap_top_n` en el motor, *Videos a transcribir por corrida* en Ajustes):
 Cuántos videos distintos se transcriben como máximo en **toda** la corrida, todos los Proyectos
 juntos, ordenados por Heat-score. Muerde justo antes de transcribir y filtrar, que son los pasos que

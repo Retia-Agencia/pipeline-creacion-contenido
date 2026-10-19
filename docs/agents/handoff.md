@@ -29,11 +29,11 @@ tercio del medio eran cierres viejos anidados uno dentro de otro bajo un encabez
 
 | buscás | está en |
 |---|---|
-| **el estado de hoy** | el §ARRANCÁ POR ACÁ de acá abajo (cierre 167) |
+| **el estado de hoy** | el §ARRANCÁ POR ACÁ de acá abajo (cierre 168) |
 | **🔴 la prioridad: el refactor a Virlo** | [docs/virlo/07-refactor-tickets.md](../virlo/07-refactor-tickets.md) — los tickets en dos carriles; decisiones en [00-plan](../virlo/00-plan.md) y [ADR-102](../adr/ADR-102-la-busqueda-pasa-a-virlo-por-tematica.md) |
 | **el refactor del motor** | 🧭 [plan-refactor-motor.md](./plan-refactor-motor.md) — el punto de partida único |
 | **los mensajes al equipo de redes** | [plan-refactor-motor §9](./plan-refactor-motor.md) — **1 y 2 enviados el 12/09**, el 3 escrito y pendiente |
-| **los cierres 145 a 167** | acá abajo, completos |
+| **los cierres 145 a 168** | acá abajo, completos |
 | **los cierres 70 a 144** | [handoff-archivo-2026-06_09.md](./handoff-archivo-2026-06_09.md) |
 | **el refactor Voces→Proyectos** | 🗄️ terminado y archivado el 2026-09-12: [docs/archivo/refactor-voces-proyectos.md](../archivo/refactor-voces-proyectos.md) |
 
@@ -41,7 +41,7 @@ tercio del medio eran cierres viejos anidados uno dentro de otro bajo un encabez
 N`), **nunca anidado dentro del anterior**. Así fue como nacieron las 5.736 líneas de blockquotes
 dentro de blockquotes que se acaban de archivar.
 
-## 🚦 ARRANCÁ POR ACÁ — CIERRE 167 (2026-10-18): la etiqueta de rendimiento medida y decidida (S2 ✅)
+## 🚦 ARRANCÁ POR ACÁ — CIERRE 168 (2026-10-18): la etiqueta de rendimiento medida y decidida (S2 ✅)
 
 > Sesión de solo lectura sobre `app.pool_crudo` (`psql` read-only). **No se escribió en Supabase, no
 > se tocó n8n y no se construyó nada.** El plan de sesiones sigue siendo la tabla del cierre 166, más
@@ -70,8 +70,54 @@ dentro de blockquotes que se acaban de archivar.
 1. **Reunión del martes 21/10:** presentar ADR-104 D3 al jefe (apaga su piso de 500k como filtro).
    Llevar §1.5 y el reporte de corridas. Si no lo aprueba, C9 no se construye y la etiqueta solo
    ordena.
-2. **S1 (C2 + C8)** sigue pendiente, y C3 depende de C2.
+2. **S1 (C2 + C8) ya está en el live** (cierre 167, abajo); falta la corrida de prueba de Vieira.
 3. **S3 = C3** (construir la etiqueta), después **C9** (apagar el piso) con lo abierto de ADR-104.
+
+## 🚦 ARRANCÁ POR ACÁ — CIERRE 167 (2026-10-18): S1 en el live, la edad no descarta y los fijados se marcan
+
+> S1 de la guía del cierre 166 (abajo), entera menos la corrida de prueba. Hecho con `/delegate`
+> (Codex, effort medium), commits `16fc4d2` y `9a445fe`, fast-forward a `main`.
+
+### ✅ Qué quedó en producción
+
+- **C2 · la edad no descarta** (ADR-103 D4). Se borró la guardia de recencia de `Asignar
+  proyecto+voz`. `dias_recencia` queda solo como **ventana de compra** (`onlyPostsNewerThan`). Test
+  nuevo en `test-nodos.mjs`: un video de 450k y 300 días con 50 días de ventana conserva su proyecto.
+- **Cockpit:** el ajuste se muestra como *Ventana de compra (días)* (`etiqueta` opcional en
+  `CATALOGO`, `domain/ajustes.ts`). **La clave `Días de recencia` no se renombró**: es PK de
+  `app.ajustes` con check, y renombrarla es migración más 5 lecturas por nombre. Su `descripcion` se
+  reescribió por SQL (18/10, instancia Vieira) para decir *ventana de compra, controla costo, no
+  calidad*. Como todo SQL, sin fila en `app.eventos` (ADR-097).
+- **C8 · los fijados se marcan.** `Normalizar IG` emite `es_fijado` (`isPinned === true`).
+  `Preparar pool crudo` y `backfill-pool-crudo.mjs` lo guardan en `app.pool_crudo` como
+  `true`/`false`/`null` (la copia textual sigue pinada por test).
+- **Migración `047` APLICADA** (agente con `psql -1`, a pedido de Mani): `app.pool_crudo.es_fijado`.
+  Medida por efecto: catálogo, `comment`, 34.906 filas en `null`, PostgREST 200. Va antes del push
+  porque `Preparar pool crudo` es sumidero (sin la columna habría perdido el lote en silencio).
+  ADR-103 §Enmienda 1.
+- **`n8n:push --apply` de 3 nodos** (`Asignar proyecto+voz`, `Normalizar IG`, `Preparar pool
+  crudo`). Snapshot de rollback: `core/scripts/.n8n-snapshots/motor-2026-10-19T03-10-16-870Z.json`
+  (en el worktree `c2-c8`, gitignored).
+- Verde: `test-nodos`, `auditar-workflows` (sin hallazgos), `validate`, dashboard typecheck + 623/623.
+
+### ⏭️ Lo que sigue
+
+1. **Corrida de prueba de Vieira (~1 USD, la confirma Mani).** Cierra S1 cuando: entran los fijados
+   viejos de 400k+ que antes se botaban, y la corrida siguiente no los repite (dedup). Después,
+   `select count(es_fijado), count(*) filter (where es_fijado) from app.pool_crudo where origen = 'motor'`
+   tiene que dar más de 0.
+2. **C8, la medición** (solo lectura, con la primera corrida que tenga `es_fijado`): ¿los fijados
+   ocupan cupo de `resultsLimit`? Si 3 fijados desplazan 3 nuevos, se sube el límite en 3. **No se
+   tocó `resultsLimit`.**
+3. ⚠️ **`n8n:diff` del motor tiene 5 diferencias que YA estaban antes de este push** (comprobado
+   contra el snapshot pre-push; los commits de hoy no tocan `position` ni `options`):
+   - `[orden]` en `Asignar proyecto+voz`, `Armar candidato` y `Traducir (Claude Haiku)`: en el live
+     alguien reacomodó el canvas (ej. `Pre-trim relevancia` pasó de `[3500,200]` a `[-768,64]`), así
+     que la rama de trabajo corre antes que su `Etapa:`. Afecta el sellado de etapa del run, no los
+     datos. Se arregla con `npm run n8n:orden -- motor --apply`. **No se aplicó: falta que Mani lo decida.**
+   - `[sin-empujar]` `options.pagination` en `Leer procesados` y `Leer feed vivo`: al live le faltan
+     `paginationMode`, `type: qs` y `maxRequestsPerPage`. Hay que medirlo antes de empujarlo.
+   - `[drift]` `Armar plan de corrida`: el `proveedor_scraping` viejo de ADR-101. **No se empuja.**
 
 ## 🔒 CIERRE 166 (2026-10-17): Claude sin créditos, la recencia botaba lo mejor, y Apify se queda
 

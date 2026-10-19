@@ -421,6 +421,13 @@ se cita, y varios gobiernan código vivo.
   Crea agentes por temática, sus vínculos con Virlo y proyectos, el libro de corridas, y el origen
   de candidatos y descartes. ⚠️ El valor `youtube` del enum se agrega arriba y no se usa en la misma
   migración: PostgreSQL exige un commit antes de poder usar un valor nuevo.
+  ✅ **La [`047`](core/schema/047_pool_crudo_es_fijado.sql) (ADR-103 §Enmienda 1, ticket C8) está
+  APLICADA** (por el agente con `psql -1`, a pedido de Mani, 18/10). Agrega `app.pool_crudo.es_fijado`
+  (`boolean`, nullable, sin backfill). Medida por su efecto: la columna y su `comment` están en el
+  catálogo, las **34.906** filas quedan en `null`, y PostgREST la devuelve con 200 (no `PGRST204`).
+  ⚠️ **Iba antes del `n8n:push` de `Preparar pool crudo`**: ese nodo es sumidero, y sin la columna
+  PostgREST rechaza el lote entero y la corrida igual cierra en verde.
+  🐤 Canario: `select count(es_fijado) from app.pool_crudo` da 0 hasta la primera corrida.
   ✅ **La [`043`](core/schema/043_ajustes_actualizado_en.sql) (ADR-097) está APLICADA** (verificado el
   15/09 en el catálogo: trigger `ajustes_sella_actualizado_en` sobre `app.ajustes`; escrita el 11/09). Le pone a `app.ajustes` el trigger `before update` que sella `actualizado_en`, y
   re-sella las dos filas que quedaron mintiendo. 🩸 **Existe por una columna que miente en verde:**
