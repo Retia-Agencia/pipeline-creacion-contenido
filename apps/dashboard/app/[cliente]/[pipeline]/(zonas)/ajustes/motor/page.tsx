@@ -58,6 +58,7 @@ export default async function AjustesPage({
     <Knob
       key={fila.clave}
       clave={fila.clave}
+      etiqueta={CATALOGO[fila.clave].etiqueta}
       valor={fila.valor}
       descripcion={fila.descripcion}
       tipo={CATALOGO[fila.clave].tipo}

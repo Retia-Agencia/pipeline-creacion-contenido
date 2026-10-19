@@ -27,12 +27,14 @@ const SI_NO: readonly Opcion[] = [
 
 export function Knob({
   clave,
+  etiqueta,
   valor,
   descripcion,
   tipo,
   opciones,
 }: {
   clave: string;
+  etiqueta?: string;
   valor: number | null;
   descripcion: string | null;
   tipo: TipoAjuste;
@@ -55,7 +57,7 @@ export function Knob({
     <div className="flex flex-wrap items-start justify-between gap-4 border-b py-4 last:border-b-0">
       <div className="min-w-0 flex-1 space-y-1">
         <Label htmlFor={id} className="text-sm font-medium">
-          {clave}
+          {etiqueta ?? clave}
         </Label>
         {descripcion && <p className="text-xs text-muted-foreground">{descripcion}</p>}
         {resultado && (

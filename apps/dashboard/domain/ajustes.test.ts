@@ -12,6 +12,10 @@ describe("CATALOGO", () => {
       assert.equal(k.tipo === "opcion", (k.opciones?.length ?? 0) > 0, clave);
     }
   });
+
+  it("muestra Días de recencia como ventana de compra sin cambiar la clave persistida", () => {
+    assert.equal(CATALOGO["Días de recencia"].etiqueta, "Ventana de compra (días)");
+  });
 });
 
 describe("Proveedor de scraping (migración a Virlo)", () => {

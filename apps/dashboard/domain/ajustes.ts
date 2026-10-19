@@ -23,6 +23,8 @@ export type Knob = {
   /** Qué workflow lo consume. El equipo no lo ve; sirve para agrupar la pantalla. */
   consume: "motor" | "descubrimiento";
   tipo: TipoAjuste;
+  /** Nombre visible cuando la clave persistida no describe su uso actual. */
+  etiqueta?: string;
   /** Solo en `opcion`: los valores que acepta, en el orden en que se muestran. */
   opciones?: readonly Opcion[];
 };
@@ -42,7 +44,11 @@ export const CATALOGO: Record<string, Knob> = {
   // `entero` y no `entero_positivo`: el motor trata el 0 como "sin techo" (`if (CAP > 0)`), y
   // prohibirlo mataría esa salida sin querer.
   "Videos a transcribir por corrida": { consume: "motor", tipo: "entero" },
-  "Días de recencia": { consume: "motor", tipo: "entero_positivo" },
+  "Días de recencia": {
+    consume: "motor",
+    tipo: "entero_positivo",
+    etiqueta: "Ventana de compra (días)",
+  },
   "Resultados por cuenta de referente": { consume: "motor", tipo: "entero_positivo" },
   "Buscar por referentes en Instagram": { consume: "motor", tipo: "toggle" },
   "Buscar por referentes en TikTok": { consume: "motor", tipo: "toggle" },

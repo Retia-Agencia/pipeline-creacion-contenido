@@ -2365,6 +2365,12 @@ seccion('Normalizar IG — rechazo del proveedor ≠ dataset vacío');
     uno[0].json.engagement_rate === '15.00', JSON.stringify(uno[0].json.engagement_rate));
   check('...y la fecha se sigue recortando a día',
     uno[0].json.fecha_publicacion === '2026-09-01', JSON.stringify(uno[0].json.fecha_publicacion));
+
+  const fijados = await correr([Object.assign(reel('fijado'), { isPinned: true }), reel('normal')]);
+  check('C8 — un reel fijado queda marcado como es_fijado',
+    fijados[0].json.es_fijado === true, JSON.stringify(fijados[0].json));
+  check('C8 — un reel sin isPinned queda marcado como no fijado',
+    fijados[1].json.es_fijado === false, JSON.stringify(fijados[1].json));
 }
 
 seccion('Normalizar TT — el carril secundario no mata la corrida');
@@ -2529,6 +2535,28 @@ seccion('ADR-103 — Resumen nombra la caída de Claude y cuenta filas de pre-tr
   check('Cerrar run persiste el estado calculado por Resumen', cerrar.parameters.jsonBody.includes("$json.estado || 'ok'"), cerrar.parameters.jsonBody);
   check('el aviso de saldo agotado es exactamente el decidido', r.metricas.avisos.includes(esperado), JSON.stringify(r.metricas.avisos));
   check('pretrim_sin_juicio cuenta ITEMS, incluso con external_id repetido', r.metricas.pretrim_sin_juicio === 2, String(r.metricas.pretrim_sin_juicio));
+}
+
+seccion('C2 — la edad no descarta videos durante la asignación');
+{
+  const fechaVieja = new Date(Date.now() - 300 * 86400000).toISOString().slice(0, 10);
+  const plan = {
+    dias_recencia: 50,
+    projects: { p1: { nombre: 'Proyecto', voz_id: 'v1', voz_nombre: 'Voz' } },
+    active_project_ids: ['p1'],
+    ig_owner_to_proj: { referente: ['p1'] },
+  };
+  const $ = (n) => {
+    if (n === 'Armar plan de corrida') return { first: () => ({ json: plan }) };
+    throw new Error('nodo no mockeado: ' + n);
+  };
+  const $input = { all: () => [{ json: {
+    plataforma: 'instagram', external_id: 'viejo-450k', username: 'referente',
+    url: 'https://ig/viejo-450k', reproducciones: 450000, fecha_publicacion: fechaVieja,
+  } }] };
+  const out = new Function('$', '$input', jsCode('Asignar proyecto+voz'))($, $input);
+  check('un video de hace 300 días conserva el proyecto aunque el plan tenga 50 días de recencia',
+    out.length === 1 && out[0].json.external_id === 'viejo-450k' && out[0].json.proyecto_id === 'p1', JSON.stringify(out));
 }
 
 seccion('Asignación vacía — la cadena sigue viva y cierra como sin novedades');
