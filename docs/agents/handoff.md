@@ -41,6 +41,35 @@ tercio del medio eran cierres viejos anidados uno dentro de otro bajo un encabez
 N`), **nunca anidado dentro del anterior**. Así fue como nacieron las 5.736 líneas de blockquotes
 dentro de blockquotes que se acaban de archivar.
 
+## 🚦 ARRANCÁ POR ACÁ — CIERRE 169 (2026-10-19): C3, la etiqueta de rendimiento en el Feed y editable en Ajustes
+
+> Hecho con `/delegate` (Codex, effort medium), commit `eda0a31` en `feat/c3-etiqueta-rendimiento`,
+> unido a `main`. Decisiones de Mani en [ADR-104 §Enmienda 1](../adr/ADR-104-la-etiqueta-decide-que-se-muestra-el-piso-deja-de-filtrar.md).
+
+### ✅ Qué quedó en producción
+
+- **Migración `048` APLICADA** (agente con `psql -1`, a pedido de Mani): `app.candidatos.publicado_en`
+  y `app.etiquetas_rendimiento` (nombre + `metrica = 'vpd'` + `minimo`, RLS `tenant`). Semilla de las
+  4 de ADR-104 D1 para la instancia de reels. Medida por efecto: 4 filas, RLS activo, `delete` para
+  `authenticated`, PostgREST 200 en la tabla y en la columna. También va en `cliente-nuevo.sql`.
+- **Motor:** `n8n:push --apply` de `Normalizar IG`, `Normalizar TT`, `Armar candidato` y `Preparar
+  candidatos` (escriben `publicado_en` en ISO completo). Snapshot de rollback:
+  `core/scripts/.n8n-snapshots/motor-2026-10-19T20-44-19-729Z.json` (en el worktree `c3-etiqueta`).
+  `n8n:diff`: las 5 diferencias previas del cierre 167, ninguna en estos nodos.
+- **Cockpit:** la etiqueta se **deriva al leer** (`domain/rendimiento.ts`), no se guarda. El Feed
+  (tarjeta y detalle) muestra la etiqueta, `~X/día` y *top N % de su edad*, solo para Instagram.
+  **Ajustes → Rendimiento**: media crea, renombra, cambia el piso y borra etiquetas; cada cambio va a
+  `app.eventos` (`rendimiento.etiqueta_*`). El insight "contra su edad" sigue fijo en el código.
+- Verde: dashboard typecheck + 641/641 + `build`, `test-nodos`, `auditar-workflows`, `validate`.
+
+### ⏭️ Lo que sigue
+
+1. **Ver la pantalla en el navegador** (Ajustes → Rendimiento y una tarjeta del Feed). Nadie la miró
+   todavía: hoy `app.candidatos` tiene 0 filas, así que la etiqueta aparece recién con la próxima
+   corrida, y los candidatos viejos no tienen `publicado_en`.
+2. La corrida de prueba de Vieira (cierre 167) cierra a la vez S1 y esto.
+3. **C9** espera la reunión del 21/10.
+
 ## 🚦 ARRANCÁ POR ACÁ — CIERRE 168 (2026-10-18): la etiqueta de rendimiento medida y decidida (S2 ✅)
 
 > Sesión de solo lectura sobre `app.pool_crudo` (`psql` read-only). **No se escribió en Supabase, no

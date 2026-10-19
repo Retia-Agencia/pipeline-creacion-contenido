@@ -69,3 +69,24 @@ abiertos hasta medirlos. Medido el 18/10 sobre 34.906 observaciones de Instagram
 - **Abierto para construir (C3 y C9):** si el N pedido de ADR-089 cuenta solo lo que el Feed muestra
   o también el backlog; dónde ve el equipo el backlog; y si `Mínimo de vistas` se apaga con el ajuste
   en 0 o se borra.
+
+## Enmienda 1 (2026-10-19) — Las etiquetas se configuran desde Ajustes, y se derivan al leer
+
+> Decidido por Mani al construir C3. **Enmienda D1 y D4**: los cortes y los nombres de la tabla de D1
+> pasan a ser **la semilla**, no el código.
+
+- **E1 — Configurables por empresa.** Las etiquetas viven en `app.etiquetas_rendimiento` (migración
+  [`048`](../../core/schema/048_etiquetas_rendimiento.sql)), una fila por etiqueta: nombre + mínimo.
+  Media (no solo dev) las crea, renombra, cambia de mínimo y borra en **Ajustes → Rendimiento**; cada
+  cambio queda en `app.eventos` con quién lo hizo. La semilla son las cuatro de D1.
+- **E2 — Un rango se define por su piso.** El techo de una etiqueta es el piso de la siguiente, así
+  que no puede haber huecos ni solapes. Debajo del piso más bajo, el video queda sin etiqueta.
+- **E3 — La métrica hoy es una sola: vistas por día de vida** (`metrica = 'vpd'`). La columna existe
+  para poder sumar otra métrica sin rehacer la tabla; la pantalla lo dice. Sumar una es ampliar el
+  check y el dominio, y decidir qué pasa si dos etiquetas usan métricas distintas.
+- **E4 — Se guarda el dato, no el veredicto.** `app.candidatos.publicado_en` (con `creado_en` da los
+  días de vida). La etiqueta se calcula **al leer** (`domain/rendimiento.ts`), igual que la cobertura
+  de la `039`: editar una etiqueta cambia el Feed al momento, sin backfill y sin mezclar dos varas.
+- **E5 — El insight "contra su edad" (D2) sigue fijo en el código**, con los cortes de §1.5. Es
+  informativo, no decide nada, y sus cortes salen de percentiles medidos. Se re-mide con la misma
+  consulta.

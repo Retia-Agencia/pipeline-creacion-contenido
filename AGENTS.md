@@ -421,6 +421,10 @@ se cita, y varios gobiernan código vivo.
   Crea agentes por temática, sus vínculos con Virlo y proyectos, el libro de corridas, y el origen
   de candidatos y descartes. ⚠️ El valor `youtube` del enum se agrega arriba y no se usa en la misma
   migración: PostgreSQL exige un commit antes de poder usar un valor nuevo.
+  ✅ **La [`048`](core/schema/048_etiquetas_rendimiento.sql) (ADR-104 §Enmienda 1, ticket C3) está
+  APLICADA** (por el agente con `psql -1`, a pedido de Mani, 19/10). `app.candidatos.publicado_en` y
+  `app.etiquetas_rendimiento`, editable por media en Ajustes → Rendimiento. La etiqueta se deriva al
+  leer, no se guarda. Medida por efecto: 4 filas sembradas, RLS, PostgREST 200.
   ✅ **La [`047`](core/schema/047_pool_crudo_es_fijado.sql) (ADR-103 §Enmienda 1, ticket C8) está
   APLICADA** (por el agente con `psql -1`, a pedido de Mani, 18/10). Agrega `app.pool_crudo.es_fijado`
   (`boolean`, nullable, sin backfill). Medida por su efecto: la columna y su `comment` están en el
