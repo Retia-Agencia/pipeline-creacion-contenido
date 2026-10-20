@@ -1,5 +1,11 @@
 # ADR-100 — Se compra lo nuevo y se re-mide lo joven
 
+> ⚠️ **D3 se enmienda (Mani, 2026-10-20, [07 C10](../virlo/07-refactor-tickets.md)):** hoy cada reel del
+> roster se mira una vez, a ~8 días de edad, y solo la banda 100k-400k de menos de 7 días se vuelve a
+> medir. El roster da ~49 reels/semana que cruzan 400k y con el piso pasan 2 por corrida. La marca de
+> agua (D1) se queda; la re-medición pasa a **seguir el pool** a los ~7, ~14 y ~30 días hasta que el reel
+> cruce o envejezca. Hasta que C10 esté en el live, rige D3 tal cual.
+
 > **Estado:** Aceptada y **en producción desde el 2026-09-15** (migración `045`, fachada y 4 nodos
 > del motor). **Falta la primera corrida**, que la hace el equipo de redes; sus mediciones van en el
 > plan, Tarea 6 paso 5.

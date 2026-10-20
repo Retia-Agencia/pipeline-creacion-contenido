@@ -127,15 +127,18 @@ ofrece apagar.
 
 **Etiqueta de rendimiento**:
 La calificación de un video por sus **vistas por día de vida** (vistas / días desde que se publicó),
-con una vara única para todas las edades: *muy bueno · bueno · medio · bajo* (ADR-104). Decide qué
-muestra el Feed; no descarta.
+con una vara única para todas las edades (ADR-104). **Los nombres y los pisos los configura cada
+empresa** en Ajustes → Rendimiento (`app.etiquetas_rendimiento`); la semilla es *muy bueno · bueno ·
+medio · bajo*. Se calcula al leer, no se guarda (ADR-104 §Enmienda 1). Decide qué muestra el Feed; no
+descarta.
 
 **Contra su edad**:
 El lugar de un video entre los de su misma franja de edad (*top 10 % de su edad*, etc.). Se muestra al
 lado de la Etiqueta de rendimiento como dato, y no decide nada (ADR-104 D2).
 
 **Backlog**:
-Los candidatos juzgados que el Feed no muestra porque su Etiqueta de rendimiento es *medio* o *bajo*.
+Los candidatos juzgados que el Feed no muestra por su Etiqueta de rendimiento (con la semilla, *medio*
+y *bajo*; qué etiquetas se ven lo define C9).
 Quedan guardados para rescatarlos si hacen falta (ADR-104 D3). No es `app.pool_crudo`: eso es lo que
 se le compró a Apify, juzgado o no.
 

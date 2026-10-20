@@ -28,8 +28,44 @@ Cada ticket tiene que acercar esa frase. Si un ticket no la acerca, no va en la 
 
 | Etapa | Qué es | Cuándo |
 |---|---|---|
+| **0 · Definir antes de construir** | Los tickets Q (abajo): cuántos por corrida, cómo se sigue el pool, y qué trae Apify y qué Virlo. La métrica ya está: **vistas, piso 400k**. | **Ya (20/10). Bloquea A3 en adelante y B1 en adelante.** |
 | **1 · Virlo busca, Apify vigila** | Los tickets de abajo: agentes por temática, ingesta, asignación, gasto, piloto, y el Carril C del roster. | **Ya.** |
 | **2 · El cockpit opera la media** | Lo de PreWave y el HUB: tracker con lo que Virlo trae gratis, producción, publicación (§Etapa 2). | Cuando el piloto (V-11) diga "sigue". |
+
+---
+
+## Etapa 0 · Definir antes de seguir construyendo (Mani, 20/10)
+
+> **Por qué existe.** La herramienta cuesta ~100 USD/mes y tiene que entregar **los mejores videos y
+> en cantidad: 30 a 50 por corrida** (Mani, 20/10). Hoy, con el piso de 400k, pasan **2 por corrida**
+> (mediana de 13 corridas, cierre 171). Y el contenido viral **sí existe en el roster**: las 95 cuentas
+> IG activas publican ~437 reels/semana y **~49/semana llegan a 400k** cuando maduran (39 a 500k).
+> El problema no es la oferta, es **cuándo y cómo se mira**: la marca de agua (ADR-100) compra cada
+> reel una vez, a la edad mediana de 8 días (46 % con menos de 7), y el piso lo juzga con las vistas
+> de ese momento. Solo se vuelve a medir la banda 100k-400k de menos de 7 días: de 2.171 reels
+> comprados desde el 16/09 se re-midieron 312, y se vio cruzar a 29. **Los demás nunca se vuelven a
+> mirar.**
+>
+> 🔒 **Lo que ya está decidido y no se re-litiga (Mani, 20/10):** media necesita **viralidad, y la
+> viralidad son vistas. El piso es 400k y filtra.** Esa es la meta. Lo que hay que resolver es **cómo
+> aprovechar lo que ya pagamos para traer más videos que lleguen a 400k**: si un reel cruza 400k a
+> cierta edad, hay que mirarlo a esa edad. **El pool crece y se sigue revisando** (C10).
+>
+> **Regla de esta etapa:** no se construye A3 en adelante ni B1 en adelante hasta cerrar Q5. C10 sí se
+> construye ya, y siguen los arreglos operativos (créditos de Anthropic, la corrida de prueba de
+> Vieira, C8 por fecha).
+
+| ID | Qué hay que definir | Con quién | Hecho cuando | Bloquea |
+|---|---|---|---|---|
+| ✅ **Q1** | ~~Cómo busca media el contenido hoy~~ **Cerrado (Mani, 20/10):** ya se sabe, se habló varias veces. Buscan viralidad = vistas. | — | — | — |
+| ✅ **Q2** | ~~Qué es un buen video, en un número~~ **Cerrado (Mani, 20/10): vistas absolutas, piso 400k, y el piso filtra.** ADR-104 D3 queda rechazada ([§Enmienda 2](../adr/ADR-104-la-etiqueta-decide-que-se-muestra-el-piso-deja-de-filtrar.md)): la etiqueta informa y ordena, no decide. C9 se retira. | — | — | — |
+| ⬜ **Q3** | **La meta de entrega.** Cuántos videos por corrida, por voz y por semana (Mani: 30-50 por corrida), cada cuánto corre cada voz, y qué voces están vivas (hoy solo Rosario está `activo` en `app.voces`). El N de cada proyecto tiene que sumar esa meta. | Media + Mani | Una tabla voz × N × cadencia, cargada en el cockpit. | Q5, Q6 |
+| ✅ **Q4** | ~~La regla de compra de Apify~~ **Dirección decidida (Mani, 20/10): seguir revisando el pool.** Un reel del roster no se juzga una sola vez a los ~8 días: se re-mide a las edades en que los reels cruzan 400k, hasta que cruce o envejezca. Se construye en **C10**. | — | — | — |
+| ⬜ **Q5** | **El reparto Apify / Virlo.** Apify = las cuentas que ya conocemos (buen contenido probado); Virlo = buscar viralidad por tema fuera del roster. Definir: cuánto de la meta (Q3) pone cada uno, cada cuánto corre cada uno, cómo se reparten el dedup y el Feed, y cómo un hallazgo de Virlo entra al roster (C5). Incluye P-YT (¿sirven los Shorts de YouTube?), recencia de Virlo y C7 (TikTok en el roster o solo en Virlo). | Mani + media, con Q3 | Una tabla de reparto con la meta por fuente, en ADR-103 (enmienda). | A3, A4, B1, C5, C7 |
+| ⬜ **Q6** | **El presupuesto.** Los ~100 USD/mes partidos por proveedor (Apify, Virlo, Anthropic, Supadata), el costo por video **entregado** como métrica, y el tope. Recarga automática de Anthropic (sin saldo, la corrida paga Apify y no entrega nada, como la del 19/10). | Gerencia + Mani | Tope mensual y costo por video aceptado, escritos en [costos.md](../costos.md). Absorbe C6. | Q5 |
+| ⬜ **Q7** | **La calidad del roster.** Qué cuentas nunca dan un viral (se pagan igual), cuáles faltan, quién las mantiene, y cada cuánto se revisa. | Media + dev (la medición sale de `pool_crudo`, gratis) | Lista de cuentas a sacar y a sumar, aprobada por media. | C10 (su costo baja si se sacan las cuentas que nunca dan) |
+
+**Orden:** C10 ya. Q3 y Q6 van en la reunión con gerencia y media. Q5 y Q7 después, con números de C10.
 
 ---
 
@@ -114,13 +150,14 @@ los carriles A y B: se puede hacer ya. Cada cambio de `workflow.json` va con `te
 | ID | Ticket | Depende de | Hecho cuando | Tam. |
 |---|---|---|---|---|
 | ✅ **C1** | **Claude caído retiene** (ADR-103 D6) + el run vacío cierra + `pretrim_sin_juicio` cuenta bien. Rama `fix/motor-gate-sin-creditos` (Codex, 17/10; en el live con `n8n:push`, commit `534aafc`). ⚠️ `alwaysOutputData` de `Asignar proyecto+voz` va a mano en el editor: `n8n:push` no lo lleva. | — | Tests nuevos verdes, `n8n:push` hecho y `n8n:diff` verde en el motor. | S |
-| ✅ **C2** | **La edad no descarta** (D4): borrar la guardia de recencia de `Asignar proyecto+voz`; `dias_recencia` queda solo como ventana de compra (`onlyPostsNewerThan`). Renombrar el ajuste en el cockpit para que diga eso (*ventana de compra*, no *recencia*). | — | Test: un video de 400k+ de 300 días llega al gate. En la primera corrida real entran los 45 fijados y la siguiente ya no los repite (dedup). | S |
-| 🔨 **C3** | **Etiqueta de rendimiento** ([ADR-104](../adr/ADR-104-la-etiqueta-decide-que-se-muestra-el-piso-deja-de-filtrar.md) D1, D2, D4, **Enmienda 1**: etiquetas editables desde Ajustes, `publicado_en` en el candidato y la etiqueta derivada al leer, migración `048`): ✅ medida el 18/10 ([plan-refactor-motor §1.5](../agents/plan-refactor-motor.md)). Falta construir: calcular `vpd = vistas / max(días de vida, 1)` y la etiqueta de vara única (*muy bueno* ≥ 20k · *bueno* ≥ 5k · *medio* ≥ 1k · *bajo*), guardarla en el candidato y mostrarla en el Feed al lado de las vistas, con el insight *contra su edad* (percentil en su franja) al lado. Escala en [sistema-visual §10](../design/sistema-visual.md). Solo Instagram. | C2 | Un candidato nuevo muestra la etiqueta y su insight. Las etiquetas se editan en Ajustes → Rendimiento. | M |
-| ⬜ **C9** | **El piso deja de filtrar** (ADR-104 D3, **espera el visto bueno del jefe el 21/10**): todo video nuevo pasa al gate; el Feed muestra solo *muy bueno* y *bueno* y los *medio* y *bajo* quedan en backlog (juzgados, guardados, no visibles). Decidir al construir: si el N de ADR-089 cuenta solo lo visible, dónde ve el equipo el backlog, y si `Mínimo de vistas` se pone en 0 o se borra. | C3 | Una corrida con el piso apagado: el Feed solo trae *muy bueno*/*bueno*, el backlog guarda el resto, y el costo de gate y Supadata queda medido. | M |
+| ✅ **C2** | **La edad no descarta** (D4): borrar la guardia de recencia de `Asignar proyecto+voz`; `dias_recencia` queda solo como ventana de compra (`onlyPostsNewerThan`). Renombrar el ajuste en el cockpit para que diga eso (*ventana de compra*, no *recencia*). | — | Test: un video de 400k+ de 300 días llega al gate. En la primera corrida real entran los 45 fijados y la siguiente ya no los repite (dedup). *19/10 (cierre 170): ✅ entran, medido en el run de hoy (45 pares viejos de 400k+ llegaron al gate); falta el dedup, con una corrida con Claude vivo.* | S |
+| ✅ **C3** | **Etiqueta de rendimiento** ([ADR-104](../adr/ADR-104-la-etiqueta-decide-que-se-muestra-el-piso-deja-de-filtrar.md) D1, D2, D4, **Enmienda 1**: etiquetas editables desde Ajustes, `publicado_en` en el candidato y la etiqueta derivada al leer, migración `048`): ✅ medida el 18/10 ([plan-refactor-motor §1.5](../agents/plan-refactor-motor.md)). Falta construir: calcular `vpd = vistas / max(días de vida, 1)` y la etiqueta de vara única (*muy bueno* ≥ 20k · *bueno* ≥ 5k · *medio* ≥ 1k · *bajo*), guardarla en el candidato y mostrarla en el Feed al lado de las vistas, con el insight *contra su edad* (percentil en su franja) al lado. Escala en [sistema-visual §10](../design/sistema-visual.md). Solo Instagram. | C2 | Un candidato nuevo muestra la etiqueta y su insight. Las etiquetas se editan en Ajustes → Rendimiento. *19/10: en producción (cierre 169); falta verla en una tarjeta del Feed con la próxima corrida. El run del 19/10 13:00 no la cerró: Anthropic sin créditos, 0 candidatos (cierre 170).* | M |
+| ~~C9~~ | ~~**El piso deja de filtrar**~~ **Retirado (Mani, 20/10, Q2):** el piso de 400k filtra. La etiqueta queda informando y ordenando (C3). | — | — | — |
+| ⬜ **C10** | **Seguimiento del pool** (Q4): cada reel del roster que entró a `pool_crudo` por debajo de 400k se **re-mide por URL** (0,0023 USD, el mecanismo de ADR-100 D3) a los **~7, ~14 y ~30 días** de publicado, y sale de la lista al cruzar 400k (entra al gate) o al pasar los ~45 días. Reemplaza la re-medición de hoy (solo 100k-400k con menos de 7 días, tope 200). Medido el 20/10: de 95 reels que se vieron cruzar, la mediana cruza a los **12 días**; 32 antes de 7, 24 entre 7 y 14, 27 entre 14 y 30, 11 entre 30 y 60, 1 después. Costo estimado: ~437 reels/semana × 3 medidas ≈ **3 USD/semana**; se puede podar con la etiqueta o sacando cuentas que nunca dan (Q7). Enmienda ADR-100 D3 (fachada `run-plan`, lista `remedir`). Decidir al construir: las edades exactas y el tope por corrida. | — | Una corrida re-mide los reels que tocan por edad, y en dos semanas el número de reels del roster que cruzan 400k y llegan al gate sube contra los 2 por corrida de hoy (cierre 171). | M |
 | ✅ **C4** | **Aviso de corrida repetida** (D7): el botón ▶ avisa si esa voz ya corrió hoy (*no va a traer nada nuevo y cuesta ~X USD*). Aviso o bloqueo: se decide al construirlo. | — | Correr dos veces la misma voz el mismo día muestra el aviso. | S |
 | ⬜ **C5** | **Virlo propone referentes** (D3): una cuenta que Virlo trajo con videos aprobados entra a `app.referentes_propuestos`, y el equipo la aprueba como hoy. | A4 | Después de una corrida de Virlo con aprobados aparece su cuenta propuesta. | M |
-| ⬜ **C6** | **Costos al día** ([costos.md](../costos.md)): el costo por voz con los dos carriles (compra de Apify, gate, Virlo por agente). Contesta la pregunta de Josefina (*¿cuánto cuesta sumar una voz que corre 2 veces al mes?*). | C2, A4 | Una tabla de costo por voz y por corrida con números medidos, no estimados. | S |
-| 🔨 **C8** | **Los fijados** (17/10): son el 21 % del gasto de Apify (78 reels re-comprados en cada corrida) y el actor no tiene opción para saltarlos (cobra 0,0023 USD por item; su doc avisa que el filtro de fecha no los frena). Marcar `es_fijado` (`isPinned`) en `Normalizar IG` y en `pool_crudo`; medir **si ocupan cupo de `resultsLimit`** (si 3 fijados desplazan 3 nuevos, subir el límite en 3); y que C4 baje las corridas repetidas, que es donde más pesan (31–61 %). Probar otro actor solo si la medición dice que vale la pena. | — | Medido: costo de fijados por corrida y si desplazan nuevos, con la decisión escrita. | S |
+| ⬜ **C6** | **Costos al día** ([costos.md](../costos.md)): el costo por voz con los dos carriles (compra de Apify, gate, Virlo por agente). Contesta la pregunta de Josefina (*¿cuánto cuesta sumar una voz que corre 2 veces al mes?*). La parte de presupuesto la absorbe **Q6**. | C2, A4 | Una tabla de costo por voz y por corrida con números medidos, no estimados. | S |
+| 🔨 **C8** | **Los fijados** (17/10): son el 21 % del gasto de Apify (78 reels re-comprados en cada corrida) y el actor no tiene opción para saltarlos (cobra 0,0023 USD por item; su doc avisa que el filtro de fecha no los frena). Marcar `es_fijado` (`isPinned`) en `Normalizar IG` y en `pool_crudo`; medir **si ocupan cupo de `resultsLimit`** (si 3 fijados desplazan 3 nuevos, subir el límite en 3); y que C4 baje las corridas repetidas, que es donde más pesan (31–61 %). Probar otro actor solo si la medición dice que vale la pena. | — | Medido: costo de fijados por corrida y si desplazan nuevos, con la decisión escrita. *19/10 (cierre 170): medido. **`isPinned` del actor viene `false` siempre** (0 de 259), así que `es_fijado` queda en `false`; el fijado se deduce por fecha (anterior a la marca de agua): 66 por run, 0,15 USD (25 % de Apify). Desplazan nuevos en 1 de 41 cuentas ⇒ propuesta: no subir `resultsLimit`. Falta: el sí de Mani y derivar `es_fijado` por fecha.* | S |
 | ⬜ **C7** | **Referentes de TikTok** para el roster (los 41 de Vieira son de Instagram), o dejar TikTok solo para Virlo. Decisión de media. | — | Decidido y anotado. | — |
 
 ### Juntos (cierran la Etapa 1)

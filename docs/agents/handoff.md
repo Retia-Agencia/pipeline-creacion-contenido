@@ -29,17 +29,117 @@ tercio del medio eran cierres viejos anidados uno dentro de otro bajo un encabez
 
 | buscás | está en |
 |---|---|
-| **el estado de hoy** | el §ARRANCÁ POR ACÁ de acá abajo (cierre 168) |
+| **el estado de hoy** | el §ARRANCÁ POR ACÁ de acá abajo (cierre 170) |
 | **🔴 la prioridad: el refactor a Virlo** | [docs/virlo/07-refactor-tickets.md](../virlo/07-refactor-tickets.md) — los tickets en dos carriles; decisiones en [00-plan](../virlo/00-plan.md) y [ADR-102](../adr/ADR-102-la-busqueda-pasa-a-virlo-por-tematica.md) |
 | **el refactor del motor** | 🧭 [plan-refactor-motor.md](./plan-refactor-motor.md) — el punto de partida único |
 | **los mensajes al equipo de redes** | [plan-refactor-motor §9](./plan-refactor-motor.md) — **1 y 2 enviados el 12/09**, el 3 escrito y pendiente |
-| **los cierres 145 a 168** | acá abajo, completos |
+| **los cierres 145 a 170** | acá abajo, completos |
 | **los cierres 70 a 144** | [handoff-archivo-2026-06_09.md](./handoff-archivo-2026-06_09.md) |
 | **el refactor Voces→Proyectos** | 🗄️ terminado y archivado el 2026-09-12: [docs/archivo/refactor-voces-proyectos.md](../archivo/refactor-voces-proyectos.md) |
 
 **Regla al cerrar sesión:** el cierre nuevo va **arriba**, como hermano de los demás (`## 🔒 CIERRE
 N`), **nunca anidado dentro del anterior**. Así fue como nacieron las 5.736 líneas de blockquotes
 dentro de blockquotes que se acaban de archivar.
+
+## 🚦 ARRANCÁ POR ACÁ — CIERRE 171 (2026-10-20): con el piso pasan 2 por corrida, el viral sí está, y el pool se sigue revisando (C10)
+
+> Sesión de preparación de la reunión con gerencia y media, y de solo lectura (`psql` read-only sobre
+> `app.pool_crudo`, `app.voces`, `app.ajustes`). **No se tocó n8n, no se escribió en Supabase, nada
+> commiteado.** Se escribió la **Etapa 0** en [07](../virlo/07-refactor-tickets.md) (tickets Q1-Q7).
+
+### 📏 Lo que se midió (20/10)
+
+- **Por corrida (13 corridas del motor desde el 18/09, IG, reels nuevos sin fijados, antes del
+  gate):** mediana **0** con piso 500k, **2** con 400k (el ajuste de hoy), **27** *muy bueno*, **79**
+  *muy bueno* + *bueno* (0 a 194). La del 16/09 se saca: fue la primera con marca de agua y arrastró
+  backlog (211 con 400k+).
+- **La oferta del roster:** las 95 cuentas IG activas publican ~437 reels/semana (15/07-15/09) y
+  **~49/semana llegan a 400k** al madurar (≥ 14 días medidos; 17 % de los 2.498 medidos maduros; 39
+  a 500k). Sesgo posible: solo se ven maduros los que se re-compraron antes de ADR-100.
+- **Lo que hace la marca de agua (ADR-100, 15/09):** desde el 16/09 se compraron 2.171 reels, a edad
+  mediana **8,3 días** (993 con menos de 7). Se volvieron a medir **312** (la banda 100k-400k de
+  menos de 7 días) y se vio cruzar 400k a **29**. El resto no se vuelve a mirar nunca. ⇒ el piso juzga
+  con las vistas de un reel todavía joven y lo descarta para siempre.
+- **Re-medir todo el roster a los ~7-14 días costaría ~1 USD/semana** (437 × 0,0023). Es una opción
+  de Q4, no una decisión.
+- **Voces:** hoy solo **Rosario Gómez** está `activo` en `app.voces` (el 01/10 era María José).
+
+- **A qué edad cruzan 400k** (95 reels que se vieron cruzar entre dos mediciones): mediana **12
+  días**; 32 antes de 7, 24 entre 7 y 14, 27 entre 14 y 30, 11 entre 30 y 60, 1 después. ⇒ las
+  edades de seguimiento de C10 (~7, ~14, ~30 días).
+
+### 🔑 Decisiones (Mani, 20/10)
+
+- 🔒 **La meta no se re-litiga: viralidad = vistas, piso 400k, y el piso filtra.** *"Hemos tenido esta
+  conversación varias veces."* ⇒ **ADR-104 D3 rechazada** (§Enmienda 2) y **C9 retirado**. La
+  etiqueta queda en producción informando y ordenando. Q1 y Q2 de la Etapa 0 se cierran con esto.
+- **El trabajo es aprovechar lo que ya pagamos para traer más reels que crucen 400k:** si cruzan a
+  cierta edad, hay que mirarlos a esa edad. **El pool crece y se sigue revisando** ⇒ ticket **C10**
+  (enmienda de ADR-100 D3; la marca de agua se queda). Estimado ~3 USD/semana.
+- **Meta: 30-50 videos buenos por corrida**, con ~100 USD/mes de herramienta.
+- **Apify y Virlo juntos:** Virlo = viralidad por tema; Apify = el roster conocido. El reparto es Q5.
+- La marca de agua (ADR-100, 15/09) Mani no la tenía presente como decisión: él pidió la etiqueta.
+  Su efecto *"el roster se mira una vez y joven"* nunca se le planteó así.
+
+### ⏭️ Lo que sigue
+
+1. **C10** con `/delegate`: re-medir el pool por edad (fachada `run-plan`, lista `remedir`, tests).
+2. Reunión con gerencia y media: Q3 (meta por voz, voces vivas) y Q6 (presupuesto, recarga de
+   Anthropic).
+3. Sigue lo operativo: créditos de Anthropic → corrida de prueba de Vieira (cierre 170).
+4. **No construir A3+ ni B1+** hasta cerrar Q5.
+
+## 🚦 ARRANCÁ POR ACÁ — CIERRE 170 (2026-10-19): la corrida de hoy midió C2 y C8; Claude sin créditos frena C3
+
+> Sesión de solo lectura (`psql` read-only, API de Apify, ejecución 221 de n8n). **No se disparó
+> ninguna corrida, no se escribió en Supabase, no se tocó n8n, nada commiteado.** No hizo falta
+> disparar: **ya hubo una corrida del motor hoy**, run `278d6642` (19/10 13:00 UTC, `on_demand`,
+> 41 referentes, marca de agua), **después** del push de C2/C8 (03:10 UTC) y **antes** del de C3
+> (20:44 UTC). Cerró `fallo` en la etapa *selección* porque **Anthropic no tiene créditos**
+> (`_gate_caido: true`; la API devuelve *credit balance is too low*). C1 hizo lo que debía: retuvo.
+
+### 📏 Lo que se midió
+
+- **a · S1 / C2 ✅ la edad ya no descarta.** De los 437 pares (video × proyecto) asignados, **96
+  tienen más de 50 días** (54 con 400k+). Al gate llegaron 48 pares y **45 son viejos de 400k+**
+  (27 videos distintos, ej. un reel de 2022 con 1,3M). Antes de C2 la guardia los botaba. Los 27
+  **no se quemaron**: 0 en `processed_items` y 0 descartes hoy, así que la próxima corrida con
+  créditos los vuelve a juzgar. ⏳ Falta la mitad de dedup ("la siguiente no los repite"), que
+  necesita una corrida con el gate vivo.
+- **b · C8 🩸 `isPinned` del actor no sirve: viene `false` siempre.** Las 250 filas `motor` de
+  `pool_crudo` de este run tienen `es_fijado` puesto (el código funciona) y **todas en `false`**.
+  En los 42 datasets crudos de Apify: **259 items, 0 con `isPinned: true`**, incluidos reels de 2023
+  con 11M de vistas metidos entre los de esta semana. **La señal que sí sirve es la fecha:** todo
+  item con `timestamp` anterior al `onlyPostsNewerThan` de su cuenta es un fijado (el filtro de fecha
+  no los frena). Así salen **66 fijados** (máx. 3 por cuenta, el tope de Instagram; 31 con 400k+).
+  - **Costo de los fijados:** 66 × 0,0023 = **0,15 USD de los 0,60 USD de Apify (25 %)** del run.
+  - **¿Ocupan cupo de `resultsLimit` (25)?** **Casi nunca:** de 41 cuentas, **una sola llenó el
+    límite** (`kaycapitals`, 25 items con 2 fijados). Las demás traen 1-18 items. **Decisión
+    propuesta: no subir `resultsLimit`** (desplazaría como mucho 2 nuevos en 1 de 41 cuentas). No se
+    tocó; lo decide Mani.
+  - **Arreglo propuesto para C8** (no hecho): derivar `es_fijado` en `Normalizar IG` como
+    `publicado_en < desde de su cuenta` en vez de leer `isPinned`. Necesita que el nodo vea el
+    `desde` del plan. Va con `/delegate`.
+- **c · C3 ⛔ sin verificar.** `app.candidatos` sigue en 0 filas: el gate no corrió. Además este run
+  es anterior al push de C3, así que no habría escrito `publicado_en`. La tarjeta del Feed se verifica
+  con la próxima corrida **con créditos en Anthropic**.
+- **d · Costo real del run (para C6):** Apify **0,5957 USD** (41 cuentas + 1 re-medición de 25 URLs
+  = 0,0575; TikTok 0) · Supadata **27 llamadas** (~27+ créditos ≈ 0,04 USD; el plan va en 222 de
+  30.000) · Claude **0** (sin créditos). **≈ 0,64 USD con 0 entregados.** Lo que cuesta un run con el
+  gate vivo queda pendiente.
+
+### ⏭️ Lo que sigue
+
+1. 🔴 **Mani carga créditos en Anthropic.** Sin eso cualquier corrida paga Apify y Supadata y no
+   entrega nada (como la de hoy).
+2. Con créditos, **una corrida de Vieira** (con el sí de Mani): cierra C3 (tarjeta del Feed con
+   etiqueta), la mitad de dedup de C2, y el costo de un run completo (C6). C4 va a avisar si es el
+   mismo día: la marca de agua ya avanzó con el run de hoy, así que traería solo lo nuevo + los
+   fijados + lo retenido.
+3. **C8:** decidir el arreglo de `es_fijado` por fecha y lo de `resultsLimit` (propuesta: no subir).
+4. `n8n:diff` del motor: las mismas 6 diferencias del cierre 167 (drift en `Armar plan de corrida`,
+   `options` sin empujar en `Leer procesados` y `Leer feed vivo`, `[orden]` en 3 nodos). Ninguna en
+   los nodos de C2/C3/C8.
 
 ## 🚦 ARRANCÁ POR ACÁ — CIERRE 169 (2026-10-19): C3, la etiqueta de rendimiento en el Feed y editable en Ajustes
 

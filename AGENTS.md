@@ -7,12 +7,16 @@ está hecho para que sumar un flujo o un cliente sea clonar y configurar, no con
 ## Mapa de docs
 
 > 🔴 **PRIORIDAD MÁXIMA (desde el 2026-10-01): el refactor que pasa la búsqueda a Virlo.**
+> ⛔ **Desde el 20/10 manda la Etapa 0 de [07](docs/virlo/07-refactor-tickets.md).** 🔒 **La meta no se
+> re-litiga: viralidad = vistas, piso 400k, y el piso filtra** (Mani). Con el piso pasan 2 videos por
+> corrida y la meta son 30-50; el roster da ~49 virales/semana, pero hoy cada reel se mira una sola vez y
+> joven. El arreglo es **C10, seguir revisando el pool**. A3+ y B1+ esperan Q5 (reparto Apify/Virlo).
 > Norte: *Virlo es el nuevo buscador de contenido; el equipo de media crea temáticas, Virlo trae, Claude
 > asigna a los proyectos, el Feed recibe.* **Y Apify sigue vigilando el roster** (17/10,
 > [ADR-103](docs/adr/ADR-103-apify-vigila-el-roster-virlo-busca-y-la-edad-no-descarta.md): no hay corte,
 > la recencia deja de descartar y la edad pasa a ser una etiqueta; sus tickets son el **Carril C**). La etiqueta
-> quedó fijada el 18/10 en [ADR-104](docs/adr/ADR-104-la-etiqueta-decide-que-se-muestra-el-piso-deja-de-filtrar.md): vara única por vistas/día, el Feed muestra *muy bueno* y
-> *bueno*, y el piso de vistas deja de filtrar (esto último espera el visto bueno del jefe el 21/10). Los tickets, en dos carriles paralelos con sus dependencias:
+> quedó fijada el 18/10 en [ADR-104](docs/adr/ADR-104-la-etiqueta-decide-que-se-muestra-el-piso-deja-de-filtrar.md): vara única por vistas/día, que informa y ordena en el Feed. **Su D3
+> (apagar el piso) la rechazó Mani el 20/10: el piso de 400k filtra.** Los tickets, en dos carriles paralelos con sus dependencias:
 > **[docs/virlo/07-refactor-tickets.md](docs/virlo/07-refactor-tickets.md)**. Decisiones:
 > [docs/virlo/00-plan.md §3](docs/virlo/00-plan.md) y
 > [ADR-102](docs/adr/ADR-102-la-busqueda-pasa-a-virlo-por-tematica.md). **Si no sabes por dónde empezar,

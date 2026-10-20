@@ -1,6 +1,6 @@
 # ADR-104 — La etiqueta de rendimiento decide qué se muestra, y el piso de vistas deja de filtrar
 
-> **Estado:** **Aceptada** (Mani, 2026-10-18). ⚠️ **D3 toca el piso de 500.000, que es instrucción
+> **Estado:** **Aceptada** (Mani, 2026-10-18), **salvo D3: rechazada por Mani el 2026-10-20** (§Enmienda 2: el piso de 400k filtra y la etiqueta informa y ordena; C9 retirado). ⚠️ **D3 toca el piso de 500.000, que es instrucción
 > del jefe** ([plan-refactor-motor §0](../agents/plan-refactor-motor.md)): se presenta en la reunión
 > del martes 21/10 para su visto bueno antes de construir C9. D1, D2, D4 y D5 no dependen de eso.
 > **Enmienda** [ADR-103](./ADR-103-apify-vigila-el-roster-virlo-busca-y-la-edad-no-descarta.md) D5
@@ -90,3 +90,20 @@ abiertos hasta medirlos. Medido el 18/10 sobre 34.906 observaciones de Instagram
 - **E5 — El insight "contra su edad" (D2) sigue fijo en el código**, con los cortes de §1.5. Es
   informativo, no decide nada, y sus cortes salen de percentiles medidos. Se re-mide con la misma
   consulta.
+- **E6 — Consecuencia para C9:** como las etiquetas se pueden renombrar, crear y borrar, D3 no puede
+  decir "*muy bueno* y *bueno*" por nombre. Qué etiquetas ve el Feed tiene que ser una propiedad de
+  cada etiqueta (un "se muestra en el Feed" editable en la misma pantalla), y se construye en C9.
+
+## Enmienda 2 (2026-10-20) — El piso de 400k filtra; la etiqueta informa
+
+**Mani, 20/10:** media necesita viralidad, y la viralidad son **vistas absolutas**. **El piso es 400k
+y filtra.** Ya se habló varias veces y no se re-litiga.
+
+- **D3 queda rechazada.** El piso no se apaga y no hay backlog de *medio*/*bajo*. C9 se retira.
+- **La etiqueta (D1, D2, Enmienda 1) se queda**, en producción: informa en el Feed y ordena, no
+  decide qué entra.
+- **El problema real pasa a ser otro:** con el piso, pasan 2 videos por corrida (mediana de 13
+  corridas), y el roster da ~49 reels/semana que llegan a 400k al madurar. Se resuelve trayendo más
+  reels que crucen el piso, no bajándolo: **seguir revisando el pool** a la edad en que los reels
+  cruzan (C10 en [07](../virlo/07-refactor-tickets.md), enmienda de ADR-100 D3).
+
