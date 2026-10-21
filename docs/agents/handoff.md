@@ -89,10 +89,10 @@ dentro de blockquotes que se acaban de archivar.
 3. Sigue lo operativo: créditos de Anthropic → corrida de prueba de Vieira (cierre 170).
 4. **No construir A3+ ni B1+** hasta cerrar Q5.
 
-## 🚦 ARRANCÁ POR ACÁ — CIERRE 170 (2026-10-19): la corrida de hoy midió C2 y C8; Claude sin créditos frena C3
+## 🚦 ARRANCÁ POR ACÁ — CIERRE 170 (2026-10-19 y 21/10): C2 y C8 medidos; C3 entra en datos con la corrida del 21/10
 
-> Sesión de solo lectura (`psql` read-only, API de Apify, ejecución 221 de n8n). **No se disparó
-> ninguna corrida, no se escribió en Supabase, no se tocó n8n, nada commiteado.** No hizo falta
+> **19/10:** sesión de solo lectura (`psql` read-only, API de Apify, ejecución 221 de n8n). **No se disparó
+> ninguna corrida, no se escribió en Supabase, no se tocó n8n, nada commiteado.** El **21/10**, con créditos, se disparó una corrida a pedido de Mani (sección 🔁 abajo). No hizo falta
 > disparar: **ya hubo una corrida del motor hoy**, run `278d6642` (19/10 13:00 UTC, `on_demand`,
 > 41 referentes, marca de agua), **después** del push de C2/C8 (03:10 UTC) y **antes** del de C3
 > (20:44 UTC). Cerró `fallo` en la etapa *selección* porque **Anthropic no tiene créditos**
@@ -128,18 +128,64 @@ dentro de blockquotes que se acaban de archivar.
   30.000) · Claude **0** (sin créditos). **≈ 0,64 USD con 0 entregados.** Lo que cuesta un run con el
   gate vivo queda pendiente.
 
+### 🔁 21/10: la corrida con créditos (run `e46d8a19`, ejecución 224, disparada a pedido de Mani)
+
+- **Antes:** las dos corridas del 20/10 (`9125322a`, `baace2c5`) también cerraron `fallo` con
+  `_gate_caido` por falta de créditos. 🩸 **Pero `claude_sin_creditos` quedó en `false`**: la regex
+  `/credit balance/` del gate no ve el texto, porque el error de `this.helpers.httpRequest` no trae el
+  body de Anthropic. La alarma que C1 prometía no suena. La key embebida en el live es la misma del
+  `.env` (comprobado sin imprimirla) y el 21/10 responde 200.
+- ⚠️ **No fue la voz de Vieira:** el motor corre la voz activa, y el 19/10 14:31 un usuario apagó
+  a *Juan Pablo Vieira* y prendió a *Rosario Gómez* (`voces.editar` en `app.eventos`). Corrió
+  Rosario: 16 referentes, 1 proyecto (*Comunicación para líderes*).
+- **Cerró `ok` en 6,5 min:** 56 items de Apify → 55 asignados → 4 al gate → **4 candidatos** (los
+  primeros en `app.candidatos` desde el 18/10). Gate vivo, `gate_caido: false`.
+- **C3 ✅ verificado en el Feed:** los 4 candidatos traen `publicado_en`, y el detalle muestra
+  *bueno · ~19.148/día · top 10 % de su edad* (captura enviada a Mani el 21/10). Los otros: 16.643/d
+  *bueno*, 3.235/d y 2.706/d *medio*. ⚠️ **En la tarjeta no se ve:** el subtítulo es de una línea y
+  la etiqueta queda detrás del "…" (está en el DOM). Arreglo de UI pendiente.
+- 🩸 **Operar dice "sin datos de la última corrida" porque el run perdió sus métricas.** Desde el 19/10
+  las 4 corridas del motor tienen en `runs.metricas` solo `{etapa, etapa_en}`, con `etapa_en` **1 s
+  después de `fin`**. Los nodos `Etapa:` hacen `PATCH metricas = {etapa, etapa_en}` (reemplazan el
+  jsonb entero), y en el live `Etapa: seleccion` corre **después** de toda la rama de `Pre-trim
+  relevancia`, que termina en `Cerrar run`: pisa el resumen. Es el `[orden]` que el cierre 167
+  reportó como *"afecta el sellado de etapa, no los datos"*, y **sí borra datos**: Operar y Entender
+  leen `metricas.por_proyecto`, así que caen a la corrida del 15/10 ("hace 5 días"). Las métricas
+  completas siguen en las ejecuciones de n8n (221 a 224, nodo `Resumen del run`).
+  **Arreglo:** `npm run n8n:orden -- motor --apply` (dry-run del 21/10: 8 ramificaciones, ninguna
+  colateral). Más robusto a futuro: que `Etapa:` no reemplace `metricas` entero.
+  ✅ **Aplicado el 21/10 a pedido de Mani.** `n8n:orden -- motor --apply` necesitó **dos pasadas**:
+  la primera movió la rama del gate y con eso volvió a desordenar la de `Armar candidato` (`Preparar
+  procesados` antes de `Etapa: entrega`, que también termina en `Cerrar run`). Después de la segunda,
+  `n8n:orden` da *"ya coincide"* y en `n8n:diff` del motor solo quedan las 3 diferencias viejas (drift
+  en `Armar plan de corrida`, `options` en `Leer procesados` y `Leer feed vivo`). Snapshots de rollback:
+  `core/scripts/.n8n-snapshots/motor-2026-10-21T14-06-25-513Z.json` y `…T14-06-45-248Z.json`.
+  ✅ **Métricas repuestas** en los 4 runs (ejecuciones 221 a 224) desde la salida de `Resumen del
+  run`: un `update` por `psql` en una transacción, con guarda (solo si `metricas` tenía
+  `etapa`/`etapa_en` y no `por_proyecto`). 4 filas, `estado` y `fin` sin tocar. Como todo SQL, sin
+  fila en `app.eventos`. Operar ya muestra *"la última entregó 4"* (corrida de hace 13 min).
+  🐤 Para confirmarlo, en la próxima corrida `runs.metricas` tiene que traer `por_proyecto`.
+- **C2 otra vez ✅:** 3 de los 4 candidatos son reels de 2024-2025 (uno de 13,8M de vistas), que
+  antes botaba la guardia de recencia. **El dedup de los fijados sigue sin probar**: hace falta una
+  segunda corrida de la *misma* voz con el gate vivo (la de Vieira del 19/10 no juzgó nada).
+- **C8 otra vez:** 20 de 55 filas de `pool_crudo` son fijados por fecha y **0 con `es_fijado`**.
+  Confirma lo del 19/10.
+- **d · Costo del run (C6):** Apify **0,1288 USD** (16 cuentas + TikTok; los 20 fijados son
+  0,046, el 36 %) · Supadata **4 llamadas** (~0,01 USD) · Claude 1 lote de pre-trim + 1 de gate + 4
+  traducciones en Haiku (**sin medir**: no hay uso por run; estimado < 0,02 USD). **≈ 0,15 USD por 4
+  entregados.** Sumando las tres caídas (19 y 20/10, ~1,2 USD sin entregar nada), la falta de créditos
+  costó más que el run bueno.
+
 ### ⏭️ Lo que sigue
 
-1. 🔴 **Mani carga créditos en Anthropic.** Sin eso cualquier corrida paga Apify y Supadata y no
-   entrega nada (como la de hoy).
-2. Con créditos, **una corrida de Vieira** (con el sí de Mani): cierra C3 (tarjeta del Feed con
-   etiqueta), la mitad de dedup de C2, y el costo de un run completo (C6). C4 va a avisar si es el
-   mismo día: la marca de agua ya avanzó con el run de hoy, así que traería solo lo nuevo + los
-   fijados + lo retenido.
+1. ✅ Créditos de Anthropic cargados (21/10). Pendiente aparte: que `claude_sin_creditos` se prenda
+   de verdad cuando falten (la regex no ve el body del error).
+2. **Dedup de los fijados (C2):** la próxima corrida programada de **Rosario** tiene que no repetir los
+   4 de hoy. Si se quiere probar con Vieira, primero hay que volver a prenderla (decisión de media).
 3. **C8:** decidir el arreglo de `es_fijado` por fecha y lo de `resultsLimit` (propuesta: no subir).
-4. `n8n:diff` del motor: las mismas 6 diferencias del cierre 167 (drift en `Armar plan de corrida`,
-   `options` sin empujar en `Leer procesados` y `Leer feed vivo`, `[orden]` en 3 nodos). Ninguna en
-   los nodos de C2/C3/C8.
+4. `n8n:diff` del motor: el `[orden]` quedó arreglado el 21/10; siguen las 3 diferencias viejas
+   (drift en `Armar plan de corrida`, `options` sin empujar en `Leer procesados` y `Leer feed vivo`).
+5. UI: la etiqueta de rendimiento queda tapada por el "…" del subtítulo de la tarjeta del Feed.
 
 ## 🚦 ARRANCÁ POR ACÁ — CIERRE 169 (2026-10-19): C3, la etiqueta de rendimiento en el Feed y editable en Ajustes
 
