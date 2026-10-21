@@ -69,6 +69,16 @@ dentro de blockquotes que se acaban de archivar.
   verde · dashboard typecheck + 641 tests verdes.
 - **⏭️ Para cerrarlo:** deploy del cockpit · 🐤 en la próxima corrida: `runs.metricas` trae
   `por_proyecto` y ningún `etapa_en` posterior a `fin`.
+- 🩸 **El deploy automático del cockpit está bloqueado (21/10).** El push de `a63534a` no generó deploy:
+  Vercel respondió *"The commit author email (manuelmejiaarana@gmail.com) is not a valid email address"*.
+  El correo sí está verificado en GitHub; el problema es de cuenta: el proyecto vive en el equipo
+  `agencia-dani`, de la cuenta personal de Daniel (`danieltovartech-4302`), y Mani no es miembro. Los
+  deploys del 19/10 con el mismo autor sí pasaron, así que algo cambió del lado de Vercel (sin causa
+  verificada). **No se cambia el `user.email` de git** (sería firmar como otra persona). Dos intentos de
+  `vercel deploy --prod` por CLI quedaron en `UNKNOWN` y se cortaron por pedido de Mani.
+  **Arreglo propuesto:** un equipo Pro de la agencia con Daniel y Mani como miembros, y transferirle
+  `pipeline-creacion-contenido` y `retia-metrics` (Vercel transfiere proyectos con dominios y env vars).
+  Hasta entonces, la etiqueta del Feed no está en producción.
 
 ## 🚦 ARRANCÁ POR ACÁ — CIERRE 171 (2026-10-20): con el piso pasan 2 por corrida, el viral sí está, y el pool se sigue revisando (C10)
 
