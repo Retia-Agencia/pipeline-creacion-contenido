@@ -1210,7 +1210,10 @@ const runTraducir = async (items, { presupuesto = 0, concurrencia, delayMs = 5, 
     await new Promise((r) => setTimeout(r, delayMs));
     enVuelo--;
     if (falla) throw (falla instanceof Error ? falla : new Error('anthropic caída (mock)'));
-    return respuesta || { content: [{ text: 'traducido' }] };
+    if (respuesta !== undefined) return respuesta && respuesta.statusCode != null
+      ? respuesta
+      : { statusCode: 200, body: respuesta };
+    return { statusCode: 200, body: { content: [{ text: 'traducido' }] } };
   } } };
   const $ = (n) => {
     if (n === 'Config') return { first: () => ({ json: { presupuesto_traducir_s: presupuesto, concurrencia_traducir: concurrencia } }) };
@@ -1265,6 +1268,12 @@ await (async () => {
     check('saldo agotado en traducción viaja como _claude_sin_creditos', out[0]._claude_sin_creditos === true, JSON.stringify(out[0]));
   }
   {
+    const sinCreditos = { statusCode: 400, body: { type: 'error', error: { type: 'invalid_request_error', message: 'Your credit balance is too low to access the Anthropic API.' } } };
+    const { out } = await runTraducir([xvid('credito-http')], { respuesta: sinCreditos });
+    check('saldo agotado en un HTTP 400 de traducción viaja como _claude_sin_creditos',
+      out[0]._claude_sin_creditos === true, JSON.stringify(out[0]));
+  }
+  {
     // presupuesto agotado: budget ínfimo + llamadas lentas ⇒ no se ARRANCAN traducciones nuevas.
     // La diferencia con Transcribir: acá el video SIGUE VIVO, solo que sin traducir.
     const items = []; for (let i = 0; i < 40; i++) items.push(xvid('p' + i));
@@ -1297,11 +1306,13 @@ const runPretrim = async ({ items = [], projects = {}, cfg = {}, delayMs = 0, de
     if (delayMs) await new Promise((r) => setTimeout(r, delayMs));
     enVuelo--;
     if (falla) throw (falla instanceof Error ? falla : new Error('haiku caído (mock)'));
-    if (respuesta !== undefined) return respuesta;
+    if (respuesta !== undefined) return respuesta && respuesta.statusCode != null
+      ? respuesta
+      : { statusCode: 200, body: respuesta };
     const usr = (((opts.body || {}).messages || [])[0] || {}).content || '';
     let ids = [];
     try { ids = JSON.parse(usr.slice(usr.indexOf('VIDEOS:\n') + 8)).map((v) => v.id); } catch (e) {}
-    return { content: [{ text: JSON.stringify({ descartar: descartarFn ? ids.filter(descartarFn) : [] }) }] };
+    return { statusCode: 200, body: { content: [{ text: JSON.stringify({ descartar: descartarFn ? ids.filter(descartarFn) : [] }) }] } };
   } } };
   const $ = (n) => {
     if (n === 'Config') return { first: () => ({ json: cfg }) };
@@ -1361,6 +1372,12 @@ await (async () => {
     const credito = new Error('Your credit balance is too low to access the Anthropic API');
     const { out } = await runPretrim({ items: muchos(2), projects: P1, falla: credito });
     check('saldo agotado en pre-trim viaja como _claude_sin_creditos', out.every((o) => o._claude_sin_creditos === true), JSON.stringify(out));
+  }
+  {
+    const sinCreditos = { statusCode: 400, body: { type: 'error', error: { type: 'invalid_request_error', message: 'Your credit balance is too low to access the Anthropic API.' } } };
+    const { out } = await runPretrim({ items: muchos(2), projects: P1, respuesta: sinCreditos });
+    check('saldo agotado en un HTTP 400 de pre-trim viaja como _claude_sin_creditos',
+      out.every((o) => o._claude_sin_creditos === true), JSON.stringify(out));
   }
   {
     // El caso que da nombre al arreglo: respuesta TRUNCADA. No es un error, es un JSON cortado —
@@ -1756,7 +1773,7 @@ seccion('Preparar transcripciones — la caché de ASR (ADR-087)');
 // Gate de relevancia — descarte duro de sin-guion (ADR-030): sin transcript = _descarte, sin gastar
 // Haiku ni consumir N; el juicio de los con-guion sigue fail-open. (async, this.helpers.httpRequest)
 // ════════════════════════════════════════════════════════════════════════════
-const runGate = async ({ items = [], projects = {}, cfg = {}, haikuFalla = false, juicioFn, delayMs = 0 } = {}) => {
+const runGate = async ({ items = [], projects = {}, cfg = {}, haikuFalla = false, juicioFn, delayMs = 0, respuesta } = {}) => {
   const llamadas = [];
   let enVuelo = 0, maxEnVuelo = 0;
   const thisMock = { helpers: { httpRequest: async (opts) => {
@@ -1766,11 +1783,12 @@ const runGate = async ({ items = [], projects = {}, cfg = {}, haikuFalla = false
     enVuelo--;
     const debeFallar = typeof haikuFalla === 'function' ? haikuFalla(llamadas.length, opts) : haikuFalla;
     if (debeFallar) throw (debeFallar instanceof Error ? debeFallar : new Error('haiku caído (mock)'));
+    if (respuesta !== undefined) return respuesta;
     const usr = (((opts.body || {}).messages || [])[0] || {}).content || '';
     let ids = [];
     try { ids = JSON.parse(usr.slice(usr.indexOf('VIDEOS:\n') + 8)).map((v) => v.id); } catch (e) {}
     const juicio = ids.map((id) => (juicioFn ? juicioFn(id) : { id, relevante: true, score: 0.8, razon: 'ok' }));
-    return { content: [{ text: JSON.stringify({ juicio }) }] };
+    return { statusCode: 200, body: { content: [{ text: JSON.stringify({ juicio }) }] } };
   } } };
   const $ = (n) => {
     // ⚠️ Espeja el `Config` del workflow.json vivo. Decía 0.7 y allá dice 1 desde ADR-090; el mismo
@@ -1926,6 +1944,16 @@ await (async () => {
     check('Armar candidato entrega 0 ante gate caído', corte.out.length === 1 && corte.out[0]._centinela === true && corte.out[0]._entregado === false, JSON.stringify(corte.out));
     const batch = runPreparar({ videos: [pvid('hold', { _gate_caido: true })], runId: 'run-hold' });
     check('Preparar procesados no quema items retenidos', batch.length === 0, JSON.stringify(batch));
+  }
+  {
+    const sinCreditos = { statusCode: 400, body: { type: 'error', error: { type: 'invalid_request_error', message: 'Your credit balance is too low to access the Anthropic API.' } } };
+    const { out } = await runGate({
+      items: [gvid('credito-http')],
+      projects: { P1: { nombre: 'P1', criterios: 'trading' } },
+      respuesta: sinCreditos,
+    });
+    check('saldo agotado en un HTTP 400 del gate viaja como _claude_sin_creditos',
+      out[0]._claude_sin_creditos === true, JSON.stringify(out[0]));
   }
   {
     const items = []; for (let i = 0; i < 30; i++) items.push(gvid('parcial-' + i));
@@ -2327,8 +2355,12 @@ seccion('Cupo Apify (pre-flight) — frena ANTES de gastar, y solo con evidencia
 
 seccion('Normalizar IG — rechazo del proveedor ≠ dataset vacío');
 {
-  const correr = async (items, { cupo = null } = {}) => {
+  const correr = async (items, { cupo = null, plan } = {}) => {
     const $ = (n) => {
+      if (n === 'Armar plan de corrida') {
+        if (plan === undefined) throw new Error('el plan no está disponible');
+        return { first: () => ({ json: plan }) };
+      }
       if (n === 'Cupo Apify (pre-flight)') {
         if (!cupo) throw new Error('el pre-flight no corrió');
         return { first: () => ({ json: cupo }) };
@@ -2384,6 +2416,34 @@ seccion('Normalizar IG — rechazo del proveedor ≠ dataset vacío');
     fijados[0].json.es_fijado === true, JSON.stringify(fijados[0].json));
   check('C8 — un reel sin isPinned queda marcado como no fijado',
     fijados[1].json.es_fijado === false, JSON.stringify(fijados[1].json));
+
+  const plan = {
+    ig_pedidos: [
+      { url: 'https://www.instagram.com/ref/', desde: '2026-09-05T00:00:00Z', limite: 20 },
+      { url: 'https://www.instagram.com/sinfecha/', desde: null, limite: 20 },
+    ],
+    remedir: [{ url: 'https://www.instagram.com/reel/remedido/' }],
+  };
+  const porFecha = await correr([
+    Object.assign(reel('viejo'), { shortCode: 'viejo', timestamp: '2026-09-01T00:00:00Z' }),
+    Object.assign(reel('nuevo'), { shortCode: 'nuevo', timestamp: '2026-09-06T00:00:00Z' }),
+    Object.assign(reel('remedido'), { shortCode: 'remedido', timestamp: '2026-09-01T00:00:00Z' }),
+    Object.assign(reel('sin-desde'), { ownerUsername: 'sinfecha', isPinned: false }),
+    Object.assign(reel('sin-desde-fijado'), { ownerUsername: 'sinfecha', isPinned: true }),
+  ], { plan });
+  check('C8 — un reel anterior al desde de su cuenta queda fijado',
+    porFecha[0].json.es_fijado === true, JSON.stringify(porFecha[0].json));
+  check('C8 — un reel posterior al desde de su cuenta no queda fijado',
+    porFecha[1].json.es_fijado === false, JSON.stringify(porFecha[1].json));
+  check('C8 — un reel viejo del lote de remedición nunca queda fijado',
+    porFecha[2].json.es_fijado === false, JSON.stringify(porFecha[2].json));
+  check('C8 — una cuenta sin desde cae al isPinned del actor',
+    porFecha[3].json.es_fijado === false && porFecha[4].json.es_fijado === true,
+    JSON.stringify(porFecha.slice(3).map((x) => x.json)));
+
+  const sinPlan = await correr([Object.assign(reel('sin-plan'), { isPinned: true })]);
+  check('C8 — si el plan no está disponible no lanza y conserva el fallback isPinned',
+    sinPlan[0].json.es_fijado === true, JSON.stringify(sinPlan[0].json));
 }
 
 seccion('Normalizar TT — el carril secundario no mata la corrida');

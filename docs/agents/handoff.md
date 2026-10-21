@@ -41,6 +41,34 @@ tercio del medio eran cierres viejos anidados uno dentro de otro bajo un encabez
 N`), **nunca anidado dentro del anterior**. Así fue como nacieron las 5.736 líneas de blockquotes
 dentro de blockquotes que se acaban de archivar.
 
+## 🚦 ARRANCÁ POR ACÁ — CIERRE 172 (2026-10-21): los tres arreglos del cierre 170, en el repo y sin empujar
+
+> Hecho con `/delegate` (Codex, effort medium) en la rama `fix/motor-cierre-170`. **En el repo, no en el
+> live:** falta `n8n:push` (con el sí de Mani) y unir a `main`. Sin migraciones ni escrituras a prod.
+
+- **C8 · `es_fijado` por fecha** (`Normalizar IG`): `es_fijado = isPinned || publicado < desde de su
+  cuenta`, con el `desde` de `ig_pedidos` del plan (cuenta por el handle de la URL). Los reels del lote
+  de re-medición nunca son fijados (son jóvenes pero anteriores al `desde`). Sin plan o sin `desde`,
+  queda `isPinned` como antes. ⚠️ **`pool_crudo.es_fijado` sigue leyendo `isPinned`** (siempre `false`):
+  `Preparar pool crudo` está pinzado a `core/scripts/backfill-pool-crudo.mjs`, y cambiarlo pide ADR. Mientras
+  tanto, el fijado en `pool_crudo` se deriva al leer (`publicado_en < desde`), como se midió en el cierre 170.
+- **`Etapa:` ya no pisa el resumen:** los 5 PATCH llevan `&estado=eq.en_curso`. Una vez que `Cerrar run`
+  (o el barrido de zombis) saca la corrida de `en_curso`, el PATCH tardío afecta 0 filas, sin importar el
+  orden del canvas. Sin migración: `metricas.etapa` solo sirve mientras la corrida vive.
+- **Sin créditos:** medido en las ejecuciones 222 y 223 que n8n **no guarda** el texto del error de
+  `this.helpers.httpRequest`, así que no hay cómo saber qué traía. En vez de depender de esa forma, las 3
+  llamadas a Anthropic (`Pre-trim`, `Traducir`, `Gate`) piden `returnFullResponse` +
+  `ignoreHttpStatusErrors` y lanzan ellas mismas `HTTP <código> <body>`: el body de Anthropic llega a la
+  regex `/credit balance/` por el mismo `catch` de siempre. ⏳ **Se confirma en el live** solo la próxima
+  vez que falten créditos (o con una sonda con key inválida, si Mani la pide).
+- **UI:** la etiqueta de rendimiento va primera en el subtítulo de la tarjeta del Feed, así no la tapa el "…".
+- **Verificado:** `test-nodos` 436 ✅ (8 checks nuevos) · `auditar-workflows` sin hallazgos · `validate`
+  verde · dashboard typecheck + 641 tests verdes.
+- **⏭️ Para cerrarlo:** unir la rama · `npm run n8n:push -- motor --nodos "Normalizar IG,Pre-trim
+  relevancia,Traducir (Claude Haiku),Gate de relevancia,Etapa: colecta,Etapa: seleccion,Etapa:
+  transcripcion,Etapa: gate,Etapa: entrega"` (dry-run y después `--apply`) · deploy del cockpit · 🐤 en la
+  próxima corrida: `runs.metricas` trae `por_proyecto` y `pool_crudo` sigue igual.
+
 ## 🚦 ARRANCÁ POR ACÁ — CIERRE 171 (2026-10-20): con el piso pasan 2 por corrida, el viral sí está, y el pool se sigue revisando (C10)
 
 > Sesión de preparación de la reunión con gerencia y media, y de solo lectura (`psql` read-only sobre

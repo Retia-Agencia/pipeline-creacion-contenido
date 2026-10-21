@@ -134,19 +134,19 @@ export function Tarjeta({
       // feed, así que flotando era ruido en vez de señal. Es una marca, no cambia el orden.
       subtitulo={
         <>
-          {candidato.referente ?? "sin referente"}
-          {candidato.views !== null && ` · ${miles(candidato.views)} vistas`}
           {candidato.rendimiento?.etiqueta && candidato.rendimiento.vpd !== null && (
             <>
-              {" · "}
               <Badge variant="secondary">{candidato.rendimiento.etiqueta}</Badge>{" "}
               <span className="text-muted-foreground">
                 ~{miles(Math.round(candidato.rendimiento.vpd))}/día
                 {candidato.rendimiento.contraSuEdad &&
                   ` · ${candidato.rendimiento.contraSuEdad} de su edad`}
               </span>
+              {" · "}
             </>
           )}
+          {candidato.referente ?? "sin referente"}
+          {candidato.views !== null && ` · ${miles(candidato.views)} vistas`}
           {candidato.viralPorTamano && " · high-end"}
           {" · "}
           {/* La corrida que lo trajo (ADR-081). **El `sin corrida` se dibuja**, no se omite: la
