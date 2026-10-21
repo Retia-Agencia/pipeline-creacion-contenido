@@ -41,10 +41,13 @@ tercio del medio eran cierres viejos anidados uno dentro de otro bajo un encabez
 N`), **nunca anidado dentro del anterior**. Así fue como nacieron las 5.736 líneas de blockquotes
 dentro de blockquotes que se acaban de archivar.
 
-## 🚦 ARRANCÁ POR ACÁ — CIERRE 172 (2026-10-21): los tres arreglos del cierre 170, en el repo y sin empujar
+## 🚦 ARRANCÁ POR ACÁ — CIERRE 172 (2026-10-21): los tres arreglos del cierre 170, en el motor live
 
-> Hecho con `/delegate` (Codex, effort medium) en la rama `fix/motor-cierre-170`. **En el repo, no en el
-> live:** falta `n8n:push` (con el sí de Mani) y unir a `main`. Sin migraciones ni escrituras a prod.
+> Hecho con `/delegate` (Codex, effort medium) en la rama `fix/motor-cierre-170`, unida a `main`.
+> ✅ **`n8n:push -- motor --apply` de los 9 nodos** (a pedido de Mani, 21/10 14:41 UTC; snapshot de
+> rollback `core/scripts/.n8n-snapshots/motor-2026-10-21T14-41-12-445Z.json`). `n8n:diff` del motor:
+> solo las 3 diferencias viejas, sin `[orden]`. Falta el deploy del cockpit (etiqueta del Feed). Sin
+> migraciones ni escrituras a Supabase.
 
 - **C8 · `es_fijado` por fecha** (`Normalizar IG`): `es_fijado = isPinned || publicado < desde de su
   cuenta`, con el `desde` de `ig_pedidos` del plan (cuenta por el handle de la URL). Los reels del lote
@@ -64,10 +67,8 @@ dentro de blockquotes que se acaban de archivar.
 - **UI:** la etiqueta de rendimiento va primera en el subtítulo de la tarjeta del Feed, así no la tapa el "…".
 - **Verificado:** `test-nodos` 436 ✅ (8 checks nuevos) · `auditar-workflows` sin hallazgos · `validate`
   verde · dashboard typecheck + 641 tests verdes.
-- **⏭️ Para cerrarlo:** unir la rama · `npm run n8n:push -- motor --nodos "Normalizar IG,Pre-trim
-  relevancia,Traducir (Claude Haiku),Gate de relevancia,Etapa: colecta,Etapa: seleccion,Etapa:
-  transcripcion,Etapa: gate,Etapa: entrega"` (dry-run y después `--apply`) · deploy del cockpit · 🐤 en la
-  próxima corrida: `runs.metricas` trae `por_proyecto` y `pool_crudo` sigue igual.
+- **⏭️ Para cerrarlo:** deploy del cockpit · 🐤 en la próxima corrida: `runs.metricas` trae
+  `por_proyecto` y ningún `etapa_en` posterior a `fin`.
 
 ## 🚦 ARRANCÁ POR ACÁ — CIERRE 171 (2026-10-20): con el piso pasan 2 por corrida, el viral sí está, y el pool se sigue revisando (C10)
 
