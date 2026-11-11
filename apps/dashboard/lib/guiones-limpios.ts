@@ -2,7 +2,7 @@ import { z } from "zod";
 import { claveDe, type Plataforma } from "@/domain/enlace";
 import type { TenantContext } from "@/domain/tenant";
 import { scoped } from "@/lib/supabase/scoped";
-import { abortarSiTruncado } from "@/lib/supabase/tope";
+import { leerTodo } from "@/lib/supabase/tope";
 
 // IO del guion limpio (ADR-074, migración `032`).
 //
@@ -44,12 +44,21 @@ const ARBITER = "instance_id,plataforma,external_id";
  * guion o baja el documento, que es cuando el texto hace falta de verdad.
  */
 export async function leerLimpios(ctx: TenantContext): Promise<Map<string, GuionLimpio>> {
-  const { data, error } = await (await scoped(ctx)).select("app.guiones_limpios", COLUMNAS);
-  if (error) throw new Error(`Supabase respondió con error leyendo los limpios: ${error.message}`);
-  abortarSiTruncado((data ?? []).length, "los guiones limpios (app.guiones_limpios)");
+  const s = await scoped(ctx);
+  // Paginado: la tabla ya pasó las 1.000 filas de una empresa (11/11) y la lectura plana tiraba
+  // siempre, rompiendo la limpieza y el documento de toda colección. Orden por la PK.
+  const data = await leerTodo(
+    (d, h) =>
+      s
+        .select("app.guiones_limpios", COLUMNAS)
+        .order("plataforma")
+        .order("external_id")
+        .range(d, h),
+    "los guiones limpios (app.guiones_limpios)",
+  );
 
   const mapa = new Map<string, GuionLimpio>();
-  for (const f of z.array(fila).parse(data ?? [])) {
+  for (const f of z.array(fila).parse(data)) {
     const clave = claveDe({ plataforma: f.plataforma as Plataforma, external_id: f.external_id });
     mapa.set(clave, {
       clave,
@@ -74,14 +83,20 @@ export async function leerLimpios(ctx: TenantContext): Promise<Map<string, Guion
  * `estadoDelLimpio` los cuenta al día a propósito.
  */
 export async function huellasDeLimpios(ctx: TenantContext): Promise<Map<string, string | null>> {
-  const { data, error } = await (await scoped(ctx)).select(
-    "app.guiones_limpios",
-    "plataforma, external_id, criterios_hash",
+  const s = await scoped(ctx);
+  // Paginado: sin esto la lectura se cortaba en 1.000 sin error y los badges de "limpio" mentían.
+  const data = await leerTodo(
+    (d, h) =>
+      s
+        .select("app.guiones_limpios", "plataforma, external_id, criterios_hash")
+        .order("plataforma")
+        .order("external_id")
+        .range(d, h),
+    "las huellas de los limpios (app.guiones_limpios)",
   );
-  if (error) throw new Error(`Supabase respondió con error: ${error.message}`);
   const huellas = new Map<string, string | null>();
   const columnas = fila.pick({ plataforma: true, external_id: true, criterios_hash: true });
-  for (const f of z.array(columnas).parse(data ?? [])) {
+  for (const f of z.array(columnas).parse(data)) {
     huellas.set(
       claveDe({ plataforma: f.plataforma as Plataforma, external_id: f.external_id }),
       f.criterios_hash,

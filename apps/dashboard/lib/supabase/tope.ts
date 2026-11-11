@@ -38,3 +38,29 @@ export function abortarSiTruncado(filas: number, queSeLeia: string): void {
       `(offset de a ${TOPE_POSTGREST} hasta que una página vuelva incompleta).`,
   );
 }
+
+/**
+ * Lee TODAS las filas de una consulta pidiendo páginas de `TOPE_POSTGREST` hasta que una vuelva
+ * incompleta. Es la salida que `abortarSiTruncado` pide cuando una tabla cruza el tope: el guard
+ * detecta el problema, esto lo resuelve.
+ *
+ * 🔑 **La consulta tiene que traer un `.order()` estable** (la PK basta): sin él, dos páginas pueden
+ * repetir o saltarse filas, que es el mismo modo de falla mudo que el tope, por otra puerta.
+ *
+ * @param pagina  recibe el rango inclusivo `[desde, hasta]` y devuelve la consulta ya con
+ *                `.order()` y `.range(desde, hasta)` puestos
+ * @param queSeLeia  qué se estaba leyendo, para el mensaje de error
+ */
+export async function leerTodo<T>(
+  pagina: (desde: number, hasta: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+  queSeLeia: string,
+): Promise<T[]> {
+  const todas: T[] = [];
+  for (let desde = 0; ; desde += TOPE_POSTGREST) {
+    const { data, error } = await pagina(desde, desde + TOPE_POSTGREST - 1);
+    if (error) throw new Error(`Supabase respondió con error leyendo ${queSeLeia}: ${error.message}`);
+    const filas = data ?? [];
+    todas.push(...filas);
+    if (filas.length < TOPE_POSTGREST) return todas;
+  }
+}

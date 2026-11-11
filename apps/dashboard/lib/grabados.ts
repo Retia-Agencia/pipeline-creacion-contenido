@@ -3,7 +3,7 @@ import { claveDe, type EnlaceVideo, type Plataforma } from "@/domain/enlace";
 import type { MarcaGrabado } from "@/domain/grabados";
 import type { TenantContext } from "@/domain/tenant";
 import { scoped } from "@/lib/supabase/scoped";
-import { abortarSiTruncado } from "@/lib/supabase/tope";
+import { leerTodo } from "@/lib/supabase/tope";
 
 // IO de la marca "ya se grabó" (ADR-070, migración `029`).
 //
@@ -47,13 +47,14 @@ const ARBITER = "instance_id,plataforma,external_id";
  * paginar, pero paginar hoy costaría la unión completa por otro lado.
  */
 export async function leerMarcas(ctx: TenantContext): Promise<Map<string, MarcaGrabado>> {
-  const { data, error } = await (await scoped(ctx)).select("app.grabados", COLUMNAS);
-  if (error)
-    throw new Error(`Supabase respondió con error leyendo las marcas de grabado: ${error.message}`);
-  abortarSiTruncado((data ?? []).length, "las marcas de grabado (app.grabados)");
+  const s = await scoped(ctx);
+  const data = await leerTodo(
+    (d, h) => s.select("app.grabados", COLUMNAS).order("plataforma").order("external_id").range(d, h),
+    "las marcas de grabado (app.grabados)",
+  );
 
   const marcas = new Map<string, MarcaGrabado>();
-  for (const f of z.array(filaGrabado).parse(data ?? [])) {
+  for (const f of z.array(filaGrabado).parse(data)) {
     marcas.set(claveDe(f), { clave: claveDe(f), url: f.url, grabadoEn: f.grabado_en });
   }
   return marcas;
