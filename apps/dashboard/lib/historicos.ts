@@ -2,6 +2,7 @@ import { z } from "zod";
 import { esCalificacion, type Calificacion } from "@/domain/feed";
 import type { TenantContext } from "@/domain/tenant";
 import { scoped } from "@/lib/supabase/scoped";
+import { TOPE_POSTGREST } from "@/lib/supabase/tope";
 
 // Todo lo aprobado, de todas las semanas. A diferencia del feed, esto **no** sale de Airtable:
 // el archivado archiva lo calificado a `outputs` y después borra el record, así que en Airtable
@@ -14,7 +15,6 @@ import { scoped } from "@/lib/supabase/scoped";
 // ⚠️ No hay thumbnail: el `thumbnail` de un candidato es un attachment de Airtable que muere
 // con el record y nunca se archivó (mapa-campos §4.3). El histórico es texto.
 
-export const POR_PAGINA = 25;
 
 /**
  * Un guion del histórico, **sin su script**.
@@ -106,7 +106,9 @@ function aHistorico(row: FilaOutput): HistoricoConScript {
 }
 
 /**
- * Una página de aprobados, de a `POR_PAGINA`. Devuelve también si queda más.
+ * Una página de aprobados, de a `TOPE_POSTGREST` (1.000, lo máximo que PostgREST sirve). Antes era de a
+ * `POR_PAGINA` = 25, o sea ~79 viajes en serie para bajar el histórico entero (ADR-105). Devuelve
+ * también si queda más.
  *
  * El orden es por fecha de calificación descendente (lo último que el equipo decidió arriba),
  * con `id` como desempate para que la paginación sea estable: sin desempate, dos filas con el
@@ -119,7 +121,7 @@ async function leerPagina(
   pagina: number,
   conScript: boolean,
 ): Promise<{ filas: HistoricoConScript[]; hayMas: boolean; total: number }> {
-  const desde = pagina * POR_PAGINA;
+  const desde = pagina * TOPE_POSTGREST;
   const columnas = conScript
     ? "id, titulo, contenido_o_link, metadata, calificado_en"
     : "id, titulo, metadata, calificado_en";
@@ -129,7 +131,7 @@ async function leerPagina(
     .eq("estado", "aprobado")
     .order("calificado_en", { ascending: false })
     .order("id", { ascending: true })
-    .range(desde, desde + POR_PAGINA - 1);
+    .range(desde, desde + TOPE_POSTGREST - 1);
 
   if (error) throw new Error(`Supabase respondió con error leyendo el histórico: ${error.message}`);
 
