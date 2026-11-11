@@ -36,38 +36,51 @@ const COLUMNAS = "plataforma, external_id, texto, modelo, criterios_hash, actual
 const ARBITER = "instance_id,plataforma,external_id";
 
 /**
- * Todos los guiones limpios del cockpit, indexados por clave de video.
+ * Los guiones limpios de **estos videos**, indexados por clave.
  *
- * ⚠️ **Trae el `texto`, que es largo, y eso es deliberado acá y NO en la lista de la colección.** La
- * regla del payload de `domain/feed.ts` (los textos largos no viajan con la grilla) se respeta
- * pidiendo `huellasDeLimpios` para dibujar los badges; esta función es para cuando alguien abre un
- * guion o baja el documento, que es cuando el texto hace falta de verdad.
+ * 🔑 **Se pide por llaves y no "todos los de la empresa".** Traía la tabla entera (con el `texto`,
+ * que es largo) para usar los 40 de una colección, y al pasar de 1.000 filas el tope de PostgREST
+ * rompió la limpieza y el documento de toda colección (11/11). Un lote de 200 devuelve máximo 200
+ * filas, así que acá ni siquiera puede truncarse. El 200 es el mismo de `quitarMiembros`: una URL
+ * con más ids da 414 en prod.
+ *
+ * Agrupa por plataforma porque los ids de Instagram y TikTok son enteros de 19 dígitos que pueden
+ * chocar: un `in` plano sobre `external_id` traería el limpio de otro video (ver `claveDe`).
+ *
+ * ⚠️ Trae el `texto`: es para abrir un guion o bajar el documento. Los badges usan `huellasDeLimpios`.
  */
-export async function leerLimpios(ctx: TenantContext): Promise<Map<string, GuionLimpio>> {
-  const s = await scoped(ctx);
-  // Paginado: la tabla ya pasó las 1.000 filas de una empresa (11/11) y la lectura plana tiraba
-  // siempre, rompiendo la limpieza y el documento de toda colección. Orden por la PK.
-  const data = await leerTodo(
-    (d, h) =>
-      s
-        .select("app.guiones_limpios", COLUMNAS)
-        .order("plataforma")
-        .order("external_id")
-        .range(d, h),
-    "los guiones limpios (app.guiones_limpios)",
-  );
+export async function leerLimpiosDe(
+  ctx: TenantContext,
+  videos: readonly { plataforma: Plataforma; external_id: string }[],
+): Promise<Map<string, GuionLimpio>> {
+  const porPlataforma = new Map<Plataforma, string[]>();
+  for (const v of videos) {
+    const ids = porPlataforma.get(v.plataforma) ?? [];
+    ids.push(v.external_id);
+    porPlataforma.set(v.plataforma, ids);
+  }
 
+  const s = await scoped(ctx);
   const mapa = new Map<string, GuionLimpio>();
-  for (const f of z.array(fila).parse(data)) {
-    const clave = claveDe({ plataforma: f.plataforma as Plataforma, external_id: f.external_id });
-    mapa.set(clave, {
-      clave,
-      texto: f.texto,
-      modelo: f.modelo,
-      criteriosHash: f.criterios_hash,
-      actualizadoEn: f.actualizado_en,
-      vozId: f.voz_id,
-    });
+  for (const [plataforma, ids] of porPlataforma) {
+    for (let i = 0; i < ids.length; i += 200) {
+      const { data, error } = await s
+        .select("app.guiones_limpios", COLUMNAS)
+        .eq("plataforma", plataforma)
+        .in("external_id", ids.slice(i, i + 200));
+      if (error) throw new Error(`Supabase respondió con error leyendo los limpios: ${error.message}`);
+      for (const f of z.array(fila).parse(data ?? [])) {
+        const clave = claveDe({ plataforma: f.plataforma as Plataforma, external_id: f.external_id });
+        mapa.set(clave, {
+          clave,
+          texto: f.texto,
+          modelo: f.modelo,
+          criteriosHash: f.criterios_hash,
+          actualizadoEn: f.actualizado_en,
+          vozId: f.voz_id,
+        });
+      }
+    }
   }
   return mapa;
 }
@@ -77,7 +90,7 @@ export async function leerLimpios(ctx: TenantContext): Promise<Map<string, Guion
  *
  * Es lo que dibuja los badges de la grilla: quién está limpio, y cuál de esos quedó viejo. Las
  * claves del mapa siguen siendo la respuesta a *"¿tiene limpio?"*; el valor es lo que agrega
- * ADR-080. El `texto` no viaja: para eso está `leerLimpios`, que se pide al abrir un guion.
+ * ADR-080. El `texto` no viaja: para eso está `leerLimpiosDe`, que se pide al abrir un guion.
  *
  * La huella puede ser `null` (guiones limpiados antes de la `032`) y eso NO es un dato faltante:
  * `estadoDelLimpio` los cuenta al día a propósito.

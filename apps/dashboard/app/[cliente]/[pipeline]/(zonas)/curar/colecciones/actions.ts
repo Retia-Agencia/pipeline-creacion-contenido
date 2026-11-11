@@ -23,7 +23,7 @@ import {
 } from "@/lib/colecciones";
 import { registrarEvento } from "@/lib/eventos";
 import { desmarcar, marcar, marcarMuchos } from "@/lib/grabados";
-import { borrarLimpio, guardarLimpio, leerLimpios } from "@/lib/guiones-limpios";
+import { borrarLimpio, guardarLimpio, leerLimpiosDe } from "@/lib/guiones-limpios";
 import { leerCrudo } from "@/lib/guiones";
 import { limpiar, MODELO } from "@/lib/limpiar";
 import { leerVoces } from "@/lib/proyectos";
@@ -495,7 +495,7 @@ export async function verGuiones(
   try {
     const [crudo, limpios, voces] = await Promise.all([
       leerCrudo(ctx, plataforma, externalId),
-      leerLimpios(ctx),
+      leerLimpiosDe(ctx, [{ plataforma, external_id: externalId }]),
       leerVoces(ctx),
     ]);
     const guion = limpios.get(`${plataforma}:${externalId}`) ?? null;
@@ -559,9 +559,9 @@ async function pasadaDeLimpieza(
   let seSabe;
   let perfilPorVoz: Map<string, string | null>;
   try {
-    const [ms, yl, ss, voces] = await Promise.all([
-      leerMiembros(ctx, coleccionId),
-      leerLimpios(ctx),
+    const ms = await leerMiembros(ctx, coleccionId);
+    const [yl, ss, voces] = await Promise.all([
+      leerLimpiosDe(ctx, ms),
       // 🔑 **De acá sale la voz de cada video** (ADR-080). Es la misma fusión que ya pinta la
       // grilla, así que la voz con la que se limpia es **la que la tarjeta muestra**: no hay una
       // segunda derivación que pueda discrepar de lo que el equipo ve.
@@ -783,10 +783,10 @@ export async function descargar(
     const coleccion = await leerColeccion(ctx, coleccionId);
     if (!coleccion) return { ok: false, mensaje: "Esa colección no existe." };
 
-    const [miembros, seSabe, limpios] = await Promise.all([
-      leerMiembros(ctx, coleccionId),
+    const miembros = await leerMiembros(ctx, coleccionId);
+    const [seSabe, limpios] = await Promise.all([
       leerLoQueSeSabe(ctx),
-      leerLimpios(ctx),
+      leerLimpiosDe(ctx, miembros),
     ]);
 
     const hasta = Date.now() + PRESUPUESTO_DESCARGA_MS;
