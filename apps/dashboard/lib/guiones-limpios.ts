@@ -2,7 +2,6 @@ import { z } from "zod";
 import { claveDe, type Plataforma } from "@/domain/enlace";
 import type { TenantContext } from "@/domain/tenant";
 import { scoped } from "@/lib/supabase/scoped";
-import { leerTodo } from "@/lib/supabase/tope";
 
 // IO del guion limpio (ADR-074, migración `032`).
 //
@@ -95,25 +94,34 @@ export async function leerLimpiosDe(
  * La huella puede ser `null` (guiones limpiados antes de la `032`) y eso NO es un dato faltante:
  * `estadoDelLimpio` los cuenta al día a propósito.
  */
-export async function huellasDeLimpios(ctx: TenantContext): Promise<Map<string, string | null>> {
+export async function huellasDeLimpios(
+  ctx: TenantContext,
+  videos: readonly { plataforma: Plataforma; external_id: string }[],
+): Promise<Map<string, string | null>> {
+  const porPlataforma = new Map<Plataforma, string[]>();
+  for (const v of videos) {
+    const ids = porPlataforma.get(v.plataforma) ?? [];
+    ids.push(v.external_id);
+    porPlataforma.set(v.plataforma, ids);
+  }
+
   const s = await scoped(ctx);
-  // Paginado: sin esto la lectura se cortaba en 1.000 sin error y los badges de "limpio" mentían.
-  const data = await leerTodo(
-    (d, h) =>
-      s
-        .select("app.guiones_limpios", "plataforma, external_id, criterios_hash")
-        .order("plataforma")
-        .order("external_id")
-        .range(d, h),
-    "las huellas de los limpios (app.guiones_limpios)",
-  );
   const huellas = new Map<string, string | null>();
   const columnas = fila.pick({ plataforma: true, external_id: true, criterios_hash: true });
-  for (const f of z.array(columnas).parse(data)) {
-    huellas.set(
-      claveDe({ plataforma: f.plataforma as Plataforma, external_id: f.external_id }),
-      f.criterios_hash,
-    );
+  for (const [plataforma, ids] of porPlataforma) {
+    for (let i = 0; i < ids.length; i += 200) {
+      const { data, error } = await s
+        .select("app.guiones_limpios", "plataforma, external_id, criterios_hash")
+        .eq("plataforma", plataforma)
+        .in("external_id", ids.slice(i, i + 200));
+      if (error) throw new Error(`Supabase respondió con error: ${error.message}`);
+      for (const f of z.array(columnas).parse(data ?? [])) {
+        huellas.set(
+          claveDe({ plataforma: f.plataforma as Plataforma, external_id: f.external_id }),
+          f.criterios_hash,
+        );
+      }
+    }
   }
   return huellas;
 }

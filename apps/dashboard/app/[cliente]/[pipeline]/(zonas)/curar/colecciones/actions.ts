@@ -432,7 +432,7 @@ async function enriquecerLote(
   enlaces: readonly (EnlaceVideo | { url: string; plataforma: "instagram" | "tiktok"; external_id: string })[],
 ): Promise<{ traidos: number; faltaban: number }> {
   try {
-    const seSabe = await leerLoQueSeSabe(ctx);
+    const seSabe = await leerLoQueSeSabe(ctx, enlaces);
     const comoVideos = enlaces.map(
       (e) =>
         seSabe.get(`${e.plataforma}:${e.external_id}`) ?? {
@@ -565,7 +565,7 @@ async function pasadaDeLimpieza(
       // 🔑 **De acá sale la voz de cada video** (ADR-080). Es la misma fusión que ya pinta la
       // grilla, así que la voz con la que se limpia es **la que la tarjeta muestra**: no hay una
       // segunda derivación que pueda discrepar de lo que el equipo ve.
-      leerLoQueSeSabe(ctx),
+      leerLoQueSeSabe(ctx, ms),
       leerVoces(ctx),
     ]);
     miembros = ms;
@@ -785,7 +785,7 @@ export async function descargar(
 
     const miembros = await leerMiembros(ctx, coleccionId);
     const [seSabe, limpios] = await Promise.all([
-      leerLoQueSeSabe(ctx),
+      leerLoQueSeSabe(ctx, miembros),
       leerLimpiosDe(ctx, miembros),
     ]);
 

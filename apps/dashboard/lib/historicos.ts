@@ -75,6 +75,36 @@ const filaOutput = z.object({
 // subir el número.
 const TOPE_EXPORT = 5000;
 
+type FilaOutput = z.infer<typeof filaOutput>;
+
+/** De una fila cruda de `outputs` al tipo de dominio. Una sola, para que la lista y la lectura por llaves no diverjan. */
+function aHistorico(row: FilaOutput): HistoricoConScript {
+  const m = row.metadata ?? {};
+  return {
+      id: row.id,
+      titulo: texto(row.titulo) ?? "(sin título)",
+      script: texto(row.contenido_o_link),
+      proyecto: texto(m.proyecto),
+      voz: texto(m.voz),
+      referente: texto(m.referente),
+      urlReferente: texto(m.url_referente),
+      calificacion: esCalificacion(m.calificacion) ? m.calificacion : null,
+      calificadoEn: texto(row.calificado_en),
+      views: numero(m.views),
+      likes: numero(m.likes),
+      seguidores: numero(m.seguidores),
+      idioma: texto(m.idioma),
+      heat: numero(m.heat_score),
+      relevanciaScore: numero(m.relevancia_score),
+      relevanciaRazon: texto(m.relevancia_razon),
+      notas: texto(m.notas_equipo),
+      // Se deriva de `metadata.origen` y no de `tipo`, que no se lee en esta query. Lo que escribe
+      // el archivado no trae la marca, y su ausencia significa "vino del feed": es el caso viejo y
+      // el mayoritario, así que el default correcto es ese y no un "(desconocido)".
+      origen: m.origen === "transcribir" ? "transcribir" : "feed",
+  } satisfies HistoricoConScript;
+}
+
 /**
  * Una página de aprobados, de a `POR_PAGINA`. Devuelve también si queda más.
  *
@@ -103,32 +133,7 @@ async function leerPagina(
 
   if (error) throw new Error(`Supabase respondió con error leyendo el histórico: ${error.message}`);
 
-  const filas = z.array(filaOutput).parse(data ?? []).map((row) => {
-    const m = row.metadata ?? {};
-    return {
-      id: row.id,
-      titulo: texto(row.titulo) ?? "(sin título)",
-      script: texto(row.contenido_o_link),
-      proyecto: texto(m.proyecto),
-      voz: texto(m.voz),
-      referente: texto(m.referente),
-      urlReferente: texto(m.url_referente),
-      calificacion: esCalificacion(m.calificacion) ? m.calificacion : null,
-      calificadoEn: texto(row.calificado_en),
-      views: numero(m.views),
-      likes: numero(m.likes),
-      seguidores: numero(m.seguidores),
-      idioma: texto(m.idioma),
-      heat: numero(m.heat_score),
-      relevanciaScore: numero(m.relevancia_score),
-      relevanciaRazon: texto(m.relevancia_razon),
-      notas: texto(m.notas_equipo),
-      // Se deriva de `metadata.origen` y no de `tipo`, que no se lee en esta query. Lo que escribe
-      // el archivado no trae la marca, y su ausencia significa "vino del feed": es el caso viejo y
-      // el mayoritario, así que el default correcto es ese y no un "(desconocido)".
-      origen: m.origen === "transcribir" ? "transcribir" : "feed",
-    } satisfies HistoricoConScript;
-  });
+  const filas = z.array(filaOutput).parse(data ?? []).map(aHistorico);
 
   const total = count ?? filas.length;
   return { filas, hayMas: desde + filas.length < total, total };
@@ -162,6 +167,34 @@ export async function leerHistoricoCompleto(
     if (!hayMas || filas.length === 0) return { filas: todas, truncado: false };
   }
   return { filas: todas.slice(0, TOPE_EXPORT), truncado: true };
+}
+
+/**
+ * Lo aprobado del histórico para **estos videos**, sin su script, por llave `plataforma:id`.
+ *
+ * 🔑 **Filtra por `video_key`** (migración `049`, ADR-105): la columna la genera la base desde
+ * `metadata.url_referente`, así que no hay que bajar el histórico entero para saber el título y la
+ * voz de los 40 videos de una colección. Lotes de 200 por el 414 de URL larga (mismo número que
+ * `quitarMiembros`); cada lote devuelve ≤ 200 filas, o sea que el tope de PostgREST no puede
+ * truncarlo. Si un video está más de una vez aprobado, salen todas y `fusionar` decide.
+ */
+export async function leerHistoricoDe(
+  ctx: TenantContext,
+  claves: readonly string[],
+): Promise<Historico[]> {
+  const s = await scoped(ctx);
+  const filas: Historico[] = [];
+  for (let i = 0; i < claves.length; i += 200) {
+    const { data, error } = await s
+      .select("public.outputs", "id, titulo, metadata, calificado_en")
+      .eq("estado", "aprobado")
+      .in("video_key", claves.slice(i, i + 200))
+      .order("calificado_en", { ascending: false })
+      .order("id", { ascending: true });
+    if (error) throw new Error(`Supabase respondió con error leyendo el histórico: ${error.message}`);
+    for (const row of z.array(filaOutput).parse(data ?? [])) filas.push(aHistorico(row));
+  }
+  return filas;
 }
 
 /**

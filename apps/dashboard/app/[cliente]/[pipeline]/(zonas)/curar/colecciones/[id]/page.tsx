@@ -36,10 +36,11 @@ export default async function ColeccionPage({
   // que acá no hay nada, no mandarlo a otra pantalla como si se hubiera equivocado de camino.
   if (!coleccion) notFound();
 
-  const [miembros, seSabe, limpios, marcas, voces] = await Promise.all([
-    leerMiembros(ctx, id),
-    leerLoQueSeSabe(ctx),
-    huellasDeLimpios(ctx),
+  // Primero los miembros: todo lo demás se pide por SUS llaves y no tabla entera (ADR-105).
+  const miembros = await leerMiembros(ctx, id);
+  const [seSabe, limpios, marcas, voces] = await Promise.all([
+    leerLoQueSeSabe(ctx, miembros),
+    huellasDeLimpios(ctx, miembros),
     // Las marcas de "ya se grabó" son del cockpit entero (ADR-070: la marca es por video, no por
     // colección), así que la mayoría no está en esta lista. La pantalla cruza por clave.
     leerMarcas(ctx),

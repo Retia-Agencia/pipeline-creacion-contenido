@@ -47,16 +47,48 @@ export async function leerMeta(ctx: TenantContext): Promise<ParteVideo[]> {
     "la metadata de videos (app.videos_meta)",
   );
 
-  return z.array(filaMeta).parse(data).map((f) => ({
-    plataforma: f.plataforma as Plataforma,
-    external_id: f.external_id,
-    titulo: f.titulo,
-    referente: f.referente,
-    thumbnail: f.thumbnail_url,
-    views: f.views,
-    likes: f.likes,
-    seguidores: f.seguidores,
-  }));
+  return z.array(filaMeta).parse(data).map(aParte);
+}
+
+const aParte = (f: z.infer<typeof filaMeta>): ParteVideo => ({
+  plataforma: f.plataforma as Plataforma,
+  external_id: f.external_id,
+  titulo: f.titulo,
+  referente: f.referente,
+  thumbnail: f.thumbnail_url,
+  views: f.views,
+  likes: f.likes,
+  seguidores: f.seguidores,
+});
+
+/**
+ * La metadata comprada de **estos videos**. Es la lectura de `leerLoQueSeSabe`: la PK ya lleva
+ * `(plataforma, external_id)`, así que se pide por llave en lotes de 200 y nunca baja la tabla.
+ * Agrupa por plataforma porque dos ids de plataformas distintas pueden coincidir (ver `claveDe`).
+ */
+export async function leerMetaDe(
+  ctx: TenantContext,
+  videos: readonly { plataforma: Plataforma; external_id: string }[],
+): Promise<ParteVideo[]> {
+  const porPlataforma = new Map<Plataforma, string[]>();
+  for (const v of videos) {
+    const ids = porPlataforma.get(v.plataforma) ?? [];
+    ids.push(v.external_id);
+    porPlataforma.set(v.plataforma, ids);
+  }
+  const s = await scoped(ctx);
+  const partes: ParteVideo[] = [];
+  for (const [plataforma, ids] of porPlataforma) {
+    for (let i = 0; i < ids.length; i += 200) {
+      const { data, error } = await s
+        .select("app.videos_meta", COLUMNAS)
+        .eq("plataforma", plataforma)
+        .in("external_id", ids.slice(i, i + 200));
+      if (error) throw new Error(`Supabase respondió con error leyendo la metadata: ${error.message}`);
+      partes.push(...z.array(filaMeta).parse(data ?? []).map(aParte));
+    }
+  }
+  return partes;
 }
 
 
@@ -100,7 +132,7 @@ export async function guardarMeta(ctx: TenantContext, metas: readonly MetaDeVide
 
 import { parsearEnlaces } from "@/domain/enlace";
 import { fusionar, type Video } from "@/domain/video";
-import { leerTodosLosAprobados } from "@/lib/historicos";
+import { leerHistoricoDe } from "@/lib/historicos";
 import { leerVoces } from "@/lib/proyectos";
 
 const filaCandidato = z.object({
@@ -141,15 +173,32 @@ function identidad(url: string | null): { plataforma: Plataforma; external_id: s
  *  2. `app.videos_meta` — lo que se compró a pedido. Es el único que aporta miniatura al resto.
  *  3. `outputs` — el archivo. Llena huecos, nunca pisa.
  */
-export async function leerLoQueSeSabe(ctx: TenantContext): Promise<Map<string, Video>> {
+export async function leerLoQueSeSabe(
+  ctx: TenantContext,
+  videos: readonly { plataforma: Plataforma; external_id: string }[],
+): Promise<Map<string, Video>> {
   const s = await scoped(ctx);
   const [candidatos, meta, aprobados, voces] = await Promise.all([
-    s.select(
-      "app.candidatos",
-      "external_id, url_referente, titulo, referente, thumbnail_url, views, likes, seguidores, idioma, heat_score, voz_id",
+    // El Feed vivo: lo acota el barrido de 20 días (cientos de filas), pero se pagina igual. Antes
+    // no tenía guard y a las 1.000 se cortaba sin error. Su identidad sale de `url_referente`, no de
+    // `external_id`, así que no se puede pedir por llave sin mover esa derivación.
+    leerTodo(
+      (d, h) =>
+        s
+          .select(
+            "app.candidatos",
+            "external_id, url_referente, titulo, referente, thumbnail_url, views, likes, seguidores, idioma, heat_score, voz_id",
+          )
+          .order("id")
+          .range(d, h),
+      "el feed vivo (app.candidatos)",
+    ).then(
+      (data) => ({ data, error: null }),
+      (error: Error) => ({ data: null, error }),
     ),
-    leerMeta(ctx),
-    leerTodosLosAprobados(ctx),
+    leerMetaDe(ctx, videos),
+    // Por llave (`video_key`, migración `049`) y sin `script`: solo título, referente, métricas y voz.
+    leerHistoricoDe(ctx, videos.map(claveDe)),
     // Para traducir la voz del histórico, que viaja por NOMBRE y no por uuid (`outputs.metadata.voz`
     // guarda "Juan Pablo Vieira"). Es la misma asimetría que el join del embudo en `armarVistaOperar`
     // y por la misma causa: `outputs` archiva texto, no llaves.
@@ -189,7 +238,7 @@ export async function leerLoQueSeSabe(ctx: TenantContext): Promise<Map<string, V
 
   partes.push(...meta);
 
-  for (const h of aprobados.filas) {
+  for (const h of aprobados) {
     const id = identidad(h.urlReferente);
     if (!id) continue;
     partes.push({
